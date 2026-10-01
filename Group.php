@@ -15,11 +15,11 @@ use function str_starts_with;
 
 /**
  * A group of routes sharing an optional path prefix and middleware. Returned by
- * {@see RouteCollector::group()} and configured fluently:
+ * {@see Routes::group()} and configured fluently:
  *
  *     $r->group('/admin')
  *         ->middleware(['auth', 'admin'])
- *         ->define(static function (RouteCollector $r): void {
+ *         ->define(static function (Routes $r): void {
  *             $r->get('/stats', [AdminController::class, 'stats']);
  *         });
  *
@@ -30,7 +30,7 @@ final class Group
     /** @var list<mixed> */
     private array $middleware = [];
 
-    /** @var list<Closure(RouteCollector): void> */
+    /** @var list<Closure(Routes): void> */
     private array $definitions = [];
 
     /**
@@ -65,7 +65,7 @@ final class Group
     /**
      * Declares the group's routes. May be called more than once.
      *
-     * @param callable(RouteCollector): void $definition
+     * @param callable(Routes): void $definition
      */
     public function define(callable $definition): self
     {
@@ -93,17 +93,17 @@ final class Group
     }
 
     /**
-     * Runs the route definitions into a fresh collector for this group.
+     * Runs the route definitions against a fresh Routes for this group.
      *
      * @internal
      */
-    public function collect(): RouteCollector
+    public function collect(): Routes
     {
-        $collector = new RouteCollector();
+        $routes = new Routes();
         foreach ($this->definitions as $define) {
-            $define($collector);
+            $define($routes);
         }
 
-        return $collector;
+        return $routes;
     }
 }

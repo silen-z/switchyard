@@ -19,7 +19,7 @@ use function str_replace;
 
 /**
  * One route declaration: HTTP methods, a path relative to the enclosing groups, and a handler.
- * Returned by {@see RouteCollector} so it can be refined fluently:
+ * Returned by {@see Routes} so it can be refined fluently:
  *
  *     $r->get('/users/{id}', [UserController::class, 'show'])
  *         ->name('users.show')

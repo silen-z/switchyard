@@ -4,53 +4,189 @@ declare(strict_types=1);
 
 namespace SilenZ\Segmatch\Http;
 
-use Closure;
+use SilenZ\Segmatch\Exception\InvalidRouteException;
 use SilenZ\Segmatch\RouteDefinition;
 
+use function array_unique;
+use function array_values;
+use function preg_match;
+use function preg_match_all;
+use function sprintf;
+use function str_starts_with;
+use function strtoupper;
+
 /**
- * HTTP route definitions in a form {@see \SilenZ\Segmatch\Router} accepts as its `$routes` callable:
+ * HTTP route declarations: routes with methods and handlers, and groups of them.
  *
- *     $router = new Router(Routes::define(static function (RouteCollector $r): void {
+ *     $router = new Router(Routes::define(static function (Routes $r): void {
  *         $r->get('/', HomeController::class);
- *         $r->group('/api')->middleware('api')->define(static function (RouteCollector $r): void {
+ *         $r->group('/api')->middleware('api')->define(static function (Routes $r): void {
  *             $r->get('/users/{id}', [UserController::class, 'show'])->name('users.show');
  *         });
  *     }));
  *
- * The definition callable may also be an invokable class, keeping route definitions out of the
- * bootstrap code. Like any route callback, it only runs when the router's cache has no entry.
+ * Declarations are only recorded while defining; they are resolved into full paths and metadata for
+ * core {@see RouteDefinition}s once everything has been declared. Routes keep their declaration order,
+ * which decides between routes sharing a path.
  */
-final readonly class Routes
+final class Routes
 {
-    /**
-     * @param Closure(RouteCollector): void $definition
-     */
-    private function __construct(
-        private Closure $definition,
-    ) {}
+    /** @var list<Route|Group> */
+    private array $items = [];
 
     /**
-     * @param callable(RouteCollector): void $definition declares the routes, e.g. a closure or an invokable
+     * Turns a route definition into the route callable {@see \SilenZ\Segmatch\Router} takes. The
+     * definition may be a closure or an invokable class; like any route callable, it only runs when
+     * the router's cache has no entry.
+     *
+     * @param callable(Routes): void $definition
      */
-    public static function define(callable $definition): self
+    public static function define(callable $definition): DefineRoutes
     {
-        return new self($definition(...));
+        return new DefineRoutes($definition(...));
+    }
+
+    public function get(string $path, mixed $handler): Route
+    {
+        return $this->map(['GET'], $path, $handler);
+    }
+
+    public function post(string $path, mixed $handler): Route
+    {
+        return $this->map(['POST'], $path, $handler);
+    }
+
+    public function put(string $path, mixed $handler): Route
+    {
+        return $this->map(['PUT'], $path, $handler);
+    }
+
+    public function patch(string $path, mixed $handler): Route
+    {
+        return $this->map(['PATCH'], $path, $handler);
+    }
+
+    public function delete(string $path, mixed $handler): Route
+    {
+        return $this->map(['DELETE'], $path, $handler);
+    }
+
+    public function options(string $path, mixed $handler): Route
+    {
+        return $this->map(['OPTIONS'], $path, $handler);
     }
 
     /**
-     * Runs the definition and resolves it into core route definitions.
-     *
-     * @return list<RouteDefinition>
+     * A route for every HTTP method (it gets no {@see MethodGuard}).
      */
-    public function __invoke(): array
+    public function any(string $path, mixed $handler): Route
     {
-        $collector = new RouteCollector();
-        ($this->definition)($collector);
+        $route = new Route(null, $path, $handler);
+        $this->items[] = $route;
 
-        $routes = [];
-        $names = [];
-        $collector->register($routes, '', [], $names);
+        return $route;
+    }
 
-        return $routes;
+    /**
+     * A route for the given HTTP methods (case-insensitive).
+     *
+     * @param list<string> $methods
+     */
+    public function map(array $methods, string $path, mixed $handler): Route
+    {
+        $normalized = [];
+        foreach ($methods as $method) {
+            $upper = strtoupper($method);
+            if (preg_match('/^[A-Z]+$/', $upper) !== 1) {
+                throw new InvalidRouteException(sprintf('Route "%s" has an invalid HTTP method "%s".', $path, $method));
+            }
+
+            $normalized[] = $upper;
+        }
+
+        if ($normalized === []) {
+            throw new InvalidRouteException(sprintf('Route "%s" needs at least one HTTP method.', $path));
+        }
+
+        $route = new Route(array_values(array_unique($normalized)), $path, $handler);
+        $this->items[] = $route;
+
+        return $route;
+    }
+
+    /**
+     * A group of routes with an optional path prefix, e.g. `$r->group('/admin')->middleware('auth')->define(...)`.
+     */
+    public function group(string $prefix = ''): Group
+    {
+        $group = new Group($prefix);
+        $this->items[] = $group;
+
+        return $group;
+    }
+
+    /**
+     * Resolves the collected routes into core route definitions, groups recursively.
+     *
+     * @internal
+     *
+     * @param list<RouteDefinition> $routes the resolved routes, appended to
+     * @param list<mixed> $middleware middleware of the enclosing groups
+     * @param array<string, string> $names route name => path of the routes registered so far
+     *
+     * @throws InvalidRouteException
+     */
+    public function register(array &$routes, string $prefix, array $middleware, array &$names): void
+    {
+        foreach ($this->items as $item) {
+            if ($item instanceof Group) {
+                $item->collect()->register(
+                    $routes,
+                    $prefix . $item->prefix(),
+                    [...$middleware, ...$item->groupMiddleware()],
+                    $names,
+                );
+                continue;
+            }
+
+            $routes[] = self::resolve($item, $prefix, $middleware, $names);
+        }
+    }
+
+    /**
+     * @param list<mixed> $middleware
+     * @param array<string, string> $names
+     *
+     *
+     * @throws InvalidRouteException
+     */
+    private static function resolve(Route $route, string $prefix, array $middleware, array &$names): RouteDefinition
+    {
+        $path = $route->path();
+        // Inside a group with a prefix, "" declares a route on the prefix itself.
+        if (!($path === '' && $prefix !== '') && !str_starts_with($path, '/')) {
+            throw new InvalidRouteException(sprintf('Route path "%s" must start with "/".', $path));
+        }
+
+        $fullPath = $prefix . $path;
+
+        $name = $route->routeName();
+        if ($name !== null) {
+            if (($names[$name] ?? null) !== null) {
+                throw new InvalidRouteException(sprintf(
+                    'Route name "%s" is used by both "%s" and "%s".',
+                    $name,
+                    $names[$name],
+                    $fullPath,
+                ));
+            }
+
+            $names[$name] = $fullPath;
+        }
+
+        $matches = [];
+        preg_match_all('/\{(\w+)[*+]?\}/', $fullPath, $matches);
+
+        return new RouteDefinition($fullPath, $route->metadata($fullPath, $middleware, array_values($matches[1])));
     }
 }

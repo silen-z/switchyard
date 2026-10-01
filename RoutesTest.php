@@ -157,6 +157,43 @@ final class RoutesTest extends TestCase
         static::assertSame(['auth'], self::find($router, 'GET', '/api/me')['middleware'] ?? null);
     }
 
+    public function testTagsAreStoredInTheMetadata(): void
+    {
+        $router = self::router(static function (Routes $r): void {
+            $r->get('/login', 'login')->tag('public');
+            $r->get('/health', 'health')->tag('public', 'internal')->tag('internal');
+            $r->get('/me', 'me');
+        });
+
+        static::assertSame(['public'], self::find($router, 'GET', '/login')['tags'] ?? null);
+        static::assertSame(['public', 'internal'], self::find($router, 'GET', '/health')['tags'] ?? null);
+        static::assertArrayNotHasKey('tags', self::find($router, 'GET', '/me') ?? []);
+    }
+
+    public function testGroupTagsAreInheritedOutermostFirst(): void
+    {
+        $router = self::router(static function (Routes $r): void {
+            $r
+                ->group('/api')
+                ->tag('api')
+                ->define(static function (Routes $r): void {
+                    $r
+                        ->group()
+                        ->tag('public')
+                        ->define(static function (Routes $r): void {
+                            $r->post('/login', 'login')->tag('rate-limited', 'api');
+                        });
+                    $r->get('/me', 'me');
+                });
+        });
+
+        static::assertSame(
+            ['api', 'public', 'rate-limited'],
+            self::find($router, 'POST', '/api/login')['tags'] ?? null,
+        );
+        static::assertSame(['api'], self::find($router, 'GET', '/api/me')['tags'] ?? null);
+    }
+
     public function testNameIsStoredInTheMetadata(): void
     {
         $router = self::router(static function (Routes $r): void {
@@ -260,6 +297,14 @@ final class RoutesTest extends TestCase
         yield 'empty name' => [
             static fn(Routes $r) => $r->get('/a', 'a')->name(''),
             'cannot have an empty name',
+        ];
+        yield 'empty route tag' => [
+            static fn(Routes $r) => $r->get('/a', 'a')->tag('public', ''),
+            'Route "/a" cannot have an empty tag',
+        ];
+        yield 'empty group tag' => [
+            static fn(Routes $r) => $r->group('/api')->tag(''),
+            'Group "/api" cannot have an empty tag',
         ];
         yield 'closure as handler' => [
             static fn(Routes $r) => $r->get('/x', static fn() => null),

@@ -16,7 +16,7 @@ final class MethodGuardTest extends TestCase
 {
     private static function router(): Router
     {
-        return new Router(new Routes(static function (RouteCollector $r): void {
+        return new Router(Routes::define(static function (RouteCollector $r): void {
             $r->get('/users', 'list');
             $r->post('/users', 'create');
             $r->post('/users/new', 'create-form');

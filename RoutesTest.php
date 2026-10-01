@@ -26,7 +26,7 @@ final class RoutesTest extends TestCase
      */
     private static function router(callable $define): Router
     {
-        return new Router(new Routes($define));
+        return new Router(Routes::define($define));
     }
 
     /**
@@ -78,22 +78,22 @@ final class RoutesTest extends TestCase
             $r
                 ->group('/api')
                 ->middleware('api')
-                ->routes(static function (RouteCollector $r): void {
+                ->define(static function (RouteCollector $r): void {
                     $r
                         ->group()
                         ->middleware(['guest'])
-                        ->routes(static function (RouteCollector $r): void {
+                        ->define(static function (RouteCollector $r): void {
                             $r->post('/login', 'login');
                         });
                     $r
                         ->group()
                         ->middleware('auth')
-                        ->routes(static function (RouteCollector $r): void {
+                        ->define(static function (RouteCollector $r): void {
                             $r->get('/users/{id}', 'user');
                             $r
                                 ->group('/admin')
                                 ->middleware('admin')
-                                ->routes(static function (RouteCollector $r): void {
+                                ->define(static function (RouteCollector $r): void {
                                     $r->get('/stats', 'stats')->middleware(['audit', 'log']);
                                 });
                         });
@@ -112,9 +112,9 @@ final class RoutesTest extends TestCase
     {
         $router = self::router(static function (RouteCollector $r): void {
             $group = $r->group('/api');
-            $group->routes(static fn(RouteCollector $r) => $r->get('/a', 'a'));
+            $group->define(static fn(RouteCollector $r) => $r->get('/a', 'a'));
             $group->middleware('late');
-            $group->routes(static fn(RouteCollector $r) => $r->get('/b', 'b'));
+            $group->define(static fn(RouteCollector $r) => $r->get('/b', 'b'));
         });
 
         static::assertSame(['late'], self::find($router, 'GET', '/api/a')['middleware'] ?? null);
@@ -124,7 +124,7 @@ final class RoutesTest extends TestCase
     public function testRouteOnTheGroupPrefixItself(): void
     {
         $router = self::router(static function (RouteCollector $r): void {
-            $r->group('/api')->routes(static function (RouteCollector $r): void {
+            $r->group('/api')->define(static function (RouteCollector $r): void {
                 $r->get('', 'root');
                 $r->get('/', 'root-slash');
             });
@@ -140,11 +140,11 @@ final class RoutesTest extends TestCase
             $r
                 ->group('/api')
                 ->middleware('public')
-                ->routes(static fn(RouteCollector $r) => $r->get('/status', 'status'));
+                ->define(static fn(RouteCollector $r) => $r->get('/status', 'status'));
             $r
                 ->group('/api')
                 ->middleware('auth')
-                ->routes(static fn(RouteCollector $r) => $r->get('/me', 'me'));
+                ->define(static fn(RouteCollector $r) => $r->get('/me', 'me'));
         });
 
         static::assertSame(['public'], self::find($router, 'GET', '/api/status')['middleware'] ?? null);
@@ -154,7 +154,7 @@ final class RoutesTest extends TestCase
     public function testNameAndWhereAreStoredInTheMetadata(): void
     {
         $router = self::router(static function (RouteCollector $r): void {
-            $r->group('/users')->routes(static function (RouteCollector $r): void {
+            $r->group('/users')->define(static function (RouteCollector $r): void {
                 $r->get('/{id}', 'show')->name('users.show')->where('id', '\d+');
             });
         });
@@ -175,7 +175,7 @@ final class RoutesTest extends TestCase
     {
         $router = self::router(static function (RouteCollector $r): void {
             $r->get('/users', 'first');
-            $r->group()->routes(static fn(RouteCollector $r) => $r->get('/users', 'second'));
+            $r->group()->define(static fn(RouteCollector $r) => $r->get('/users', 'second'));
         });
 
         $result = $router->match('/users');
@@ -233,7 +233,7 @@ final class RoutesTest extends TestCase
             'Group prefix "/api/" must start with "/" and must not end with "/"',
         ];
         yield 'empty path outside a prefixed group' => [
-            static fn(RouteCollector $r) => $r->group()->routes(static fn(RouteCollector $r) => $r->get('', 'x')),
+            static fn(RouteCollector $r) => $r->group()->define(static fn(RouteCollector $r) => $r->get('', 'x')),
             'Route path "" must start with "/"',
         ];
         yield 'invalid method' => [
@@ -247,7 +247,7 @@ final class RoutesTest extends TestCase
         yield 'duplicate name' => [
             static function (RouteCollector $r): void {
                 $r->get('/a', 'a')->name('home');
-                $r->group('/b')->routes(static fn(RouteCollector $r) => $r->get('', 'b')->name('home'));
+                $r->group('/b')->define(static fn(RouteCollector $r) => $r->get('', 'b')->name('home'));
             },
             'Route name "home" is used by both "/a" and "/b"',
         ];

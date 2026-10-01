@@ -10,7 +10,6 @@ use SilenZ\Segmatch\RouteDefinition;
 use function array_unique;
 use function array_values;
 use function preg_match;
-use function preg_match_all;
 use function sprintf;
 use function str_starts_with;
 use function strtoupper;
@@ -184,9 +183,6 @@ final class Routes
             $names[$name] = $fullPath;
         }
 
-        $matches = [];
-        preg_match_all('/\{(\w+)[*+]?\}/', $fullPath, $matches);
-
-        return new RouteDefinition($fullPath, $route->metadata($fullPath, $middleware, array_values($matches[1])));
+        return new RouteDefinition($fullPath, $route->metadata($middleware));
     }
 }

@@ -8,14 +8,9 @@ use SilenZ\Segmatch\Exception\InvalidRouteException;
 
 use function array_key_exists;
 use function array_values;
-use function in_array;
 use function is_array;
 use function is_subclass_of;
-use function preg_match;
-use function restore_error_handler;
-use function set_error_handler;
 use function sprintf;
-use function str_replace;
 
 /**
  * One route declaration: HTTP methods, a path relative to the enclosing groups, and a handler.
@@ -23,12 +18,10 @@ use function str_replace;
  *
  *     $r->get('/users/{id}', [UserController::class, 'show'])
  *         ->name('users.show')
- *         ->middleware('audit')
- *         ->where('id', '\d+');
+ *         ->middleware('audit');
  *
  * The route's conditions become {@see Guard}s stored with it: its HTTP methods a {@see MethodGuard},
- * `where()` constraints a {@see PatternGuard}, plus any guards added with `guard()`. Matching with
- * {@see Guards::for()} runs them.
+ * plus any guards added with `guard()`. Matching with {@see Guards::for()} runs them.
  *
  * The handler, middleware and guard configuration end up in the route cache, so they must be plain
  * data (strings, arrays, enums, ...), not closures or objects.
@@ -39,9 +32,6 @@ final class Route
 
     /** @var list<mixed> */
     private array $middleware = [];
-
-    /** @var array<string, string> */
-    private array $where = [];
 
     /** @var array<class-string<Guard>, mixed> */
     private array $guards = [];
@@ -85,43 +75,8 @@ final class Route
     }
 
     /**
-     * Restricts a parameter to values matching a regular expression (without delimiters or anchors,
-     * e.g. `\d+`). Routes whose constraint doesn't hold are skipped while matching, so another route
-     * with the same path shape can take the request.
-     */
-    public function where(string $parameter, string $pattern): self
-    {
-        $error = null;
-        set_error_handler(static function (int $_level, string $message) use (&$error): bool {
-            $error = $message;
-
-            return true;
-        });
-
-        try {
-            $valid = preg_match(self::regex($pattern), subject: '') !== false;
-        } finally {
-            restore_error_handler();
-        }
-
-        if (!$valid) {
-            throw new InvalidRouteException(sprintf(
-                'Route "%s" has an invalid pattern "%s" for parameter "%s"%s',
-                $this->path,
-                $pattern,
-                $parameter,
-                $error !== null ? ': ' . $error : '.',
-            ));
-        }
-
-        $this->where[$parameter] = $pattern;
-
-        return $this;
-    }
-
-    /**
      * Adds a condition of the application's own, checked in the order guards were added, after the
-     * method and `where()` checks. The configuration must be plain data.
+     * method check. The configuration must be plain data.
      *
      * @param string $guard name of a class implementing {@see Guard}
      */
@@ -136,9 +91,9 @@ final class Route
             ));
         }
 
-        if (in_array($guard, [MethodGuard::class, PatternGuard::class], strict: true)) {
+        if ($guard === MethodGuard::class) {
             throw new InvalidRouteException(sprintf(
-                'Route "%s" cannot add %s directly; declare methods and where() constraints instead.',
+                'Route "%s" cannot add %s directly; declare the route with its HTTP methods instead.',
                 $this->path,
                 $guard,
             ));
@@ -151,14 +106,6 @@ final class Route
         $this->guards[$guard] = $config;
 
         return $this;
-    }
-
-    /**
-     * Wraps a `where()` pattern into the full regular expression used to check a parameter value.
-     */
-    public static function regex(string $pattern): string
-    {
-        return '#^(?:' . str_replace(search: '#', replace: '\#', subject: $pattern) . ')$#D';
     }
 
     /**
@@ -185,19 +132,17 @@ final class Route
      *         'middleware' => ['api', 'auth'],     // groups' middleware first, outermost first
      *         'name'       => 'users.show',        // only when named
      *         'guards'     => [                    // only when there are any, checked in this order
-     *             MethodGuard::class  => ['GET'],
-     *             PatternGuard::class => ['id' => '\d+'],
+     *             MethodGuard::class => ['GET'],
      *         ],
      *     ]
      *
      * @internal
      *
      * @param list<mixed> $groupMiddleware
-     * @param list<string> $parameters names of the parameters in the full path
      *
      * @return array{handler: mixed, middleware: list<mixed>, name?: string, guards?: non-empty-array<class-string<Guard>, mixed>}
      */
-    public function metadata(string $fullPath, array $groupMiddleware, array $parameters): array
+    public function metadata(array $groupMiddleware): array
     {
         $metadata = [
             'handler' => $this->handler,
@@ -208,30 +153,7 @@ final class Route
             $metadata['name'] = $this->name;
         }
 
-        $guards = [];
-        if ($this->methods !== null) {
-            $guards[MethodGuard::class] = $this->methods;
-        }
-
-        if ($this->where !== []) {
-            $known = [];
-            foreach ($parameters as $parameter) {
-                $known[$parameter] = true;
-            }
-
-            foreach ($this->where as $parameter => $_pattern) {
-                if (!array_key_exists($parameter, $known)) {
-                    throw new InvalidRouteException(sprintf(
-                        'Route "%s" constrains parameter "%s", which its path does not have.',
-                        $fullPath,
-                        $parameter,
-                    ));
-                }
-            }
-
-            $guards[PatternGuard::class] = $this->where;
-        }
-
+        $guards = $this->methods !== null ? [MethodGuard::class => $this->methods] : [];
         $guards += $this->guards;
         if ($guards !== []) {
             $metadata['guards'] = $guards;

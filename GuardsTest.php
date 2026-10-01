@@ -15,9 +15,9 @@ use SilenZ\Segmatch\Http\Request;
 use SilenZ\Segmatch\Http\RouteCollector;
 use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\NoMatch;
+use SilenZ\Segmatch\RouteDefinition;
 use SilenZ\Segmatch\RouteMatch;
 use SilenZ\Segmatch\Router;
-use SilenZ\Segmatch\RouteSet;
 use SilenZ\Segmatch\Tests\Http\Fixtures\FeatureGuard;
 use stdClass;
 
@@ -127,7 +127,7 @@ final class GuardsTest extends TestCase
 
     public function testRoutesWithoutGuardsAlwaysApply(): void
     {
-        $router = new Router(static fn(RouteSet $routes) => $routes->add('/raw', 'raw'));
+        $router = new Router(static fn(): array => [new RouteDefinition('/raw', 'raw')]);
 
         $result = $router->match('/raw', Guards::for('DELETE'));
 

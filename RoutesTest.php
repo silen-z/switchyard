@@ -15,9 +15,9 @@ use SilenZ\Segmatch\Http\PatternGuard;
 use SilenZ\Segmatch\Http\RouteCollector;
 use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\NoMatch;
+use SilenZ\Segmatch\RouteDefinition;
 use SilenZ\Segmatch\RouteMatch;
 use SilenZ\Segmatch\Router;
-use SilenZ\Segmatch\RouteSet;
 
 use function preg_quote;
 
@@ -200,9 +200,10 @@ final class RoutesTest extends TestCase
             }
         };
         $raw = new class {
-            public function __invoke(RouteSet $routes): void
+            /** @return list<RouteDefinition> */
+            public function __invoke(): array
             {
-                $routes->add('/raw', 'raw');
+                return [new RouteDefinition('/raw', 'raw')];
             }
         };
 

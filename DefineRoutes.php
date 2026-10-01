@@ -33,7 +33,7 @@ final readonly class DefineRoutes
 
         $definitions = [];
         $names = [];
-        $routes->register($definitions, '', [], $names);
+        $routes->register($definitions, '', [], [], $names);
 
         return $definitions;
     }

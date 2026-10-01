@@ -7,6 +7,7 @@ namespace SilenZ\Segmatch\Http;
 use SilenZ\Segmatch\Exception\InvalidRouteException;
 
 use function array_key_exists;
+use function array_unique;
 use function array_values;
 use function is_array;
 use function is_subclass_of;
@@ -18,7 +19,8 @@ use function sprintf;
  *
  *     $r->get('/users/{id}', [UserController::class, 'show'])
  *         ->name('users.show')
- *         ->middleware('audit');
+ *         ->middleware('audit')
+ *         ->tag('public');
  *
  * The route's conditions become {@see Guard}s stored with it: its HTTP methods a {@see MethodGuard},
  * plus any guards added with `guard()`. Matching with {@see Guards::for()} runs them.
@@ -32,6 +34,9 @@ final class Route
 
     /** @var list<mixed> */
     private array $middleware = [];
+
+    /** @var list<string> */
+    private array $tags = [];
 
     /** @var array<class-string<Guard>, mixed> */
     private array $guards = [];
@@ -72,6 +77,36 @@ final class Route
         ];
 
         return $this;
+    }
+
+    /**
+     * Labels the route, e.g. `->tag('public')` for a global auth middleware to let through. The
+     * router stores tags in the metadata and never interprets them; tags of enclosing groups are
+     * inherited.
+     */
+    public function tag(string ...$tags): self
+    {
+        $this->tags = [...$this->tags, ...self::validTags(sprintf('Route "%s"', $this->path), $tags)];
+
+        return $this;
+    }
+
+    /**
+     * @internal shared with {@see Group::tag()}
+     *
+     * @param array<array-key, string> $tags
+     *
+     * @return list<string>
+     */
+    public static function validTags(string $owner, array $tags): array
+    {
+        foreach ($tags as $tag) {
+            if ($tag === '') {
+                throw new InvalidRouteException(sprintf('%s cannot have an empty tag.', $owner));
+            }
+        }
+
+        return array_values($tags);
     }
 
     /**
@@ -131,6 +166,7 @@ final class Route
      *         'handler'    => [UserController::class, 'show'],
      *         'middleware' => ['api', 'auth'],     // groups' middleware first, outermost first
      *         'name'       => 'users.show',        // only when named
+     *         'tags'       => ['public'],          // only when tagged; groups' tags first, no duplicates
      *         'guards'     => [                    // only when there are any, checked in this order
      *             MethodGuard::class => ['GET'],
      *         ],
@@ -139,10 +175,11 @@ final class Route
      * @internal
      *
      * @param list<mixed> $groupMiddleware
+     * @param list<string> $groupTags
      *
-     * @return array{handler: mixed, middleware: list<mixed>, name?: string, guards?: non-empty-array<class-string<Guard>, mixed>}
+     * @return array{handler: mixed, middleware: list<mixed>, name?: string, tags?: non-empty-list<string>, guards?: non-empty-array<class-string<Guard>, mixed>}
      */
-    public function metadata(array $groupMiddleware): array
+    public function metadata(array $groupMiddleware, array $groupTags): array
     {
         $metadata = [
             'handler' => $this->handler,
@@ -151,6 +188,11 @@ final class Route
 
         if ($this->name !== null) {
             $metadata['name'] = $this->name;
+        }
+
+        $tags = array_values(array_unique([...$groupTags, ...$this->tags]));
+        if ($tags !== []) {
+            $metadata['tags'] = $tags;
         }
 
         $guards = $this->methods !== null ? [MethodGuard::class => $this->methods] : [];

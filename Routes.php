@@ -131,11 +131,12 @@ final class Routes
      *
      * @param list<RouteDefinition> $routes the resolved routes, appended to
      * @param list<mixed> $middleware middleware of the enclosing groups
+     * @param list<string> $tags tags of the enclosing groups
      * @param array<string, string> $names route name => path of the routes registered so far
      *
      * @throws InvalidRouteException
      */
-    public function register(array &$routes, string $prefix, array $middleware, array &$names): void
+    public function register(array &$routes, string $prefix, array $middleware, array $tags, array &$names): void
     {
         foreach ($this->items as $item) {
             if ($item instanceof Group) {
@@ -143,24 +144,31 @@ final class Routes
                     $routes,
                     $prefix . $item->prefix(),
                     [...$middleware, ...$item->groupMiddleware()],
+                    [...$tags, ...$item->groupTags()],
                     $names,
                 );
                 continue;
             }
 
-            $routes[] = self::resolve($item, $prefix, $middleware, $names);
+            $routes[] = self::resolve($item, $prefix, $middleware, $tags, $names);
         }
     }
 
     /**
      * @param list<mixed> $middleware
+     * @param list<string> $tags
      * @param array<string, string> $names
      *
      *
      * @throws InvalidRouteException
      */
-    private static function resolve(Route $route, string $prefix, array $middleware, array &$names): RouteDefinition
-    {
+    private static function resolve(
+        Route $route,
+        string $prefix,
+        array $middleware,
+        array $tags,
+        array &$names,
+    ): RouteDefinition {
         $path = $route->path();
         // Inside a group with a prefix, "" declares a route on the prefix itself.
         if (!($path === '' && $prefix !== '') && !str_starts_with($path, '/')) {
@@ -183,6 +191,6 @@ final class Routes
             $names[$name] = $fullPath;
         }
 
-        return new RouteDefinition($fullPath, $route->metadata($middleware));
+        return new RouteDefinition($fullPath, $route->metadata($middleware, $tags));
     }
 }

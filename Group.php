@@ -14,7 +14,7 @@ use function str_ends_with;
 use function str_starts_with;
 
 /**
- * A group of routes sharing an optional path prefix and middleware. Returned by
+ * A group of routes sharing an optional path prefix, middleware and tags. Returned by
  * {@see Routes::group()} and configured fluently:
  *
  *     $r->group('/admin')
@@ -29,6 +29,9 @@ final class Group
 {
     /** @var list<mixed> */
     private array $middleware = [];
+
+    /** @var list<string> */
+    private array $tags = [];
 
     /** @var list<Closure(Routes): void> */
     private array $definitions = [];
@@ -63,6 +66,17 @@ final class Group
     }
 
     /**
+     * Tags every route in the group, in addition to the tags of enclosing groups and the routes' own.
+     */
+    public function tag(string ...$tags): self
+    {
+        $owner = $this->prefix === '' ? 'Group without prefix' : sprintf('Group "%s"', $this->prefix);
+        $this->tags = [...$this->tags, ...Route::validTags($owner, $tags)];
+
+        return $this;
+    }
+
+    /**
      * Declares the group's routes. May be called more than once.
      *
      * @param callable(Routes): void $definition
@@ -90,6 +104,16 @@ final class Group
     public function groupMiddleware(): array
     {
         return $this->middleware;
+    }
+
+    /**
+     * @internal
+     *
+     * @return list<string>
+     */
+    public function groupTags(): array
+    {
+        return $this->tags;
     }
 
     /**

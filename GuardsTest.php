@@ -12,7 +12,6 @@ use SilenZ\Segmatch\Http\Guards;
 use SilenZ\Segmatch\Http\MethodGuard;
 use SilenZ\Segmatch\Http\PatternGuard;
 use SilenZ\Segmatch\Http\Request;
-use SilenZ\Segmatch\Http\RouteCollector;
 use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\NoMatch;
 use SilenZ\Segmatch\RouteDefinition;
@@ -27,7 +26,7 @@ final class GuardsTest extends TestCase
 {
     private static function router(): Router
     {
-        return new Router(Routes::define(static function (RouteCollector $r): void {
+        return new Router(Routes::define(static function (Routes $r): void {
             $r->get('/users', 'list');
             $r->post('/users', 'create');
             $r->post('/users/new', 'create-form');
@@ -115,7 +114,7 @@ final class GuardsTest extends TestCase
 
     public function testRouteRejectedForAnotherReasonDoesNotCountAsAllowed(): void
     {
-        $router = new Router(Routes::define(static function (RouteCollector $r): void {
+        $router = new Router(Routes::define(static function (Routes $r): void {
             $r->get('/beta', 'beta')->guard(FeatureGuard::class, 'beta');
         }));
 
@@ -154,33 +153,33 @@ final class GuardsTest extends TestCase
     }
 
     /**
-     * @return iterable<string, array{Closure(RouteCollector): void, string}>
+     * @return iterable<string, array{Closure(Routes): void, string}>
      */
     public static function invalidGuardProvider(): iterable
     {
         yield 'class that is not a guard' => [
-            static fn(RouteCollector $r) => $r->get('/a', 'a')->guard(stdClass::class),
+            static fn(Routes $r) => $r->get('/a', 'a')->guard(stdClass::class),
             'uses guard "stdClass", which does not implement',
         ];
         yield 'method guard added directly' => [
-            static fn(RouteCollector $r) => $r->get('/a', 'a')->guard(MethodGuard::class, ['GET']),
+            static fn(Routes $r) => $r->get('/a', 'a')->guard(MethodGuard::class, ['GET']),
             'cannot add ' . MethodGuard::class . ' directly',
         ];
         yield 'same guard twice' => [
-            static fn(RouteCollector $r) => $r->get('/a', 'a')->guard(FeatureGuard::class, 'x')->guard(
+            static fn(Routes $r) => $r->get('/a', 'a')->guard(FeatureGuard::class, 'x')->guard(
                 FeatureGuard::class,
                 'y',
             ),
             'uses guard "' . FeatureGuard::class . '" twice',
         ];
         yield 'object as guard configuration' => [
-            static fn(RouteCollector $r) => $r->get('/a', 'a')->guard(FeatureGuard::class, new stdClass()),
+            static fn(Routes $r) => $r->get('/a', 'a')->guard(FeatureGuard::class, new stdClass()),
             'Metadata of route "/a" contains a value of type stdClass',
         ];
     }
 
     /**
-     * @param Closure(RouteCollector): void $define
+     * @param Closure(Routes): void $define
      */
     #[DataProvider('invalidGuardProvider')]
     public function testRejectsInvalidGuards(Closure $define, string $message): void

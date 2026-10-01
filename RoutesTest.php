@@ -12,7 +12,6 @@ use SilenZ\Segmatch\Exception\InvalidRouteException;
 use SilenZ\Segmatch\Http\Guards;
 use SilenZ\Segmatch\Http\MethodGuard;
 use SilenZ\Segmatch\Http\PatternGuard;
-use SilenZ\Segmatch\Http\RouteCollector;
 use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\NoMatch;
 use SilenZ\Segmatch\RouteDefinition;
@@ -24,7 +23,7 @@ use function preg_quote;
 final class RoutesTest extends TestCase
 {
     /**
-     * @param callable(RouteCollector): void $define
+     * @param callable(Routes): void $define
      */
     private static function router(callable $define): Router
     {
@@ -50,7 +49,7 @@ final class RoutesTest extends TestCase
 
     public function testVerbHelpersDeclareRoutesPerMethod(): void
     {
-        $router = self::router(static function (RouteCollector $r): void {
+        $router = self::router(static function (Routes $r): void {
             $r->get('/users', 'list');
             $r->post('/users', 'create');
             $r->put('/users/{id}', 'replace');
@@ -82,26 +81,26 @@ final class RoutesTest extends TestCase
 
     public function testGroupsPrefixPathsAndInheritMiddlewareOutermostFirst(): void
     {
-        $router = self::router(static function (RouteCollector $r): void {
+        $router = self::router(static function (Routes $r): void {
             $r
                 ->group('/api')
                 ->middleware('api')
-                ->define(static function (RouteCollector $r): void {
+                ->define(static function (Routes $r): void {
                     $r
                         ->group()
                         ->middleware(['guest'])
-                        ->define(static function (RouteCollector $r): void {
+                        ->define(static function (Routes $r): void {
                             $r->post('/login', 'login');
                         });
                     $r
                         ->group()
                         ->middleware('auth')
-                        ->define(static function (RouteCollector $r): void {
+                        ->define(static function (Routes $r): void {
                             $r->get('/users/{id}', 'user');
                             $r
                                 ->group('/admin')
                                 ->middleware('admin')
-                                ->define(static function (RouteCollector $r): void {
+                                ->define(static function (Routes $r): void {
                                     $r->get('/stats', 'stats')->middleware(['audit', 'log']);
                                 });
                         });
@@ -118,11 +117,11 @@ final class RoutesTest extends TestCase
 
     public function testGroupCallsMayComeInAnyOrder(): void
     {
-        $router = self::router(static function (RouteCollector $r): void {
+        $router = self::router(static function (Routes $r): void {
             $group = $r->group('/api');
-            $group->define(static fn(RouteCollector $r) => $r->get('/a', 'a'));
+            $group->define(static fn(Routes $r) => $r->get('/a', 'a'));
             $group->middleware('late');
-            $group->define(static fn(RouteCollector $r) => $r->get('/b', 'b'));
+            $group->define(static fn(Routes $r) => $r->get('/b', 'b'));
         });
 
         static::assertSame(['late'], self::find($router, 'GET', '/api/a')['middleware'] ?? null);
@@ -131,8 +130,8 @@ final class RoutesTest extends TestCase
 
     public function testRouteOnTheGroupPrefixItself(): void
     {
-        $router = self::router(static function (RouteCollector $r): void {
-            $r->group('/api')->define(static function (RouteCollector $r): void {
+        $router = self::router(static function (Routes $r): void {
+            $r->group('/api')->define(static function (Routes $r): void {
                 $r->get('', 'root');
                 $r->get('/', 'root-slash');
             });
@@ -144,15 +143,15 @@ final class RoutesTest extends TestCase
 
     public function testSiblingGroupsWithTheSamePrefixKeepTheirOwnMiddleware(): void
     {
-        $router = self::router(static function (RouteCollector $r): void {
+        $router = self::router(static function (Routes $r): void {
             $r
                 ->group('/api')
                 ->middleware('public')
-                ->define(static fn(RouteCollector $r) => $r->get('/status', 'status'));
+                ->define(static fn(Routes $r) => $r->get('/status', 'status'));
             $r
                 ->group('/api')
                 ->middleware('auth')
-                ->define(static fn(RouteCollector $r) => $r->get('/me', 'me'));
+                ->define(static fn(Routes $r) => $r->get('/me', 'me'));
         });
 
         static::assertSame(['public'], self::find($router, 'GET', '/api/status')['middleware'] ?? null);
@@ -161,8 +160,8 @@ final class RoutesTest extends TestCase
 
     public function testNameAndWhereAreStoredInTheMetadata(): void
     {
-        $router = self::router(static function (RouteCollector $r): void {
-            $r->group('/users')->define(static function (RouteCollector $r): void {
+        $router = self::router(static function (Routes $r): void {
+            $r->group('/users')->define(static function (Routes $r): void {
                 $r->get('/{id}', 'show')->name('users.show')->where('id', '\d+');
             });
         });
@@ -180,9 +179,9 @@ final class RoutesTest extends TestCase
 
     public function testRoutesKeepDeclarationOrderAcrossGroups(): void
     {
-        $router = self::router(static function (RouteCollector $r): void {
+        $router = self::router(static function (Routes $r): void {
             $r->get('/users', 'first');
-            $r->group()->define(static fn(RouteCollector $r) => $r->get('/users', 'second'));
+            $r->group()->define(static fn(Routes $r) => $r->get('/users', 'second'));
         });
 
         $result = $router->match('/users');
@@ -194,7 +193,7 @@ final class RoutesTest extends TestCase
     public function testInvokableClassesWork(): void
     {
         $definitions = new class {
-            public function __invoke(RouteCollector $r): void
+            public function __invoke(Routes $r): void
             {
                 $r->get('/invokable', 'yes');
             }
@@ -216,7 +215,7 @@ final class RoutesTest extends TestCase
     public function testRoutesAreOnlyDeclaredOnFirstUse(): void
     {
         $calls = new ArrayObject();
-        $router = self::router(static function (RouteCollector $r) use ($calls): void {
+        $router = self::router(static function (Routes $r) use ($calls): void {
             $calls->append(true);
             $r->get('/a', 'a');
         });
@@ -228,57 +227,57 @@ final class RoutesTest extends TestCase
     }
 
     /**
-     * @return iterable<string, array{Closure(RouteCollector): void, string}>
+     * @return iterable<string, array{Closure(Routes): void, string}>
      */
     public static function invalidDeclarationProvider(): iterable
     {
         yield 'group prefix without leading slash' => [
-            static fn(RouteCollector $r) => $r->group('api'),
+            static fn(Routes $r) => $r->group('api'),
             'Group prefix "api" must start with "/"',
         ];
         yield 'group prefix with trailing slash' => [
-            static fn(RouteCollector $r) => $r->group('/api/'),
+            static fn(Routes $r) => $r->group('/api/'),
             'Group prefix "/api/" must start with "/" and must not end with "/"',
         ];
         yield 'empty path outside a prefixed group' => [
-            static fn(RouteCollector $r) => $r->group()->define(static fn(RouteCollector $r) => $r->get('', 'x')),
+            static fn(Routes $r) => $r->group()->define(static fn(Routes $r) => $r->get('', 'x')),
             'Route path "" must start with "/"',
         ];
         yield 'invalid method' => [
-            static fn(RouteCollector $r) => $r->map(['GET', 'NO WAY'], '/x', 'x'),
+            static fn(Routes $r) => $r->map(['GET', 'NO WAY'], '/x', 'x'),
             'invalid HTTP method "NO WAY"',
         ];
         yield 'no methods' => [
-            static fn(RouteCollector $r) => $r->map([], '/x', 'x'),
+            static fn(Routes $r) => $r->map([], '/x', 'x'),
             'needs at least one HTTP method',
         ];
         yield 'duplicate name' => [
-            static function (RouteCollector $r): void {
+            static function (Routes $r): void {
                 $r->get('/a', 'a')->name('home');
-                $r->group('/b')->define(static fn(RouteCollector $r) => $r->get('', 'b')->name('home'));
+                $r->group('/b')->define(static fn(Routes $r) => $r->get('', 'b')->name('home'));
             },
             'Route name "home" is used by both "/a" and "/b"',
         ];
         yield 'empty name' => [
-            static fn(RouteCollector $r) => $r->get('/a', 'a')->name(''),
+            static fn(Routes $r) => $r->get('/a', 'a')->name(''),
             'cannot have an empty name',
         ];
         yield 'constraint on an unknown parameter' => [
-            static fn(RouteCollector $r) => $r->get('/users/{id}', 'x')->where('slug', '\w+'),
+            static fn(Routes $r) => $r->get('/users/{id}', 'x')->where('slug', '\w+'),
             'Route "/users/{id}" constrains parameter "slug", which its path does not have',
         ];
         yield 'invalid constraint pattern' => [
-            static fn(RouteCollector $r) => $r->get('/users/{id}', 'x')->where('id', '(\d+'),
+            static fn(Routes $r) => $r->get('/users/{id}', 'x')->where('id', '(\d+'),
             'invalid pattern "(\d+" for parameter "id"',
         ];
         yield 'closure as handler' => [
-            static fn(RouteCollector $r) => $r->get('/x', static fn() => null),
+            static fn(Routes $r) => $r->get('/x', static fn() => null),
             'Metadata of route "/x" contains a value of type Closure',
         ];
     }
 
     /**
-     * @param Closure(RouteCollector): void $define
+     * @param Closure(Routes): void $define
      */
     #[DataProvider('invalidDeclarationProvider')]
     public function testRejectsInvalidDeclarations(Closure $define, string $message): void

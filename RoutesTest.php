@@ -9,6 +9,7 @@ use Closure;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SilenZ\Segmatch\Exception\InvalidRouteException;
+use SilenZ\Segmatch\Http\MethodGuard;
 use SilenZ\Segmatch\Http\RouteCollector;
 use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\NoMatch;
@@ -16,7 +17,6 @@ use SilenZ\Segmatch\RouteMatch;
 use SilenZ\Segmatch\Router;
 use SilenZ\Segmatch\RouteSet;
 
-use function in_array;
 use function preg_quote;
 
 final class RoutesTest extends TestCase
@@ -36,7 +36,7 @@ final class RoutesTest extends TestCase
      */
     private static function find(Router $router, string $method, string $path): ?array
     {
-        $result = $router->match($path, static fn(mixed $route): bool => self::allows($route, $method));
+        $result = $router->match($path, MethodGuard::for($method));
 
         if (!$result instanceof RouteMatch) {
             return null;
@@ -44,12 +44,6 @@ final class RoutesTest extends TestCase
 
         /** @var array<string, mixed> */
         return $result->route;
-    }
-
-    private static function allows(mixed $route, string $method): bool
-    {
-        /** @var array{methods: list<string>} $route */
-        return in_array($method, $route['methods'], strict: true) || $route['methods'] === ['*'];
     }
 
     public function testVerbHelpersDeclareRoutesPerMethod(): void

@@ -9,7 +9,9 @@ use Closure;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SilenZ\Segmatch\Exception\InvalidRouteException;
+use SilenZ\Segmatch\Http\Guards;
 use SilenZ\Segmatch\Http\MethodGuard;
+use SilenZ\Segmatch\Http\PatternGuard;
 use SilenZ\Segmatch\Http\RouteCollector;
 use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\NoMatch;
@@ -36,7 +38,7 @@ final class RoutesTest extends TestCase
      */
     private static function find(Router $router, string $method, string $path): ?array
     {
-        $result = $router->match($path, MethodGuard::for($method));
+        $result = $router->match($path, Guards::for($method));
 
         if (!$result instanceof RouteMatch) {
             return null;
@@ -60,7 +62,7 @@ final class RoutesTest extends TestCase
         });
 
         static::assertSame(
-            ['methods' => ['GET'], 'handler' => 'list', 'middleware' => []],
+            ['handler' => 'list', 'middleware' => [], 'guards' => [MethodGuard::class => ['GET']]],
             self::find($router, 'GET', '/users'),
         );
         static::assertSame('create', self::find($router, 'POST', '/users')['handler'] ?? null);
@@ -68,8 +70,14 @@ final class RoutesTest extends TestCase
         static::assertSame('update', self::find($router, 'PATCH', '/users/1')['handler'] ?? null);
         static::assertSame('delete', self::find($router, 'DELETE', '/users/1')['handler'] ?? null);
         static::assertSame('options', self::find($router, 'OPTIONS', '/users')['handler'] ?? null);
-        static::assertSame(['GET', 'HEAD'], self::find($router, 'HEAD', '/health')['methods'] ?? null);
-        static::assertSame(['*'], self::find($router, 'PURGE', '/webhooks/github')['methods'] ?? null);
+        static::assertSame(
+            [MethodGuard::class => ['GET', 'HEAD']],
+            self::find($router, 'HEAD', '/health')['guards'] ?? null,
+        );
+        static::assertSame(
+            ['handler' => 'webhook', 'middleware' => []],
+            self::find($router, 'PURGE', '/webhooks/github'),
+        );
     }
 
     public function testGroupsPrefixPathsAndInheritMiddlewareOutermostFirst(): void
@@ -161,11 +169,10 @@ final class RoutesTest extends TestCase
 
         static::assertSame(
             [
-                'methods' => ['GET'],
                 'handler' => 'show',
                 'middleware' => [],
                 'name' => 'users.show',
-                'where' => ['id' => '\d+'],
+                'guards' => [MethodGuard::class => ['GET'], PatternGuard::class => ['id' => '\d+']],
             ],
             self::find($router, 'GET', '/users/1'),
         );

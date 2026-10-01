@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace SilenZ\Segmatch\Http;
 
 use SilenZ\Segmatch\Exception\InvalidRouteException;
-use SilenZ\Segmatch\RouteSet;
+use SilenZ\Segmatch\RouteDefinition;
 
 use function array_unique;
 use function array_values;
@@ -19,7 +19,7 @@ use function strtoupper;
  * Collects HTTP route declarations: routes with methods and handlers, and groups of them.
  *
  * Declarations are only recorded here; {@see Routes} resolves them into full paths and metadata for
- * the core {@see RouteSet} once everything has been declared. Routes keep their declaration order,
+ * core {@see RouteDefinition}s once everything has been declared. Routes keep their declaration order,
  * which decides between routes sharing a path.
  */
 final class RouteCollector
@@ -107,16 +107,17 @@ final class RouteCollector
     }
 
     /**
-     * Adds the collected routes to the core route set, resolving groups recursively.
+     * Resolves the collected routes into core route definitions, groups recursively.
      *
      * @internal
      *
+     * @param list<RouteDefinition> $routes the resolved routes, appended to
      * @param list<mixed> $middleware middleware of the enclosing groups
      * @param array<string, string> $names route name => path of the routes registered so far
      *
      * @throws InvalidRouteException
      */
-    public function register(RouteSet $routes, string $prefix, array $middleware, array &$names): void
+    public function register(array &$routes, string $prefix, array $middleware, array &$names): void
     {
         foreach ($this->items as $item) {
             if ($item instanceof Group) {
@@ -129,7 +130,7 @@ final class RouteCollector
                 continue;
             }
 
-            $routes->add(...self::resolve($item, $prefix, $middleware, $names));
+            $routes[] = self::resolve($item, $prefix, $middleware, $names);
         }
     }
 
@@ -137,11 +138,10 @@ final class RouteCollector
      * @param list<mixed> $middleware
      * @param array<string, string> $names
      *
-     * @return array{string, array<string, mixed>}
      *
      * @throws InvalidRouteException
      */
-    private static function resolve(Route $route, string $prefix, array $middleware, array &$names): array
+    private static function resolve(Route $route, string $prefix, array $middleware, array &$names): RouteDefinition
     {
         $path = $route->path();
         // Inside a group with a prefix, "" declares a route on the prefix itself.
@@ -168,6 +168,6 @@ final class RouteCollector
         $matches = [];
         preg_match_all('/\{(\w+)[*+]?\}/', $fullPath, $matches);
 
-        return [$fullPath, $route->metadata($fullPath, $middleware, array_values($matches[1]))];
+        return new RouteDefinition($fullPath, $route->metadata($fullPath, $middleware, array_values($matches[1])));
     }
 }

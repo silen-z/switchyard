@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace SilenZ\Segmatch\Http;
 
 use Closure;
-use SilenZ\Segmatch\RouteSet;
+use SilenZ\Segmatch\RouteDefinition;
 
 /**
  * HTTP route definitions in a form {@see \SilenZ\Segmatch\Router} accepts as its `$routes` callable:
@@ -37,12 +37,20 @@ final readonly class Routes
         return new self($definition(...));
     }
 
-    public function __invoke(RouteSet $routes): void
+    /**
+     * Runs the definition and resolves it into core route definitions.
+     *
+     * @return list<RouteDefinition>
+     */
+    public function __invoke(): array
     {
         $collector = new RouteCollector();
         ($this->definition)($collector);
 
+        $routes = [];
         $names = [];
         $collector->register($routes, '', [], $names);
+
+        return $routes;
     }
 }

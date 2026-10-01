@@ -58,11 +58,11 @@ final class RouteCollector
     }
 
     /**
-     * A route for every HTTP method; its metadata lists the methods as `['*']`.
+     * A route for every HTTP method (it gets no {@see MethodGuard}).
      */
     public function any(string $path, mixed $handler): Route
     {
-        $route = new Route(['*'], $path, $handler);
+        $route = new Route(null, $path, $handler);
         $this->items[] = $route;
 
         return $route;

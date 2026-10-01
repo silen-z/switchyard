@@ -10,9 +10,9 @@ use SilenZ\Segmatch\RouteSet;
 /**
  * HTTP route definitions in a form {@see \SilenZ\Segmatch\Router} accepts as its `$routes` callable:
  *
- *     $router = new Router(new Routes(static function (RouteCollector $r): void {
+ *     $router = new Router(Routes::define(static function (RouteCollector $r): void {
  *         $r->get('/', HomeController::class);
- *         $r->group('/api')->middleware('api')->routes(static function (RouteCollector $r): void {
+ *         $r->group('/api')->middleware('api')->define(static function (RouteCollector $r): void {
  *             $r->get('/users/{id}', [UserController::class, 'show'])->name('users.show');
  *         });
  *     }));
@@ -22,21 +22,25 @@ use SilenZ\Segmatch\RouteSet;
  */
 final readonly class Routes
 {
-    /** @var Closure(RouteCollector): void */
-    private Closure $define;
+    /**
+     * @param Closure(RouteCollector): void $definition
+     */
+    private function __construct(
+        private Closure $definition,
+    ) {}
 
     /**
-     * @param callable(RouteCollector): void $define declares the routes
+     * @param callable(RouteCollector): void $definition declares the routes, e.g. a closure or an invokable
      */
-    public function __construct(callable $define)
+    public static function define(callable $definition): self
     {
-        $this->define = $define(...);
+        return new self($definition(...));
     }
 
     public function __invoke(RouteSet $routes): void
     {
         $collector = new RouteCollector();
-        ($this->define)($collector);
+        ($this->definition)($collector);
 
         $names = [];
         $collector->register($routes, '', [], $names);

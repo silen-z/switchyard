@@ -19,7 +19,7 @@ use function str_starts_with;
  *
  *     $r->group('/admin')
  *         ->middleware(['auth', 'admin'])
- *         ->routes(static function (RouteCollector $r): void {
+ *         ->define(static function (RouteCollector $r): void {
  *             $r->get('/stats', [AdminController::class, 'stats']);
  *         });
  *
@@ -65,11 +65,11 @@ final class Group
     /**
      * Declares the group's routes. May be called more than once.
      *
-     * @param callable(RouteCollector): void $define
+     * @param callable(RouteCollector): void $definition
      */
-    public function routes(callable $define): self
+    public function define(callable $definition): self
     {
-        $this->definitions[] = $define(...);
+        $this->definitions[] = $definition(...);
 
         return $this;
     }

@@ -96,7 +96,7 @@ final class RouteCollector
     }
 
     /**
-     * A group of routes with an optional path prefix, e.g. `$r->group('/admin')->middleware('auth')->routes(...)`.
+     * A group of routes with an optional path prefix, e.g. `$r->group('/admin')->middleware('auth')->define(...)`.
      */
     public function group(string $prefix = ''): Group
     {

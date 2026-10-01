@@ -10,7 +10,6 @@ use PHPUnit\Framework\TestCase;
 use SilenZ\Segmatch\Exception\InvalidRouteException;
 use SilenZ\Segmatch\Http\Guards;
 use SilenZ\Segmatch\Http\MethodGuard;
-use SilenZ\Segmatch\Http\PatternGuard;
 use SilenZ\Segmatch\Http\Request;
 use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\NoMatch;
@@ -18,6 +17,7 @@ use SilenZ\Segmatch\RouteDefinition;
 use SilenZ\Segmatch\RouteMatch;
 use SilenZ\Segmatch\Router;
 use SilenZ\Segmatch\Tests\Http\Fixtures\FeatureGuard;
+use SilenZ\Segmatch\Tests\Http\Fixtures\NumericGuard;
 use stdClass;
 
 use function preg_quote;
@@ -30,9 +30,9 @@ final class GuardsTest extends TestCase
             $r->get('/users', 'list');
             $r->post('/users', 'create');
             $r->post('/users/new', 'create-form');
-            $r->get('/users/{id}', 'show')->where('id', '\d+');
+            $r->get('/users/{id}', 'show')->guard(NumericGuard::class, 'id');
             $r->get('/users/{slug}', 'by-slug');
-            $r->map(['PUT', 'patch'], '/users/{id}', 'update')->where('id', '\d+');
+            $r->map(['PUT', 'patch'], '/users/{id}', 'update')->guard(NumericGuard::class, 'id');
             $r->any('/webhooks/{provider}', 'webhook');
             $r->get('/beta/{page}', 'beta')->guard(FeatureGuard::class, 'beta');
             $r->get('/{path+}', 'frontend');
@@ -106,7 +106,7 @@ final class GuardsTest extends TestCase
         static::assertInstanceOf(NoMatch::class, $result);
         static::assertSame(['GET', 'PUT', 'PATCH'], Guards::allowedMethods($result, $request));
 
-        // "/users/john": update's pattern doesn't hold, so PUT and PATCH are not allowed here.
+        // "/users/john": update's numeric guard fails, so PUT and PATCH are not allowed here.
         $result = $router->match('/users/john', Guards::for($request));
         static::assertInstanceOf(NoMatch::class, $result);
         static::assertSame(['GET'], Guards::allowedMethods($result, $request));
@@ -145,7 +145,7 @@ final class GuardsTest extends TestCase
                 'middleware' => [],
                 'guards' => [
                     MethodGuard::class => ['PUT', 'PATCH'],
-                    PatternGuard::class => ['id' => '\d+'],
+                    NumericGuard::class => 'id',
                 ],
             ],
             $result->route,

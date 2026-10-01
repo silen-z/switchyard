@@ -11,7 +11,6 @@ use PHPUnit\Framework\TestCase;
 use SilenZ\Segmatch\Exception\InvalidRouteException;
 use SilenZ\Segmatch\Http\Guards;
 use SilenZ\Segmatch\Http\MethodGuard;
-use SilenZ\Segmatch\Http\PatternGuard;
 use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\NoMatch;
 use SilenZ\Segmatch\RouteDefinition;
@@ -158,11 +157,11 @@ final class RoutesTest extends TestCase
         static::assertSame(['auth'], self::find($router, 'GET', '/api/me')['middleware'] ?? null);
     }
 
-    public function testNameAndWhereAreStoredInTheMetadata(): void
+    public function testNameIsStoredInTheMetadata(): void
     {
         $router = self::router(static function (Routes $r): void {
             $r->group('/users')->define(static function (Routes $r): void {
-                $r->get('/{id}', 'show')->name('users.show')->where('id', '\d+');
+                $r->get('/{id}', 'show')->name('users.show');
             });
         });
 
@@ -171,7 +170,7 @@ final class RoutesTest extends TestCase
                 'handler' => 'show',
                 'middleware' => [],
                 'name' => 'users.show',
-                'guards' => [MethodGuard::class => ['GET'], PatternGuard::class => ['id' => '\d+']],
+                'guards' => [MethodGuard::class => ['GET']],
             ],
             self::find($router, 'GET', '/users/1'),
         );
@@ -261,14 +260,6 @@ final class RoutesTest extends TestCase
         yield 'empty name' => [
             static fn(Routes $r) => $r->get('/a', 'a')->name(''),
             'cannot have an empty name',
-        ];
-        yield 'constraint on an unknown parameter' => [
-            static fn(Routes $r) => $r->get('/users/{id}', 'x')->where('slug', '\w+'),
-            'Route "/users/{id}" constrains parameter "slug", which its path does not have',
-        ];
-        yield 'invalid constraint pattern' => [
-            static fn(Routes $r) => $r->get('/users/{id}', 'x')->where('id', '(\d+'),
-            'invalid pattern "(\d+" for parameter "id"',
         ];
         yield 'closure as handler' => [
             static fn(Routes $r) => $r->get('/x', static fn() => null),

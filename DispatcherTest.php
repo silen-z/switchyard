@@ -50,7 +50,7 @@ final class DispatcherTest extends TestCase
                 methods: ['GET'],
                 tags: ['json', 'public'],
             ),
-            self::dispatcher()->dispatch(new ServerRequest('get', '/api/users/42')),
+            self::dispatcher()->match(new ServerRequest('get', '/api/users/42')),
         );
     }
 
@@ -58,13 +58,13 @@ final class DispatcherTest extends TestCase
     {
         static::assertEquals(
             new Found(handler: 'webhook', params: ['provider' => 'github']),
-            self::dispatcher()->dispatch(new ServerRequest('PURGE', '/webhooks/github')),
+            self::dispatcher()->match(new ServerRequest('PURGE', '/webhooks/github')),
         );
     }
 
     public function testHeadMatchesGetRoutes(): void
     {
-        $result = self::dispatcher()->dispatch(new ServerRequest('HEAD', '/api/users/42'));
+        $result = self::dispatcher()->match(new ServerRequest('HEAD', '/api/users/42'));
 
         static::assertInstanceOf(Found::class, $result);
         static::assertSame('show', $result->handler);
@@ -72,7 +72,7 @@ final class DispatcherTest extends TestCase
 
     public function testHeadRoutesWinOverGetRoutes(): void
     {
-        $result = self::dispatcher()->dispatch(new ServerRequest('HEAD', '/ping'));
+        $result = self::dispatcher()->match(new ServerRequest('HEAD', '/ping'));
 
         static::assertInstanceOf(Found::class, $result);
         static::assertSame('ping-head', $result->handler);
@@ -81,26 +81,26 @@ final class DispatcherTest extends TestCase
     public function testMethodNotAllowedListsTheAllowedMethods(): void
     {
         static::assertEquals(
-            new MethodNotAllowed(['GET', 'HEAD', 'PUT']),
-            self::dispatcher()->dispatch(new ServerRequest('DELETE', '/api/users/42')),
+            new MethodNotAllowed(['GET', 'PUT', 'HEAD']),
+            self::dispatcher()->match(new ServerRequest('DELETE', '/api/users/42')),
         );
         static::assertEquals(
             new MethodNotAllowed(['POST']),
-            self::dispatcher()->dispatch(new ServerRequest('HEAD', '/login')),
+            self::dispatcher()->match(new ServerRequest('HEAD', '/login')),
         );
     }
 
     public function testNotFound(): void
     {
-        static::assertEquals(new NotFound(), self::dispatcher()->dispatch(new ServerRequest('GET', '/nope')));
+        static::assertEquals(new NotFound(), self::dispatcher()->match(new ServerRequest('GET', '/nope')));
     }
 
     public function testRoutesRejectedByTheirOwnGuardsAreNotFound(): void
     {
         $dispatcher = self::dispatcher();
 
-        static::assertEquals(new NotFound(), $dispatcher->dispatch(new ServerRequest('GET', '/api/beta')));
-        static::assertInstanceOf(Found::class, $dispatcher->dispatch(
+        static::assertEquals(new NotFound(), $dispatcher->match(new ServerRequest('GET', '/api/beta')));
+        static::assertInstanceOf(Found::class, $dispatcher->match(
             (new ServerRequest('GET', '/api/beta'))->withAttribute('features', ['beta' => true]),
         ));
     }
@@ -109,7 +109,7 @@ final class DispatcherTest extends TestCase
     {
         $dispatcher = self::dispatcher();
 
-        static::assertSame(['GET', 'HEAD', 'PUT'], $dispatcher->allowedMethods(new ServerRequest('OPTIONS', '/api/users/42')));
+        static::assertSame(['GET', 'PUT', 'HEAD'], $dispatcher->allowedMethods(new ServerRequest('OPTIONS', '/api/users/42')));
         static::assertSame(['GET', 'HEAD'], $dispatcher->allowedMethods(new ServerRequest('OPTIONS', '/ping')));
         static::assertSame([], $dispatcher->allowedMethods(new ServerRequest('OPTIONS', '/nope')));
         static::assertSame([], $dispatcher->allowedMethods(new ServerRequest('OPTIONS', '/webhooks/github')));
@@ -128,7 +128,7 @@ final class DispatcherTest extends TestCase
             new Router(static fn(): array => [new RouteDefinition('/raw', ['handler' => 'raw'])]),
         );
 
-        $result = $dispatcher->dispatch(new ServerRequest('DELETE', '/raw'));
+        $result = $dispatcher->match(new ServerRequest('DELETE', '/raw'));
 
         static::assertInstanceOf(Found::class, $result);
         static::assertSame('raw', $result->handler);
@@ -149,7 +149,7 @@ final class DispatcherTest extends TestCase
 
     public function testFallsThroughToARouteThatAcceptsTheMethod(): void
     {
-        $result = self::routingDispatcher()->dispatch(new ServerRequest('GET', '/users/new'));
+        $result = self::routingDispatcher()->match(new ServerRequest('GET', '/users/new'));
 
         static::assertInstanceOf(Found::class, $result);
         static::assertSame('by-slug', $result->handler);
@@ -160,11 +160,11 @@ final class DispatcherTest extends TestCase
     {
         $dispatcher = self::routingDispatcher();
 
-        $show = $dispatcher->dispatch(new ServerRequest('GET', '/users/42'));
+        $show = $dispatcher->match(new ServerRequest('GET', '/users/42'));
         static::assertInstanceOf(Found::class, $show);
         static::assertSame('show', $show->handler);
 
-        $bySlug = $dispatcher->dispatch(new ServerRequest('GET', '/users/john'));
+        $bySlug = $dispatcher->match(new ServerRequest('GET', '/users/john'));
         static::assertInstanceOf(Found::class, $bySlug);
         static::assertSame('by-slug', $bySlug->handler);
     }
@@ -173,11 +173,11 @@ final class DispatcherTest extends TestCase
     {
         $dispatcher = self::routingDispatcher();
 
-        static::assertSame(['GET', 'HEAD', 'POST'], $dispatcher->allowedMethods(new ServerRequest('DELETE', '/users')));
+        static::assertSame(['GET', 'POST', 'HEAD'], $dispatcher->allowedMethods(new ServerRequest('DELETE', '/users')));
 
         // "/users/7": show and update match the pattern, by-slug matches too, the catch-all is GET.
         static::assertSame(
-            ['GET', 'HEAD', 'PUT', 'PATCH'],
+            ['GET', 'PUT', 'PATCH', 'HEAD'],
             $dispatcher->allowedMethods(new ServerRequest('DELETE', '/users/7')),
         );
 
@@ -201,12 +201,12 @@ final class DispatcherTest extends TestCase
         }));
 
         $allowing = new ArrayContainer([ConfigurableGuard::class => new ConfigurableGuard(accepts: true)]);
-        $result = new Dispatcher($router, $allowing)->dispatch(new ServerRequest('GET', '/locked'));
+        $result = new Dispatcher($router, $allowing)->match(new ServerRequest('GET', '/locked'));
         static::assertInstanceOf(Found::class, $result);
         static::assertSame('locked', $result->handler);
 
         $blocking = new ArrayContainer([ConfigurableGuard::class => new ConfigurableGuard(accepts: false)]);
-        $result = new Dispatcher($router, $blocking)->dispatch(new ServerRequest('GET', '/locked'));
+        $result = new Dispatcher($router, $blocking)->match(new ServerRequest('GET', '/locked'));
         static::assertInstanceOf(NotFound::class, $result);
     }
 }

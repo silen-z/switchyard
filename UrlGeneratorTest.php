@@ -76,7 +76,7 @@ final class UrlGeneratorTest extends TestCase
             ['users.post', ['id' => '%', 'post' => 'é']],
             ['files', ['path' => 'docs/a b/c%.pdf']],
         ] as [$name, $params]) {
-            $result = $dispatcher->dispatch(new ServerRequest('GET', $urls->url($name, $params)));
+            $result = $dispatcher->match(new ServerRequest('GET', $urls->url($name, $params)));
 
             static::assertInstanceOf(Found::class, $result);
             static::assertSame($name, $result->name);

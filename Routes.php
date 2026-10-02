@@ -39,10 +39,20 @@ final class Routes
      * the router's cache has no entry.
      *
      * @param callable(Routes): void $definition
+     * @return callable(): array<RouteDefinition>
      */
-    public static function define(callable $definition): DefineRoutes
+    public static function define(callable $definition): callable
     {
-        return new DefineRoutes($definition(...));
+        return static function () use ($definition): array {
+            $routes = new self();
+            $definition($routes);
+
+            $definitions = [];
+            $names = [];
+            $routes->register($definitions, '', [], [], $names);
+
+            return $definitions;
+        };
     }
 
     public function get(string $path, mixed $handler): Route
@@ -191,6 +201,6 @@ final class Routes
             $names[$name] = $fullPath;
         }
 
-        return new RouteDefinition($fullPath, $route->metadata($middleware, $tags));
+        return new RouteDefinition($fullPath, $route->metadata($fullPath, $middleware, $tags));
     }
 }

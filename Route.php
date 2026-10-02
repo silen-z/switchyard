@@ -166,6 +166,7 @@ final class Route
      *         'handler'    => [UserController::class, 'show'],
      *         'middleware' => ['api', 'auth'],     // groups' middleware first, outermost first
      *         'name'       => 'users.show',        // only when named
+     *         'path'       => '/api/users/{id}',   // only when named, for URL generation
      *         'tags'       => ['public'],          // only when tagged; groups' tags first, no duplicates
      *         'guards'     => [                    // only when there are any, checked in this order
      *             MethodGuard::class => ['GET'],
@@ -174,12 +175,13 @@ final class Route
      *
      * @internal
      *
+     * @param string $fullPath the route's path including the groups' prefixes
      * @param list<mixed> $groupMiddleware
      * @param list<string> $groupTags
      *
-     * @return array{handler: mixed, middleware: list<mixed>, name?: string, tags?: non-empty-list<string>, guards?: non-empty-array<class-string<Guard>, mixed>}
+     * @return array{handler: mixed, middleware: list<mixed>, name?: string, path?: string, tags?: non-empty-list<string>, guards?: non-empty-array<class-string<Guard>, mixed>}
      */
-    public function metadata(array $groupMiddleware, array $groupTags): array
+    public function metadata(string $fullPath, array $groupMiddleware, array $groupTags): array
     {
         $metadata = [
             'handler' => $this->handler,
@@ -188,6 +190,7 @@ final class Route
 
         if ($this->name !== null) {
             $metadata['name'] = $this->name;
+            $metadata['path'] = $fullPath;
         }
 
         $tags = array_values(array_unique([...$groupTags, ...$this->tags]));

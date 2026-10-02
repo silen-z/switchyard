@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace SilenZ\Segmatch\Tests\Http\Fixtures;
 
+use Psr\Http\Message\ServerRequestInterface;
 use SilenZ\Segmatch\Http\Guard;
-use SilenZ\Segmatch\Http\Request;
 
 use function is_array;
 
@@ -15,11 +15,10 @@ use function is_array;
  */
 final class FeatureGuard implements Guard
 {
-    public static function accepts(mixed $config, Request $request, array $params): bool
+    public function accepts(mixed $config, ServerRequestInterface $request, array $params): bool
     {
-        return (
-            is_array($request->attributes['features'] ?? null)
-            && ($request->attributes['features'][$config] ?? false) === true
-        );
+        $features = $request->getAttribute('features');
+
+        return is_array($features) && ($features[$config] ?? false) === true;
     }
 }

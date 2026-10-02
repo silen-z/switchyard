@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace SilenZ\Segmatch\Tests\Http;
 
+use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -75,7 +76,7 @@ final class UrlGeneratorTest extends TestCase
             ['users.post', ['id' => '%', 'post' => 'é']],
             ['files', ['path' => 'docs/a b/c%.pdf']],
         ] as [$name, $params]) {
-            $result = $dispatcher->dispatch('GET', $urls->url($name, $params));
+            $result = $dispatcher->dispatch(new ServerRequest('GET', $urls->url($name, $params)));
 
             static::assertInstanceOf(Found::class, $result);
             static::assertSame($name, $result->name);

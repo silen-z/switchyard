@@ -9,13 +9,14 @@ use Closure;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SilenZ\Segmatch\Exception\InvalidRouteException;
-use SilenZ\Segmatch\Http\Guards;
-use SilenZ\Segmatch\Http\MethodGuard;
+use SilenZ\Segmatch\Http\Methods;
 use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\NoMatch;
 use SilenZ\Segmatch\RouteDefinition;
 use SilenZ\Segmatch\RouteMatch;
 use SilenZ\Segmatch\Router;
+use SilenZ\Segmatch\Tests\Http\Fixtures\FeatureGuard;
+use stdClass;
 
 use function preg_quote;
 
@@ -36,7 +37,7 @@ final class RoutesTest extends TestCase
      */
     private static function find(Router $router, string $method, string $path): ?array
     {
-        $result = $router->match($path, Guards::for($method));
+        $result = $router->match($path, static fn(mixed $route): bool => Methods::accepts($route, $method));
 
         if (!$result instanceof RouteMatch) {
             return null;
@@ -60,7 +61,7 @@ final class RoutesTest extends TestCase
         });
 
         static::assertSame(
-            ['handler' => 'list', 'middleware' => [], 'guards' => [MethodGuard::class => ['GET']]],
+            ['handler' => 'list', 'middleware' => [], 'methods' => ['GET']],
             self::find($router, 'GET', '/users'),
         );
         static::assertSame('create', self::find($router, 'POST', '/users')['handler'] ?? null);
@@ -69,8 +70,8 @@ final class RoutesTest extends TestCase
         static::assertSame('delete', self::find($router, 'DELETE', '/users/1')['handler'] ?? null);
         static::assertSame('options', self::find($router, 'OPTIONS', '/users')['handler'] ?? null);
         static::assertSame(
-            [MethodGuard::class => ['GET', 'HEAD']],
-            self::find($router, 'HEAD', '/health')['guards'] ?? null,
+            ['GET', 'HEAD'],
+            self::find($router, 'HEAD', '/health')['methods'] ?? null,
         );
         static::assertSame(
             ['handler' => 'webhook', 'middleware' => []],
@@ -208,9 +209,26 @@ final class RoutesTest extends TestCase
                 'middleware' => [],
                 'name' => 'users.show',
                 'path' => '/users/{id}',
-                'guards' => [MethodGuard::class => ['GET']],
+                'methods' => ['GET'],
             ],
             self::find($router, 'GET', '/users/1'),
+        );
+    }
+
+    public function testGuardsAreStoredInTheMetadataAlongsideMethods(): void
+    {
+        $router = self::router(static function (Routes $r): void {
+            $r->get('/beta', 'beta')->guard(FeatureGuard::class, 'beta');
+        });
+
+        static::assertSame(
+            [
+                'handler' => 'beta',
+                'middleware' => [],
+                'methods' => ['GET'],
+                'guards' => [FeatureGuard::class => 'beta'],
+            ],
+            self::find($router, 'GET', '/beta'),
         );
     }
 
@@ -310,6 +328,21 @@ final class RoutesTest extends TestCase
         yield 'closure as handler' => [
             static fn(Routes $r) => $r->get('/x', static fn() => null),
             'Metadata of route "/x" contains a value of type Closure',
+        ];
+        yield 'guard class that does not implement Guard' => [
+            static fn(Routes $r) => $r->get('/a', 'a')->guard(stdClass::class),
+            'uses guard "stdClass", which does not implement',
+        ];
+        yield 'same guard twice' => [
+            static fn(Routes $r) => $r->get('/a', 'a')->guard(FeatureGuard::class, 'x')->guard(
+                FeatureGuard::class,
+                'y',
+            ),
+            'uses guard "' . FeatureGuard::class . '" twice',
+        ];
+        yield 'object as guard configuration' => [
+            static fn(Routes $r) => $r->get('/a', 'a')->guard(FeatureGuard::class, new stdClass()),
+            'Metadata of route "/a" contains a value of type stdClass',
         ];
     }
 

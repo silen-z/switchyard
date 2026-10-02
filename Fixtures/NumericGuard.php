@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace SilenZ\Segmatch\Tests\Http\Fixtures;
 
+use Psr\Http\Message\ServerRequestInterface;
 use SilenZ\Segmatch\Http\Guard;
-use SilenZ\Segmatch\Http\Request;
 
 use function ctype_digit;
 use function is_string;
@@ -16,7 +16,7 @@ use function is_string;
  */
 final class NumericGuard implements Guard
 {
-    public static function accepts(mixed $config, Request $request, array $params): bool
+    public function accepts(mixed $config, ServerRequestInterface $request, array $params): bool
     {
         return is_string($config) && ctype_digit($params[$config] ?? '');
     }

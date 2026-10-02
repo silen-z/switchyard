@@ -207,6 +207,7 @@ final class RoutesTest extends TestCase
                 'handler' => 'show',
                 'middleware' => [],
                 'name' => 'users.show',
+                'path' => '/users/{id}',
                 'guards' => [MethodGuard::class => ['GET']],
             ],
             self::find($router, 'GET', '/users/1'),

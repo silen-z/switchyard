@@ -7,7 +7,7 @@ namespace SilenZ\Segmatch\Http;
 use SilenZ\Segmatch\RouteMatch;
 
 /**
- * Result of {@see Dispatcher::dispatch()}: a route applies to the request.
+ * Result of {@see Dispatcher::match()}: a route applies to the request.
  */
 final readonly class Found
 {

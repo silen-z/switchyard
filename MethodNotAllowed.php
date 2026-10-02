@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace SilenZ\Segmatch\Http;
 
 /**
- * Result of {@see Dispatcher::dispatch()}: routes exist for the path, but not for the request's
+ * Result of {@see Dispatcher::match()}: routes exist for the path, but not for the request's
  * HTTP method (405).
  */
 final readonly class MethodNotAllowed

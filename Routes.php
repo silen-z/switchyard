@@ -86,7 +86,7 @@ final class Routes
     }
 
     /**
-     * A route for every HTTP method (it gets no {@see MethodGuard}).
+     * A route for every HTTP method (it gets no 'methods' metadata, so it's never method-checked).
      */
     public function any(string $path, mixed $handler): Route
     {

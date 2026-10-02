@@ -22,8 +22,9 @@ use function sprintf;
  *         ->middleware('audit')
  *         ->tag('public');
  *
- * The route's conditions become {@see Guard}s stored with it: its HTTP methods a {@see MethodGuard},
- * plus any guards added with `guard()`. Matching with {@see Guards::for()} runs them.
+ * The route's HTTP methods are stored with it directly; any guards added with `guard()` are stored
+ * alongside them, by class name. {@see Dispatcher} checks the methods and resolves and runs the
+ * guards while matching.
  *
  * The handler, middleware and guard configuration end up in the route cache, so they must be plain
  * data (strings, arrays, enums, ...), not closures or objects.
@@ -111,7 +112,9 @@ final class Route
 
     /**
      * Adds a condition of the application's own, checked in the order guards were added, after the
-     * method check. The configuration must be plain data.
+     * method check. The configuration must be plain data; the guard itself is resolved by
+     * {@see Dispatcher} from the container given to it (or built with a plain `new $guard()`
+     * without one).
      *
      * @param string $guard name of a class implementing {@see Guard}
      */
@@ -123,14 +126,6 @@ final class Route
                 $this->path,
                 $guard,
                 Guard::class,
-            ));
-        }
-
-        if ($guard === MethodGuard::class) {
-            throw new InvalidRouteException(sprintf(
-                'Route "%s" cannot add %s directly; declare the route with its HTTP methods instead.',
-                $this->path,
-                $guard,
             ));
         }
 
@@ -168,8 +163,9 @@ final class Route
      *         'name'       => 'users.show',        // only when named
      *         'path'       => '/api/users/{id}',   // only when named, for URL generation
      *         'tags'       => ['public'],          // only when tagged; groups' tags first, no duplicates
+     *         'methods'    => ['GET'],             // only for routes with methods (not any())
      *         'guards'     => [                    // only when there are any, checked in this order
-     *             MethodGuard::class => ['GET'],
+     *             FeatureGuard::class => 'beta',
      *         ],
      *     ]
      *
@@ -179,7 +175,7 @@ final class Route
      * @param list<mixed> $groupMiddleware
      * @param list<string> $groupTags
      *
-     * @return array{handler: mixed, middleware: list<mixed>, name?: string, path?: string, tags?: non-empty-list<string>, guards?: non-empty-array<class-string<Guard>, mixed>}
+     * @return array{handler: mixed, middleware: list<mixed>, name?: string, path?: string, tags?: non-empty-list<string>, methods?: non-empty-list<string>, guards?: non-empty-array<class-string<Guard>, mixed>}
      */
     public function metadata(string $fullPath, array $groupMiddleware, array $groupTags): array
     {
@@ -198,10 +194,12 @@ final class Route
             $metadata['tags'] = $tags;
         }
 
-        $guards = $this->methods !== null ? [MethodGuard::class => $this->methods] : [];
-        $guards += $this->guards;
-        if ($guards !== []) {
-            $metadata['guards'] = $guards;
+        if ($this->methods !== null) {
+            $metadata['methods'] = $this->methods;
+        }
+
+        if ($this->guards !== []) {
+            $metadata['guards'] = $this->guards;
         }
 
         return $metadata;

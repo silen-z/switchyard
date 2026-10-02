@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace SilenZ\Segmatch\Http;
 
+use SilenZ\Segmatch\RouteMatch;
+
 /**
  * Result of {@see Dispatcher::dispatch()}: a route applies to the request.
  */
@@ -24,4 +26,25 @@ final readonly class Found
         public ?array $methods = null,
         public array $tags = [],
     ) {}
+
+    public static function fromMatch(RouteMatch $match): Found
+    {
+        $route = is_array($match->route) ? $match->route : [];
+
+        /** @var list<mixed> $middleware */
+        $middleware = is_array($route['middleware'] ?? null) ? $route['middleware'] : [];
+        /** @var ?non-empty-list<string> $methods */
+        $methods = is_array($route['methods'] ?? null) ? $route['methods'] : null;
+        /** @var list<string> $tags */
+        $tags = is_array($route['tags'] ?? null) ? $route['tags'] : [];
+
+        return new Found(
+            handler: $route['handler'] ?? null,
+            params: $match->params,
+            middleware: $middleware,
+            name: is_string($route['name'] ?? null) ? $route['name'] : null,
+            methods: $methods,
+            tags: $tags,
+        );
+    }
 }

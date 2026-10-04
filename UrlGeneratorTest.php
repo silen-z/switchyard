@@ -4,20 +4,24 @@ declare(strict_types=1);
 
 namespace SilenZ\Segmatch\Tests\Http;
 
+use Nyholm\Psr7\Factory\Psr17Factory;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use SilenZ\Segmatch\Cache\RouteCache;
 use SilenZ\Segmatch\Exception\UrlGenerationException;
-use SilenZ\Segmatch\Http\Dispatcher;
-use SilenZ\Segmatch\Http\Found;
+use SilenZ\Segmatch\Http\HandlerResolver;
 use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\Http\UrlGenerator;
 use SilenZ\Segmatch\Router;
+use SilenZ\Segmatch\Tests\Http\Fixtures\EchoContainer;
 use stdClass;
 
+use function json_decode;
 use function preg_quote;
+
+use const JSON_THROW_ON_ERROR;
 
 final class UrlGeneratorTest extends TestCase
 {
@@ -69,18 +73,25 @@ final class UrlGeneratorTest extends TestCase
     {
         $router = self::router();
         $urls = new UrlGenerator($router);
-        $dispatcher = new Dispatcher($router);
+        $resolver = new HandlerResolver($router, new Psr17Factory(), new EchoContainer());
 
         foreach ([
             ['users.show', ['id' => 'a/b c?']],
             ['users.post', ['id' => '%', 'post' => 'é']],
             ['files', ['path' => 'docs/a b/c%.pdf']],
         ] as [$name, $params]) {
-            $result = $dispatcher->match(new ServerRequest('GET', $urls->url($name, $params)));
+            $request = new ServerRequest('GET', $urls->url($name, $params));
+            // EchoHandler answers with the route's Found as JSON.
+            // @mago-expect analysis:mixed-assignment
+            $found = json_decode(
+                (string) $resolver->resolve($request)->handle($request)->getBody(),
+                associative: true,
+                flags: JSON_THROW_ON_ERROR,
+            );
 
-            static::assertInstanceOf(Found::class, $result);
-            static::assertSame($name, $result->name);
-            static::assertSame($params, $result->params);
+            static::assertIsArray($found);
+            static::assertSame($name, $found['name']);
+            static::assertSame($params, $found['params']);
         }
     }
 

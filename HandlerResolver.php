@@ -14,6 +14,7 @@ use SilenZ\Segmatch\RouteMatch;
 use SilenZ\Segmatch\Router;
 
 use function array_keys;
+use function array_unshift;
 use function is_array;
 use function is_string;
 use function ltrim;
@@ -108,54 +109,53 @@ final class HandlerResolver
             ),
         );
 
-        [$context, $entries] = $match instanceof RouteMatch
-            ? self::matched($match)
-            : $this->fallback($match->rejected, $request);
+        $queue = $match instanceof RouteMatch ? $this->matched($match) : $this->fallback($match->rejected, $request);
 
-        return new Relay(
-            [
-                // Whoever answers, a HEAD response has no body.
-                ...(strtoupper($request->getMethod()) === 'HEAD' ? [new HeadMiddleware($this->responseFactory)] : []),
-                ...($context !== null ? [new RouteContextMiddleware($context)] : []),
-                ...$this->middleware,
-                ...$entries,
-            ],
-            $this->instantiate(...),
-        );
+        if (strtoupper($request->getMethod()) === 'HEAD') {
+            // Whoever answers, a HEAD response has no body.
+            array_unshift($queue, new HeadMiddleware($this->responseFactory));
+        }
+
+        return new Relay($queue, $this->instantiate(...));
     }
 
     /**
-     * A matched route's {@see Found}, and its own middleware (groups' first, outermost first) and
+     * A matched route's Relay queue: its {@see Found} for {@see RouteContextMiddleware}, the
+     * application middleware, then the route's own middleware (groups' first, outermost first) and
      * handler, both as declared.
      *
-     * @return array{Found, non-empty-list<mixed>}
+     * @return non-empty-list<mixed>
      */
-    private static function matched(RouteMatch $match): array
+    private function matched(RouteMatch $match): array
     {
         $route = is_array($match->route) ? $match->route : [];
 
         /** @var list<mixed> $middleware */
         $middleware = is_array($route['middleware'] ?? null) ? $route['middleware'] : [];
 
-        return [Found::fromMatch($match), [...$middleware, $route['handler'] ?? null]];
+        return [
+            new RouteContextMiddleware(Found::fromMatch($match)),
+            ...$this->middleware,
+            ...$middleware,
+            $route['handler'] ?? null,
+        ];
     }
 
     /**
-     * The routing result and entries for a request no route took, from the routes the router
-     * rejected for its path:
+     * The Relay queue for a request no route took, from the routes the router rejected for its path:
      *
-     * - for a HEAD request, the first of them that accepts GET, as {@see matched()}. The router tried
-     *   them in order, so it's the route a second pass for GET would find. The request isn't
-     *   rewritten: guards and the route still see HEAD;
-     * - otherwise the method-not-allowed or OPTIONS handler, with a {@see MethodNotAllowed} of the
-     *   methods of the routes whose guards accept (HEAD included whenever GET is);
-     * - or the not-found handler, without a result, when no route's guards accept.
+     * - for a HEAD request, the queue of the first of them that accepts GET, as {@see matched()}.
+     *   The router tried them in order, so it's the route a second pass for GET would find. The
+     *   request isn't rewritten: guards and the route still see HEAD;
+     * - otherwise a {@see MethodNotAllowed} of the methods of the routes whose guards accept (HEAD
+     *   included whenever GET is), the application middleware, and {@see AllowedMethodsHandler};
+     * - or, when no route's guards accept, the application middleware and the not-found handler.
      *
      * Routes without methods (`any()`) are skipped: rejected, so their guards failed.
      *
      * @param list<RouteMatch> $rejected
      *
-     * @return array{Found|MethodNotAllowed|null, non-empty-list<mixed>}
+     * @return non-empty-list<mixed>
      */
     private function fallback(array $rejected, ServerRequestInterface $request): array
     {
@@ -169,7 +169,7 @@ final class HandlerResolver
             }
 
             if ($method === 'HEAD' && Methods::accepts($candidate->route, 'GET')) {
-                return self::matched($candidate);
+                return $this->matched($candidate);
             }
 
             foreach ($methods as $allowedMethod) {
@@ -182,14 +182,15 @@ final class HandlerResolver
         }
 
         $allowed = array_keys($allowed);
-        if ($allowed === []) {
-            return [null, [$this->notFoundHandler]];
+        if ($allowed !== []) {
+            return [
+                new RouteContextMiddleware(new MethodNotAllowed($allowed)),
+                ...$this->middleware,
+                new AllowedMethodsHandler($this->responseFactory),
+            ];
         }
 
-        return [
-            new MethodNotAllowed($allowed),
-            [new AllowedMethodsHandler($this->responseFactory)],
-        ];
+        return [...$this->middleware, $this->notFoundHandler];
     }
 
     /**

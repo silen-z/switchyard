@@ -23,7 +23,7 @@ use function sprintf;
  *         ->tag('public');
  *
  * The route's HTTP methods are stored with it directly; any guards added with `guard()` are stored
- * alongside them, by class name. {@see Dispatcher} checks the methods and resolves and runs the
+ * alongside them, by class name. {@see HandlerResolver} checks the methods and resolves and runs the
  * guards while matching.
  *
  * The handler, middleware and guard configuration end up in the route cache, so they must be plain
@@ -113,7 +113,7 @@ final class Route
     /**
      * Adds a condition of the application's own, checked in the order guards were added, after the
      * method check. The configuration must be plain data; the guard itself is resolved by
-     * {@see Dispatcher} from the container given to it (or built with a plain `new $guard()`
+     * {@see HandlerResolver} from the container given to it (or built with a plain `new $guard()`
      * without one).
      *
      * @param string $guard name of a class implementing {@see Guard}

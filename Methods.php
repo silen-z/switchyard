@@ -12,7 +12,7 @@ use function strtoupper;
  * A route's own HTTP methods, stored in its metadata directly rather than as a {@see Guard}; see
  * {@see Route}. Routes declared with `any()` have none and accept every method.
  *
- * Generic and container-free, unlike guard resolution: {@see Dispatcher} composes this with its own
+ * Generic and container-free, unlike guard resolution: {@see HandlerResolver} composes this with its own
  * guard handling to build the closure {@see \SilenZ\Segmatch\Router::match()} takes.
  */
 final class Methods

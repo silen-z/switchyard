@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace SilenZ\Segmatch\Http;
 
 /**
- * Result of {@see Dispatcher::match()}: routes exist for the path, but not for the request's
- * HTTP method (405).
+ * Routes exist for the request's path, but not for its method. {@see HandlerResolver::resolve()}
+ * hands this to the method-not-allowed and OPTIONS handlers under the `MethodNotAllowed::class`
+ * request attribute.
  */
 final readonly class MethodNotAllowed
 {
     /**
-     * @param non-empty-list<string> $allowed the methods the path supports, for the `Allow` header
+     * @param non-empty-list<string> $allowed the path's methods, HEAD included whenever GET is
      */
     public function __construct(
         public array $allowed,

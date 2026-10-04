@@ -10,7 +10,7 @@ use Psr\Http\Message\ServerRequestInterface;
  * A condition a route attaches to itself, checked while matching.
  *
  * Routes reference guards by class name together with plain-data configuration, so both survive the
- * route cache; the instance itself never does. {@see Dispatcher} resolves one instance per guard
+ * route cache; the instance itself never does. {@see HandlerResolver} resolves one instance per guard
  * class from the container given to it (or builds a plain `new $guard()` without one) and calls
  * {@see accepts()} for every candidate route of a request. A guard that returns false makes the route
  * behave as if it didn't exist, and matching moves on.

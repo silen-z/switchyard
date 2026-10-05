@@ -4,9 +4,15 @@ declare(strict_types=1);
 
 namespace SilenZ\Segmatch\Http;
 
+use Psr\Container\ContainerInterface;
+use Psr\Http\Message\ResponseFactoryInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\RequestHandlerInterface;
+use SilenZ\Segmatch\Cache\RouteCache;
 use SilenZ\Segmatch\CallableRouteTable;
 use SilenZ\Segmatch\Exception\InvalidRouteException;
 use SilenZ\Segmatch\RouteDefinition;
+use SilenZ\Segmatch\Router;
 use SilenZ\Segmatch\RouteTable;
 
 use function array_unique;
@@ -25,8 +31,7 @@ use function strtoupper;
  *     $routes->get('/', HomeController::class);
  *     $routes->group('/api')->middleware('api')->get('/users/{id}', [UserController::class, 'show'])->name('users.show');
  *
- *     $router = new Router($routes->table('routes-' . APP_VERSION));
- *     $resolver = new HandlerResolver($router, $responseFactory, registry: $routes->registry());
+ *     $response = $routes->resolve($request, $responseFactory)->handle($request);
  *
  * Declaring runs immediately, like any other PHP code; there is nothing to defer. A `group()` is
  * itself a `Routes`, scoped by an optional path prefix, with its own middleware and tags inherited by
@@ -39,9 +44,12 @@ use function strtoupper;
  * A handler, middleware entry or filter may be a real instance or closure, not just a class name or
  * container identifier: anything that isn't already cacheable plain data is transparently wrapped into
  * this tree's {@see Registry} instead, shared by the root and every nested group. Unlike the compiled
- * routes, the `Registry` is never cached — it's rebuilt fresh every time this tree is declared, so
- * {@see registry()} must be given to {@see HandlerResolver} alongside a `Router` built from the same
- * tree, every request.
+ * routes, the `Registry` is never cached — it's rebuilt fresh every time this tree is declared, which
+ * is why {@see resolve()} builds its `Router` and `HandlerResolver` from this same tree: pairing a
+ * `Router` with a different declaration's registry (e.g. one built earlier and reused) would resolve
+ * the wrong instance, or none at all, for anything given to `->middleware()`, `->filter()` or a
+ * handler as a real instance. {@see HandlerResolver} directly is still there for the finer control
+ * `resolve()` doesn't expose, e.g. `addMiddleware()`.
  */
 final class Routes
 {
@@ -216,6 +224,29 @@ final class Routes
     }
 
     /**
+     * Builds the `Router` and `HandlerResolver` for this tree and resolves `$request` with them, in
+     * one call — the common case of one `Routes` tree answering its own requests, where the two can
+     * never end up built from different declarations (see the class docblock). Reach for
+     * `HandlerResolver` directly instead for anything {@see HandlerResolver::addMiddleware()} is for.
+     *
+     * @param ?RouteCache $cache where compiled routes are kept; null compiles on every request
+     * @param ?string $cacheKey identifies these routes in the cache; null (the default) never caches
+     *                          them, same as `table()`
+     */
+    public function resolve(
+        ServerRequestInterface $request,
+        ResponseFactoryInterface $responseFactory,
+        ?ContainerInterface $container = null,
+        ?RequestHandlerInterface $notFoundHandler = null,
+        ?RouteCache $cache = null,
+        ?string $cacheKey = null,
+    ): RequestHandlerInterface {
+        $router = new Router($this->table($cacheKey), $cache);
+
+        return new HandlerResolver($router, $responseFactory, $container, $notFoundHandler, $this)->resolve($request);
+    }
+
+    /**
      * The routes as declared: full paths and metadata, for tooling that needs the declarations
      * themselves, e.g. an index of routes by name, or generating documentation, not for matching
      * requests.
@@ -263,7 +294,7 @@ final class Routes
                 continue;
             }
 
-            $routes[] = self::resolve($item, $prefix, $middleware, $tags, $names);
+            $routes[] = self::buildDefinition($item, $prefix, $middleware, $tags, $names);
         }
     }
 
@@ -274,7 +305,7 @@ final class Routes
      *
      * @throws InvalidRouteException
      */
-    private static function resolve(
+    private static function buildDefinition(
         Route $route,
         string $prefix,
         array $middleware,

@@ -22,8 +22,15 @@ use function strtoupper;
 /**
  * Builds the PSR-15 handler that answers an HTTP request, from routes declared with {@see Routes}:
  *
- *     $resolver = new HandlerResolver($router, $responseFactory, $container, registry: $routes->registry());
+ *     $resolver = new HandlerResolver($router, $responseFactory, $container, routes: $routes);
  *     $response = $resolver->resolve($request)->handle($request);
+ *
+ * `$router` must be built from the same `$routes` (`new Router($routes->table(...))`): `$routes` is
+ * declared fresh every request, but `$router` may answer from its own cache, built by a past
+ * declaration — passing both from the same `$routes` is what keeps a handler, middleware entry or
+ * filter given as a real instance resolvable (see `$routes` below). {@see Routes::resolve()} builds
+ * both together from one `Routes`, so the common case of one tree answering its own requests can't
+ * get this wrong.
  *
  * For a matched route, {@see resolve()} gives one {@link https://relayphp.com/ Relay} stack of the
  * route's own middleware and handler. Inside it, `$request->getAttribute(Found::class)` gives the
@@ -47,9 +54,8 @@ use function strtoupper;
  * {@see RouteFilter}s, each resolved by {@see Instances} the same way as middleware and handlers. The
  * container is only ever known here, not by {@see MethodNotAllowed} or {@see RouteFilter} itself. A
  * handler, middleware entry or filter declared as a real instance or closure rather than a class name
- * reaches here as a {@see Registry} id instead; {@see Instances} resolves it from the registry given
- * to this constructor, which must be the one the routes were declared with this request
- * ({@see Routes::registry()}), not a cached one.
+ * reaches here as a {@see Registry} id instead; {@see Instances} resolves it from `$routes`'s registry,
+ * which must be the same, current declaration `$router`'s routes came from, not a cached one.
  *
  * HEAD requests match GET routes unless a route for HEAD itself applies. Whoever answers a HEAD
  * request, the response loses its body ({@see HeadMiddleware}).
@@ -69,19 +75,19 @@ final class HandlerResolver
      *                                                  responses
      * @param ?RequestHandlerInterface $notFoundHandler answers requests that no route applies to,
      *                                                  instead of {@see NotFoundHandler}
-     * @param ?Registry $registry resolves a handler, middleware entry or filter declared as a real
-     *                            instance or closure; {@see Routes::registry()} of the same, current
-     *                            declaration the routes came from
+     * @param ?Routes $routes resolves a handler, middleware entry or filter declared as a real
+     *                        instance or closure, via its registry; must be the same, current
+     *                        declaration `$router`'s routes came from, not a cached one
      */
     public function __construct(
         private readonly Router $router,
         private readonly ResponseFactoryInterface $responseFactory,
         ?ContainerInterface $container = null,
         ?RequestHandlerInterface $notFoundHandler = null,
-        ?Registry $registry = null,
+        ?Routes $routes = null,
     ) {
         $this->notFoundHandler = $notFoundHandler ?? new NotFoundHandler($responseFactory);
-        $this->instances = new Instances($container, $registry ?? new Registry());
+        $this->instances = new Instances($container, $routes?->registry() ?? new Registry());
     }
 
     /**

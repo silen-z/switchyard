@@ -8,7 +8,6 @@ use ArrayObject;
 use Closure;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use SilenZ\Segmatch\CallableRouteTable;
 use SilenZ\Segmatch\Exception\InvalidRouteException;
 use SilenZ\Segmatch\Http\MethodNotAllowed;
 use SilenZ\Segmatch\Http\Registry;
@@ -16,6 +15,7 @@ use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\RouteDefinition;
 use SilenZ\Segmatch\RouteMatch;
 use SilenZ\Segmatch\Router;
+use SilenZ\Segmatch\RouteTable;
 use SilenZ\Segmatch\Tests\Http\Fixtures\FeatureRouteFilter;
 use stdClass;
 
@@ -298,7 +298,7 @@ final class RoutesTest extends TestCase
         };
 
         static::assertSame('yes', self::find(self::router($definitions), 'GET', '/invokable')['handler'] ?? null);
-        $result = new Router(new CallableRouteTable($raw))->match('/raw');
+        $result = new Router(new RouteTable($raw))->match('/raw');
         static::assertInstanceOf(RouteMatch::class, $result);
         static::assertSame('raw', $result->route);
     }

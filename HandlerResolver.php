@@ -44,9 +44,9 @@ use function strtoupper;
  * the 405 and OPTIONS answers, e.g. for CORS preflights: middleware sees the attribute, and can
  * decorate the response or answer itself.
  *
- * Matching checks a route's own HTTP methods ({@see Methods}, container-free) and runs its
+ * Matching checks a route's own HTTP methods ({@see MethodNotAllowed}, container-free) and runs its
  * {@see Guard}s, each resolved by {@see instantiate()} the same way as middleware and handlers. The
- * container is only ever known here, not by {@see Methods} or {@see Guard} itself.
+ * container is only ever known here, not by {@see MethodNotAllowed} or {@see Guard} itself.
  *
  * HEAD requests match GET routes unless a route for HEAD itself applies. Whoever answers a HEAD
  * request, the response loses its body ({@see HeadMiddleware}).
@@ -105,7 +105,8 @@ final class HandlerResolver
             // The router wants the path to start with exactly one "/".
             '/' . ltrim($request->getUri()->getPath(), characters: '/'),
             fn(mixed $route, array $params): bool => (
-                Methods::accepts($route, $request->getMethod()) && $this->guardsAccept($route, $request, $params)
+                MethodNotAllowed::accepts($route, $request->getMethod())
+                && $this->guardsAccept($route, $request, $params)
             ),
         );
 
@@ -163,12 +164,12 @@ final class HandlerResolver
 
         $allowed = [];
         foreach ($rejected as $candidate) {
-            $methods = Methods::of($candidate->route);
+            $methods = MethodNotAllowed::of($candidate->route);
             if ($methods === null || !$this->guardsAccept($candidate->route, $request, $candidate->params)) {
                 continue;
             }
 
-            if ($method === 'HEAD' && Methods::accepts($candidate->route, 'GET')) {
+            if ($method === 'HEAD' && MethodNotAllowed::accepts($candidate->route, 'GET')) {
                 return $this->matched($candidate);
             }
 

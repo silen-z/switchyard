@@ -17,8 +17,8 @@ use Psr\Http\Message\ServerRequestInterface;
  *
  * Guards decide whether a route applies to the request (host, content type, a feature switch), never
  * who is asking: authentication and permissions belong to middleware. HTTP methods are matched
- * separately, not through a guard; see {@see Methods}. Guards may run several times per request, so
- * keep them cheap and free of side effects.
+ * separately, not through a guard; see {@see MethodNotAllowed}. Guards may run several times per
+ * request, so keep them cheap and free of side effects.
  */
 interface Guard
 {

@@ -9,7 +9,7 @@ use Closure;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SilenZ\Segmatch\Exception\InvalidRouteException;
-use SilenZ\Segmatch\Http\Methods;
+use SilenZ\Segmatch\Http\MethodNotAllowed;
 use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\NoMatch;
 use SilenZ\Segmatch\RouteDefinition;
@@ -37,7 +37,7 @@ final class RoutesTest extends TestCase
      */
     private static function find(Router $router, string $method, string $path): ?array
     {
-        $result = $router->match($path, static fn(mixed $route): bool => Methods::accepts($route, $method));
+        $result = $router->match($path, static fn(mixed $route): bool => MethodNotAllowed::accepts($route, $method));
 
         if (!$result instanceof RouteMatch) {
             return null;

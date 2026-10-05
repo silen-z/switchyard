@@ -25,7 +25,7 @@ use function str_starts_with;
  *         ->tag('public');
  *
  * The route's HTTP methods are stored with it directly; any filters added with `filter()` are stored
- * alongside them, in the order they were added. {@see HandlerResolver} checks the methods and
+ * alongside them, in the order they were added. {@see RoutesHandlerBuilder} checks the methods and
  * resolves and runs the filters while matching.
  *
  * The handler, middleware and filters end up in the route cache, so they must be plain data (strings,
@@ -133,7 +133,7 @@ final class Route
      * `filter(new FeatureFilter('beta'))`, not a separate parameter here: a filter either takes no
      * configuration, or is built already configured, by a container resolving a class name or by you
      * giving an instance directly. An instance is wrapped into the route's {@see Registry}, a class
-     * name resolved by {@see HandlerResolver} from the container given to it (or built with a plain
+     * name resolved by {@see RoutesHandlerBuilder} from the container given to it (or built with a plain
      * `new $filter()` without one), transparently either way.
      *
      * @param string|RouteFilter $filter a class name implementing {@see Filter}, or an instance of one
@@ -156,7 +156,7 @@ final class Route
 
     /**
      * Resolves this route into a core route definition: the full path (this route's own, under the
-     * enclosing groups' prefix) and the metadata {@see HandlerResolver} reads while matching:
+     * enclosing groups' prefix) and the metadata {@see RoutesHandlerBuilder} reads while matching:
      *
      *     [
      *         'handler'    => [UserController::class, 'show'],
@@ -171,8 +171,6 @@ final class Route
      * `handler` and each `middleware`/`filters` entry is a class name, a container identifier, or a
      * {@see Registry} id standing in for a real instance or closure.
      *
-     * @internal
-     *
      * @param string $prefix the enclosing groups' prefix
      * @param list<mixed> $groupMiddleware the enclosing groups' middleware
      * @param list<string> $groupTags the enclosing groups' tags
@@ -180,6 +178,8 @@ final class Route
      *                                     and added to for this one
      *
      * @throws InvalidRouteException
+     *@internal
+     *
      */
     public function definition(string $prefix, array $groupMiddleware, array $groupTags, array &$names): RouteDefinition
     {

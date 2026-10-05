@@ -5,16 +5,19 @@ declare(strict_types=1);
 namespace SilenZ\Segmatch\Http;
 
 use Psr\Container\ContainerInterface;
-use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Relay\Relay;
+use SilenZ\Segmatch\Cache\RouteCache;
 use SilenZ\Segmatch\RouteMatch;
 use SilenZ\Segmatch\Router;
 
 use function array_keys;
+use function array_push;
 use function array_unshift;
 use function is_array;
+use function is_int;
+use function is_string;
 use function ltrim;
 use function strtoupper;
 
@@ -58,37 +61,29 @@ use function strtoupper;
  * HEAD requests match GET routes unless a route for HEAD itself applies. Whoever answers a HEAD
  * request, the response loses its body ({@see HeadMiddleware}).
  */
-final class HandlerResolver
+final class RoutesHandlerBuilder
 {
-    private readonly RequestHandlerInterface $notFoundHandler;
+    private Registry $registry;
 
-    private readonly Instances $instances;
+    private Routes $routes;
 
-    /** @var list<mixed> */
-    private readonly array $appMiddleware;
+    private ?Router $router = null;
 
-    /**
-     * @param ResponseFactoryInterface $responseFactory builds the default 404, and the 405 and
-     *                                                  OPTIONS responses, and the empty body of HEAD
-     *                                                  responses
-     * @param ?RequestHandlerInterface $notFoundHandler answers requests that no route applies to,
-     *                                                  instead of {@see NotFoundHandler}
-     * @param ?Routes $routes resolves a handler, middleware entry or filter declared as a real
-     *                        instance or closure, via its registry; must be the same, current
-     *                        declaration `$router`'s routes came from, not a cached one. Its own
-     *                        middleware ({@see Routes::ownMiddleware()}) wraps every outcome this
-     *                        resolver gives, matched route or not — see {@see Routes::middleware()}
-     */
     public function __construct(
-        private readonly Router $router,
-        private readonly ResponseFactoryInterface $responseFactory,
-        ?ContainerInterface $container = null,
-        ?RequestHandlerInterface $notFoundHandler = null,
-        ?Routes $routes = null,
+        private readonly ContainerInterface $container,
     ) {
-        $this->notFoundHandler = $notFoundHandler ?? new NotFoundHandler($responseFactory);
-        $this->instances = new Instances($container, $routes?->registry() ?? new Registry());
-        $this->appMiddleware = $routes->middleware ?? [];
+        $this->registry = new Registry();
+        $this->routes = new Routes($this->registry);
+    }
+
+    public function routes(): Routes
+    {
+        return $this->routes;
+    }
+
+    public function router(?RouteCache $cache = null, ?string $cacheKey = null): Router
+    {
+        return $this->router ??= new Router($this->routes->table($cacheKey), $cache);
     }
 
     /**
@@ -103,9 +98,11 @@ final class HandlerResolver
      *
      * Either way, `$routes`'s own middleware wraps the result, outermost of all but {@see HeadMiddleware}.
      */
-    public function resolve(ServerRequestInterface $request): RequestHandlerInterface
-    {
-        $match = $this->router->match(
+    public function handler(
+        ServerRequestInterface $request,
+        ?RequestHandlerInterface $notFoundHandler = null,
+    ): RequestHandlerInterface {
+        $match = $this->router()->match(
             // The router wants the path to start with exactly one "/".
             '/' . ltrim($request->getUri()->getPath(), characters: '/'),
             fn(RouteMatch $candidate): bool => (
@@ -114,19 +111,24 @@ final class HandlerResolver
             ),
         );
 
-        $queue = $match instanceof RouteMatch ? $this->matched($match) : $this->fallback($match->rejected, $request);
+        $queue = $this->routes->middleware;
 
-        if ($this->appMiddleware !== []) {
-            // Runs around this outcome whether it's a matched route or not — see Routes::middleware().
-            array_unshift($queue, ...$this->appMiddleware);
+        if ($match instanceof RouteMatch) {
+            array_push($queue, ...$this->matched($match));
+        } else {
+            array_push($queue, ...$this->fallback(
+                $match->rejected,
+                $request,
+                $notFoundHandler ?? NotFoundHandler::class,
+            ));
         }
 
         if (strtoupper($request->getMethod()) === 'HEAD') {
             // Whoever answers, a HEAD response has no body.
-            array_unshift($queue, new HeadMiddleware($this->responseFactory));
+            array_unshift($queue, HeadMiddleware::class);
         }
 
-        return new Relay($queue, $this->instances->of(...));
+        return new Relay($queue, $this->instantiate(...));
     }
 
     /**
@@ -161,8 +163,11 @@ final class HandlerResolver
      *
      * @return non-empty-list<mixed>
      */
-    private function fallback(array $rejected, ServerRequestInterface $request): array
-    {
+    private function fallback(
+        array $rejected,
+        ServerRequestInterface $request,
+        RequestHandlerInterface|string $notFoundHandler,
+    ): array {
         $method = strtoupper($request->getMethod());
 
         $allowed = [];
@@ -189,11 +194,11 @@ final class HandlerResolver
         if ($allowed !== []) {
             return [
                 new RouteContextMiddleware(new MethodNotAllowed($allowed)),
-                new AllowedMethodsHandler($this->responseFactory),
+                AllowedMethodsHandler::class,
             ];
         }
 
-        return [$this->notFoundHandler];
+        return [$notFoundHandler];
     }
 
     /**
@@ -215,12 +220,25 @@ final class HandlerResolver
         // @mago-expect analysis:mixed-assignment
         foreach ($filters as $filter) {
             /** @var RouteFilter $instance */
-            $instance = $this->instances->of($filter);
+            $instance = $this->instantiate($filter);
             if (!$instance->accepts($match, $request)) {
                 return false;
             }
         }
 
         return true;
+    }
+
+    private function instantiate(mixed $entry): mixed
+    {
+        if (is_int($entry)) {
+            return $this->registry->get($entry);
+        }
+
+        if (!is_string($entry)) {
+            return $entry;
+        }
+
+        return $this->container->get($entry);
     }
 }

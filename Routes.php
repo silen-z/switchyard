@@ -4,11 +4,6 @@ declare(strict_types=1);
 
 namespace SilenZ\Segmatch\Http;
 
-use Psr\Container\ContainerInterface;
-use Psr\Http\Message\ResponseFactoryInterface;
-use Psr\Http\Message\ServerRequestInterface;
-use Psr\Http\Server\RequestHandlerInterface;
-use SilenZ\Segmatch\Cache\RouteCache;
 use SilenZ\Segmatch\CallableRouteTable;
 use SilenZ\Segmatch\Exception\InvalidRouteException;
 use SilenZ\Segmatch\RouteDefinition;
@@ -57,8 +52,6 @@ use function strtoupper;
  */
 final class Routes
 {
-    private readonly Registry $registry;
-
     /** @var list<Route|self> */
     private array $items = [];
 
@@ -73,8 +66,8 @@ final class Routes
      *                       ending with "/"
      */
     public function __construct(
+        private readonly Registry $registry,
         private readonly string $prefix = '',
-        ?Registry $registry = null,
     ) {
         if ($prefix !== '' && (!str_starts_with($prefix, '/') || str_ends_with($prefix, '/'))) {
             throw new InvalidRouteException(sprintf(
@@ -82,8 +75,6 @@ final class Routes
                 $prefix,
             ));
         }
-
-        $this->registry = $registry ?? new Registry();
     }
 
     public function get(string $path, mixed $handler): Route
@@ -161,7 +152,7 @@ final class Routes
      */
     public function group(string $prefix = ''): self
     {
-        $group = new self($prefix, $this->registry);
+        $group = new self($this->registry, $prefix);
         $this->items[] = $group;
 
         return $group;
@@ -177,7 +168,7 @@ final class Routes
      * on the scope passed to {@see handler()} (usually the root), it also wraps the not-found and
      * method-not-allowed/OPTIONS responses, since {@see ownMiddleware()} is what that scope's own entries
      * become: the one way to run middleware for every outcome, matched or not, now that
-     * {@see HandlerResolver} takes no middleware of its own.
+     * {@see RoutesHandlerBuilder} takes no middleware of its own.
      *
      * @param mixed $middleware one middleware, or a list of them
      */
@@ -217,28 +208,6 @@ final class Routes
     }
 
     /**
-     * Builds the `Router` and `HandlerResolver` for this tree and resolves `$request` with them, in
-     * one call — the common case of one `Routes` tree answering its own requests, where the two can
-     * never end up built from different declarations (see the class docblock).
-     *
-     * @param ?RouteCache $cache where compiled routes are kept; null compiles on every request
-     * @param ?string $cacheKey identifies these routes in the cache; null (the default) never caches
-     *                          them, same as `table()`
-     */
-    public function handler(
-        ServerRequestInterface $request,
-        ResponseFactoryInterface $responseFactory,
-        ?ContainerInterface $container = null,
-        ?RequestHandlerInterface $notFoundHandler = null,
-        ?RouteCache $cache = null,
-        ?string $cacheKey = null,
-    ): RequestHandlerInterface {
-        $router = new Router($this->table($cacheKey), $cache);
-
-        return new HandlerResolver($router, $responseFactory, $container, $notFoundHandler, $this)->resolve($request);
-    }
-
-    /**
      * The routes as declared: full paths and metadata, for tooling that needs the declarations
      * themselves, e.g. an index of routes by name, or generating documentation, not for matching
      * requests.
@@ -264,7 +233,7 @@ final class Routes
 
     /**
      * This tree's {@see Registry}, shared by the root and every nested group: give it to
-     * {@see HandlerResolver} so it can resolve the ids standing in for real instances or closures in
+     * {@see RoutesHandlerBuilder} so it can resolve the ids standing in for real instances or closures in
      * the metadata {@see compiled()} produces. Rebuilt fresh every time this tree is declared, unlike
      * the compiled routes — so it must come from this same, current declaration, not a cached one.
      */

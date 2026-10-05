@@ -19,7 +19,7 @@ use SilenZ\Segmatch\RouteMatch;
  * the container no way to tell routes apart. Either way the instance is kept in the route's
  * {@see Registry}, transparently.
  *
- * Either way, {@see HandlerResolver} calls {@see accepts()} for every candidate route of a request. A
+ * Either way, {@see RoutesHandlerBuilder} calls {@see accepts()} for every candidate route of a request. A
  * filter that returns false makes the route behave as if it didn't exist, and matching moves on.
  *
  * Filters decide whether a route applies to the request (host, content type, a feature switch), never

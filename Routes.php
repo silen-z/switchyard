@@ -49,6 +49,11 @@ use function strtoupper;
  * `Router` with a different declaration's registry (e.g. one built earlier and reused) would resolve
  * the wrong instance, or none at all, for anything given to `->middleware()`, `->filter()` or a
  * handler as a real instance.
+ *
+ * `->middleware()` on a group only ever runs for a request one of its own routes matches, since it's
+ * baked into each of them. `->middleware()` on the scope given to {@see handler()} (the root, in the
+ * example above) is different: it also wraps the not-found and method-not-allowed/OPTIONS responses,
+ * so it's the way to run middleware — logging, CORS — for every outcome, not just matched routes.
  */
 final class Routes
 {
@@ -58,7 +63,7 @@ final class Routes
     private array $items = [];
 
     /** @var list<mixed> */
-    private array $middleware = [];
+    public array $middleware = [];
 
     /** @var list<string> */
     private array $tags = [];
@@ -167,6 +172,13 @@ final class Routes
      * middleware of any enclosing group. A class name or container identifier is resolved as usual; a
      * real instance or closure is wrapped into the tree's {@see Registry} instead, transparently.
      *
+     * Declared on a group, this only ever runs for a request a route inside it actually matches — there
+     * is no "wrong method" or "no route" response to decorate for a path the group doesn't own. Declared
+     * on the scope passed to {@see handler()} (usually the root), it also wraps the not-found and
+     * method-not-allowed/OPTIONS responses, since {@see ownMiddleware()} is what that scope's own entries
+     * become: the one way to run middleware for every outcome, matched or not, now that
+     * {@see HandlerResolver} takes no middleware of its own.
+     *
      * @param mixed $middleware one middleware, or a list of them
      */
     public function middleware(mixed $middleware): self
@@ -194,24 +206,6 @@ final class Routes
     }
 
     /**
-     * Resolves this scope's declared routes, groups recursively, into core route definitions. Only
-     * called when the router's cache has no entry for the key — see {@see table()}, which is what
-     * {@see \SilenZ\Segmatch\Router} actually takes.
-     *
-     * @return callable(): list<RouteDefinition>
-     */
-    public function compiled(): callable
-    {
-        return function (): array {
-            $definitions = [];
-            $names = [];
-            $this->register($definitions, '', [], [], $names);
-
-            return $definitions;
-        };
-    }
-
-    /**
      * This tree as a {@see RouteTable}, cached under `$cacheKey` — `null` (the default) never caches
      * it, compiling on every request regardless of whether `Router` was given a cache. Pass something
      * that changes whenever these declarations would, e.g. an application version or a configuration
@@ -219,7 +213,7 @@ final class Routes
      */
     public function table(?string $cacheKey = null): RouteTable
     {
-        return new CallableRouteTable($this->compiled(), $cacheKey);
+        return new CallableRouteTable($this->definitions(...), $cacheKey);
     }
 
     /**
@@ -253,7 +247,19 @@ final class Routes
      */
     public function definitions(): array
     {
-        return $this->compiled()();
+        $definitions = [];
+        $names = [];
+
+        foreach ($this->items as $item) {
+            if ($item instanceof self) {
+                $item->register($definitions, $this->prefix, [], $this->tags, $names);
+                continue;
+            }
+
+            $definitions[] = $item->definition($this->prefix, [], $this->tags, $names);
+        }
+
+        return $definitions;
     }
 
     /**

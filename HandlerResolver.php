@@ -43,9 +43,10 @@ use function strtoupper;
  *   `Allow` header;
  * - the same for an OPTIONS request: {@see AllowedMethodsHandler}, a 200 with the `Allow` header.
  *
- * The latter two give middleware the allowed methods as `$request->getAttribute(MethodNotAllowed::class)`,
- * but only a route's own middleware ever runs — none of these three has one, so nothing decorates them
- * beyond what {@see NotFoundHandler} and {@see AllowedMethodsHandler} already build.
+ * The latter two give middleware the allowed methods as `$request->getAttribute(MethodNotAllowed::class)`.
+ * None of these three has a route, so a route's own middleware never runs for them — but `$routes`'s own
+ * middleware does, wrapping every outcome of {@see resolve()} alike (see `$routes` below and
+ * {@see Routes::middleware()}).
  *
  * Matching checks a route's own HTTP methods ({@see MethodNotAllowed}, container-free) and runs its
  * {@see RouteFilter}s, each resolved by {@see Instances} the same way as middleware and handlers. The
@@ -63,6 +64,9 @@ final class HandlerResolver
 
     private readonly Instances $instances;
 
+    /** @var list<mixed> */
+    private readonly array $appMiddleware;
+
     /**
      * @param ResponseFactoryInterface $responseFactory builds the default 404, and the 405 and
      *                                                  OPTIONS responses, and the empty body of HEAD
@@ -71,7 +75,9 @@ final class HandlerResolver
      *                                                  instead of {@see NotFoundHandler}
      * @param ?Routes $routes resolves a handler, middleware entry or filter declared as a real
      *                        instance or closure, via its registry; must be the same, current
-     *                        declaration `$router`'s routes came from, not a cached one
+     *                        declaration `$router`'s routes came from, not a cached one. Its own
+     *                        middleware ({@see Routes::ownMiddleware()}) wraps every outcome this
+     *                        resolver gives, matched route or not — see {@see Routes::middleware()}
      */
     public function __construct(
         private readonly Router $router,
@@ -82,6 +88,7 @@ final class HandlerResolver
     ) {
         $this->notFoundHandler = $notFoundHandler ?? new NotFoundHandler($responseFactory);
         $this->instances = new Instances($container, $routes?->registry() ?? new Registry());
+        $this->appMiddleware = $routes->middleware ?? [];
     }
 
     /**
@@ -93,6 +100,8 @@ final class HandlerResolver
      *
      * Otherwise it's the not-found, method-not-allowed or OPTIONS handler. Allowed methods count only
      * routes rejected solely because of their method; HEAD is included whenever GET is.
+     *
+     * Either way, `$routes`'s own middleware wraps the result, outermost of all but {@see HeadMiddleware}.
      */
     public function resolve(ServerRequestInterface $request): RequestHandlerInterface
     {
@@ -106,6 +115,11 @@ final class HandlerResolver
         );
 
         $queue = $match instanceof RouteMatch ? $this->matched($match) : $this->fallback($match->rejected, $request);
+
+        if ($this->appMiddleware !== []) {
+            // Runs around this outcome whether it's a matched route or not — see Routes::middleware().
+            array_unshift($queue, ...$this->appMiddleware);
+        }
 
         if (strtoupper($request->getMethod()) === 'HEAD') {
             // Whoever answers, a HEAD response has no body.

@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace SilenZ\Segmatch\Http;
 
+use SilenZ\Segmatch\CallableRouteTable;
 use SilenZ\Segmatch\Exception\InvalidRouteException;
 use SilenZ\Segmatch\RouteDefinition;
+use SilenZ\Segmatch\RouteTable;
 
 use function array_unique;
 use function array_values;
@@ -23,15 +25,16 @@ use function strtoupper;
  *     $routes->get('/', HomeController::class);
  *     $routes->group('/api')->middleware('api')->get('/users/{id}', [UserController::class, 'show'])->name('users.show');
  *
- *     $router = new Router($routes->compiled());
+ *     $router = new Router($routes->table('routes-' . APP_VERSION));
  *     $resolver = new HandlerResolver($router, $responseFactory, registry: $routes->registry());
  *
  * Declaring runs immediately, like any other PHP code; there is nothing to defer. A `group()` is
  * itself a `Routes`, scoped by an optional path prefix, with its own middleware and tags inherited by
- * everything declared on it (including further nested groups). {@see compiled()} gives the callable
- * {@see \SilenZ\Segmatch\Router} takes: it only walks this tree into full paths and resolved metadata
- * when the router's cache has no entry, so declaring routes is cheap and unconditional, but turning
- * them into the compiled matching structure stays as lazy and cacheable as before.
+ * everything declared on it (including further nested groups). {@see table()} gives the
+ * {@see \SilenZ\Segmatch\RouteTable} `Router` takes: it only walks this tree into full paths and
+ * resolved metadata when the router's cache has no entry, so declaring routes is cheap and
+ * unconditional, but turning them into the compiled matching structure stays as lazy and cacheable as
+ * before.
  *
  * A handler, middleware entry or filter may be a real instance or closure, not just a class name or
  * container identifier: anything that isn't already cacheable plain data is transparently wrapped into
@@ -184,9 +187,9 @@ final class Routes
     }
 
     /**
-     * The callable {@see \SilenZ\Segmatch\Router} takes: resolves this scope's declared routes,
-     * groups recursively, into core route definitions. Only called when the router's cache has no
-     * entry for the key.
+     * Resolves this scope's declared routes, groups recursively, into core route definitions. Only
+     * called when the router's cache has no entry for the key — see {@see table()}, which is what
+     * {@see \SilenZ\Segmatch\Router} actually takes.
      *
      * @return callable(): list<RouteDefinition>
      */
@@ -199,6 +202,17 @@ final class Routes
 
             return $definitions;
         };
+    }
+
+    /**
+     * This tree as a {@see RouteTable}, cached under `$cacheKey` — `null` (the default) never caches
+     * it, compiling on every request regardless of whether `Router` was given a cache. Pass something
+     * that changes whenever these declarations would, e.g. an application version or a configuration
+     * hash, for the caching described in {@see \SilenZ\Segmatch\Router} to actually take effect.
+     */
+    public function table(?string $cacheKey = null): RouteTable
+    {
+        return new CallableRouteTable($this->compiled(), $cacheKey);
     }
 
     /**

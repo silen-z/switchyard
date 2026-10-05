@@ -44,8 +44,8 @@ use function strtoupper;
  * decorate the response or answer itself.
  *
  * Matching checks a route's own HTTP methods ({@see MethodNotAllowed}, container-free) and runs its
- * {@see Filter}s, each resolved by {@see Instances} the same way as middleware and handlers. The
- * container is only ever known here, not by {@see MethodNotAllowed} or {@see Filter} itself. A
+ * {@see RouteFilter}s, each resolved by {@see Instances} the same way as middleware and handlers. The
+ * container is only ever known here, not by {@see MethodNotAllowed} or {@see RouteFilter} itself. A
  * handler, middleware entry or filter declared as a real instance or closure rather than a class name
  * reaches here as a {@see Registry} id instead; {@see Instances} resolves it from the registry given
  * to this constructor, which must be the one the routes were declared with this request
@@ -116,7 +116,7 @@ final class HandlerResolver
             '/' . ltrim($request->getUri()->getPath(), characters: '/'),
             fn(RouteMatch $candidate): bool => (
                 MethodNotAllowed::accepts($candidate->route, $request->getMethod())
-                && $this->filtersAccept($candidate, $request)
+                && $this->accepts($candidate, $request)
             ),
         );
 
@@ -175,7 +175,7 @@ final class HandlerResolver
         $allowed = [];
         foreach ($rejected as $candidate) {
             $methods = MethodNotAllowed::of($candidate->route);
-            if ($methods === null || !$this->filtersAccept($candidate, $request)) {
+            if ($methods === null || !$this->accepts($candidate, $request)) {
                 continue;
             }
 
@@ -208,7 +208,7 @@ final class HandlerResolver
      * Resolves and runs a route's own filters, in the order they were added. A route without any
      * always applies.
      */
-    private function filtersAccept(RouteMatch $match, ServerRequestInterface $request): bool
+    private function accepts(RouteMatch $match, ServerRequestInterface $request): bool
     {
         // The matched route's metadata is arbitrary user data, so it's mixed by definition.
         // @mago-expect analysis:mixed-assignment
@@ -222,9 +222,9 @@ final class HandlerResolver
 
         // @mago-expect analysis:mixed-assignment
         foreach ($filters as $filter) {
-            /** @var Filter $instance */
+            /** @var RouteFilter $instance */
             $instance = $this->instances->of($filter);
-            if (!$instance->accepts($request, $match)) {
+            if (!$instance->accepts($match, $request)) {
                 return false;
             }
         }

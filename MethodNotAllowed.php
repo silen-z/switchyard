@@ -14,7 +14,7 @@ use function strtoupper;
  * request attribute.
  *
  * {@see accepts()} and {@see of()} read a route's own HTTP methods, stored in its metadata directly
- * rather than as a {@see Filter}; see {@see Route}. Routes declared with `any()` have none and accept
+ * rather than as a {@see RouteFilter}; see {@see Route}. Routes declared with `any()` have none and accept
  * every method. Generic and container-free, unlike filter resolution: {@see HandlerResolver} composes
  * these with its own filter handling to build the closure {@see \SilenZ\Segmatch\Router::match()} takes.
  */

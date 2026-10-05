@@ -134,16 +134,16 @@ final class Route
      * name resolved by {@see HandlerResolver} from the container given to it (or built with a plain
      * `new $filter()` without one), transparently either way.
      *
-     * @param string|Filter $filter a class name implementing {@see Filter}, or an instance of one
+     * @param string|RouteFilter $filter a class name implementing {@see Filter}, or an instance of one
      */
-    public function filter(string|Filter $filter): self
+    public function filter(string|RouteFilter $filter): self
     {
-        if (is_string($filter) && !is_subclass_of($filter, Filter::class)) {
+        if (is_string($filter) && !is_subclass_of($filter, RouteFilter::class)) {
             throw new InvalidRouteException(sprintf(
                 'Route "%s" uses filter "%s", which does not implement %s.',
                 $this->path,
                 $filter,
-                Filter::class,
+                RouteFilter::class,
             ));
         }
 

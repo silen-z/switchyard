@@ -33,7 +33,7 @@ use SilenZ\Segmatch\RouteMatch;
  * `$request`; `$match` mainly earns its keep when what decides a route exists is baked into the path
  * itself, e.g. a version or tenant segment, rather than general request state.
  */
-interface Filter
+interface RouteFilter
 {
-    public function accepts(ServerRequestInterface $request, RouteMatch $match): bool;
+    public function accepts(RouteMatch $match, ServerRequestInterface $request): bool;
 }

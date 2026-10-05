@@ -53,7 +53,7 @@ final readonly class Dispatcher
 
         // The root's own middleware wraps every outcome. It's kept as the table's metadata, so it's
         // read from the router — from the cache on a hit, like the routes — rather than from the tree.
-        $queue = RoutesTable::middlewareOf($this->router->tableMetadata());
+        $queue = Routes::middlewareOf($this->router->tableMetadata());
 
         if ($match instanceof RouteMatch) {
             array_push($queue, ...$this->matched($match));

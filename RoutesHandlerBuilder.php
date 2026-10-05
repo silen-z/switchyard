@@ -199,7 +199,7 @@ final class RoutesHandlerBuilder
         }
 
         if ($this->lazy !== null) {
-            return RoutesTable::lazy($this->lazy, $cacheKey);
+            return Routes::lazyTable($this->lazy, $cacheKey);
         }
 
         throw new LogicException('No routes are declared: call routes() or lazyRoutes() first.');

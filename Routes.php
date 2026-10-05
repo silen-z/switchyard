@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace SilenZ\Segmatch\Http;
 
+use Closure;
 use SilenZ\Segmatch\Exception\InvalidRouteException;
 use SilenZ\Segmatch\RouteDefinition;
 use SilenZ\Segmatch\Router;
@@ -209,11 +210,48 @@ final class Routes
      * hash, for the caching described in {@see \SilenZ\Segmatch\Router} to actually take effect.
      *
      * The table's metadata ({@see RouteTable::metadata()}) is this scope's own middleware,
-     * `['middleware' => [...]]`, which {@see definitions()} bakes into no route.
+     * `['middleware' => [...]]`, which {@see definitions()} bakes into no route; read it back with
+     * {@see middlewareOf()}.
      */
     public function table(?string $cacheKey = null): RouteTable
     {
-        return new RoutesTable(fn(): self => $this, $cacheKey);
+        return self::tableOf(fn(): self => $this, $cacheKey);
+    }
+
+    /**
+     * A table for routes declared lazily: `$define` declares them on a fresh tree with a
+     * {@see Registry::strict()} registry, and only runs when the table's definitions or metadata are
+     * needed, i.e. on a cache miss.
+     *
+     * @internal for {@see RoutesHandlerBuilder::lazyRoutes()}
+     *
+     * @param Closure(self): void $define
+     */
+    public static function lazyTable(Closure $define, ?string $cacheKey): RouteTable
+    {
+        return self::tableOf(static function () use ($define): self {
+            $routes = new self(Registry::strict());
+            $define($routes);
+
+            return $routes;
+        }, $cacheKey);
+    }
+
+    /**
+     * The root's middleware out of a table's metadata as {@see table()} gave it, e.g. read back with
+     * {@see \SilenZ\Segmatch\Router::tableMetadata()}; none for anything else.
+     *
+     * @internal for {@see Dispatcher}
+     *
+     * @return list<mixed>
+     */
+    public static function middlewareOf(mixed $tableMetadata): array
+    {
+        if (!is_array($tableMetadata) || !is_array($tableMetadata['middleware'] ?? null)) {
+            return [];
+        }
+
+        return array_values($tableMetadata['middleware']);
     }
 
     /**
@@ -281,16 +319,23 @@ final class Routes
     }
 
     /**
-     * This scope's own middleware, without any enclosing group's: for the root, what wraps every
-     * outcome rather than being baked into its routes.
+     * A table whose definitions are a tree's routes and whose metadata is the root's own middleware,
+     * which wraps every outcome rather than being baked into a route. `$tree` is called at most once,
+     * and only when either is needed — on a cache miss — so both come from the same tree.
      *
-     * @internal shared with {@see RoutesTable}
-     *
-     * @return list<mixed>
+     * @param Closure(): self $tree
      */
-    public function ownMiddleware(): array
+    private static function tableOf(Closure $tree, ?string $cacheKey): RouteTable
     {
-        return $this->middleware;
+        /** @var ?self $routes set by $once, through the reference it captures */
+        $routes = null;
+        $once = static function () use ($tree, &$routes): self {
+            return $routes ??= $tree();
+        };
+
+        return new RouteTable(static fn(): array => $once()->definitions(), $cacheKey, static fn(): array => [
+            'middleware' => $once()->middleware,
+        ]);
     }
 
     /**

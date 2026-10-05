@@ -11,10 +11,10 @@ use function is_array;
 use function is_scalar;
 
 /**
- * Lets a handler, middleware entry or guard be a real instance or closure instead of only a class
+ * Lets a handler, middleware entry or filter be a real instance or closure instead of only a class
  * name: a route's own metadata must stay plain data to survive the route cache ({@see Route}), so
  * anything that isn't already {@see wrap()}s it into here and gives back the id {@see
- * HandlerResolver::instantiate()} resolves it from at request time instead.
+ * Instances::of()} resolves it from at request time instead.
  *
  * One `Registry` is shared by a {@see Routes} tree (the root and every `group()` nested under it,
  * {@see Route}s included), and rebuilt fresh every time the tree is declared — unlike the route cache,
@@ -44,7 +44,7 @@ final class Registry
     }
 
     /**
-     * @internal shared by {@see HandlerResolver::instantiate()}
+     * @internal shared by {@see Instances::of()}
      */
     public function get(int $id): mixed
     {

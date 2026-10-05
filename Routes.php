@@ -33,7 +33,7 @@ use function strtoupper;
  * when the router's cache has no entry, so declaring routes is cheap and unconditional, but turning
  * them into the compiled matching structure stays as lazy and cacheable as before.
  *
- * A handler, middleware entry or guard may be a real instance or closure, not just a class name or
+ * A handler, middleware entry or filter may be a real instance or closure, not just a class name or
  * container identifier: anything that isn't already cacheable plain data is transparently wrapped into
  * this tree's {@see Registry} instead, shared by the root and every nested group. Unlike the compiled
  * routes, the `Registry` is never cached — it's rebuilt fresh every time this tree is declared, so

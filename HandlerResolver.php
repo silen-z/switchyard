@@ -44,9 +44,9 @@ use function strtoupper;
  * decorate the response or answer itself.
  *
  * Matching checks a route's own HTTP methods ({@see MethodNotAllowed}, container-free) and runs its
- * {@see Guard}s, each resolved by {@see Instances} the same way as middleware and handlers. The
- * container is only ever known here, not by {@see MethodNotAllowed} or {@see Guard} itself. A
- * handler, middleware entry or guard declared as a real instance or closure rather than a class name
+ * {@see Filter}s, each resolved by {@see Instances} the same way as middleware and handlers. The
+ * container is only ever known here, not by {@see MethodNotAllowed} or {@see Filter} itself. A
+ * handler, middleware entry or filter declared as a real instance or closure rather than a class name
  * reaches here as a {@see Registry} id instead; {@see Instances} resolves it from the registry given
  * to this constructor, which must be the one the routes were declared with this request
  * ({@see Routes::registry()}), not a cached one.
@@ -69,7 +69,7 @@ final class HandlerResolver
      *                                                  responses
      * @param ?RequestHandlerInterface $notFoundHandler answers requests that no route applies to,
      *                                                  instead of {@see NotFoundHandler}
-     * @param ?Registry $registry resolves a handler, middleware entry or guard declared as a real
+     * @param ?Registry $registry resolves a handler, middleware entry or filter declared as a real
      *                            instance or closure; {@see Routes::registry()} of the same, current
      *                            declaration the routes came from
      */
@@ -91,7 +91,7 @@ final class HandlerResolver
      * for a 404). Identifiers are resolved like route middleware; calls add to the end, so the first
      * added is outermost.
      *
-     * Middleware that must run before matching, e.g. to set attributes guards read, belongs in a
+     * Middleware that must run before matching, e.g. to set attributes filters read, belongs in a
      * stack around {@see resolve()} instead.
      */
     public function addMiddleware(string|MiddlewareInterface ...$middleware): void
@@ -114,9 +114,9 @@ final class HandlerResolver
         $match = $this->router->match(
             // The router wants the path to start with exactly one "/".
             '/' . ltrim($request->getUri()->getPath(), characters: '/'),
-            fn(mixed $route, array $params): bool => (
-                MethodNotAllowed::accepts($route, $request->getMethod())
-                && $this->guardsAccept($route, $request, $params)
+            fn(RouteMatch $candidate): bool => (
+                MethodNotAllowed::accepts($candidate->route, $request->getMethod())
+                && $this->filtersAccept($candidate, $request)
             ),
         );
 
@@ -157,12 +157,12 @@ final class HandlerResolver
      *
      * - for a HEAD request, the queue of the first of them that accepts GET, as {@see matched()}.
      *   The router tried them in order, so it's the route a second pass for GET would find. The
-     *   request isn't rewritten: guards and the route still see HEAD;
-     * - otherwise a {@see MethodNotAllowed} of the methods of the routes whose guards accept (HEAD
+     *   request isn't rewritten: filters and the route still see HEAD;
+     * - otherwise a {@see MethodNotAllowed} of the methods of the routes whose filters accept (HEAD
      *   included whenever GET is), the application middleware, and {@see AllowedMethodsHandler};
-     * - or, when no route's guards accept, the application middleware and the not-found handler.
+     * - or, when no route's filters accept, the application middleware and the not-found handler.
      *
-     * Routes without methods (`any()`) are skipped: rejected, so their guards failed.
+     * Routes without methods (`any()`) are skipped: rejected, so their filters failed.
      *
      * @param list<RouteMatch> $rejected
      *
@@ -175,7 +175,7 @@ final class HandlerResolver
         $allowed = [];
         foreach ($rejected as $candidate) {
             $methods = MethodNotAllowed::of($candidate->route);
-            if ($methods === null || !$this->guardsAccept($candidate->route, $request, $candidate->params)) {
+            if ($methods === null || !$this->filtersAccept($candidate, $request)) {
                 continue;
             }
 
@@ -205,25 +205,26 @@ final class HandlerResolver
     }
 
     /**
-     * Resolves and runs a route's own guards, in the order they were added. A route without any
+     * Resolves and runs a route's own filters, in the order they were added. A route without any
      * always applies.
-     *
-     * @param array<string, string> $params
      */
-    private function guardsAccept(mixed $route, ServerRequestInterface $request, array $params): bool
+    private function filtersAccept(RouteMatch $match, ServerRequestInterface $request): bool
     {
-        if (!is_array($route) || !is_array($route['guards'] ?? null)) {
+        // The matched route's metadata is arbitrary user data, so it's mixed by definition.
+        // @mago-expect analysis:mixed-assignment
+        $route = $match->route;
+        if (!is_array($route) || !is_array($route['filters'] ?? null)) {
             return true;
         }
 
-        /** @var list<mixed> $guards */
-        $guards = $route['guards'];
+        /** @var list<mixed> $filters */
+        $filters = $route['filters'];
 
         // @mago-expect analysis:mixed-assignment
-        foreach ($guards as $guard) {
-            /** @var Guard $instance */
-            $instance = $this->instances->of($guard);
-            if (!$instance->accepts($request, $params)) {
+        foreach ($filters as $filter) {
+            /** @var Filter $instance */
+            $instance = $this->instances->of($filter);
+            if (!$instance->accepts($request, $match)) {
                 return false;
             }
         }

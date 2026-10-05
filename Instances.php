@@ -10,7 +10,7 @@ use function is_int;
 use function is_string;
 
 /**
- * Resolves a guard, middleware or handler identifier to an instance, for {@see HandlerResolver}: a
+ * Resolves a filter, middleware or handler identifier to an instance, for {@see HandlerResolver}: a
  * {@see Registry} id gives back the real instance or closure it stands in for; a class name or
  * container identifier is resolved from the container given to this constructor, or a plain
  * `new $entry()` without one. Relay passes every stack entry through {@see of()} too, so anything

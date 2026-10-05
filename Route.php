@@ -22,12 +22,12 @@ use function sprintf;
  *         ->middleware('audit')
  *         ->tag('public');
  *
- * The route's HTTP methods are stored with it directly; any guards added with `guard()` are stored
+ * The route's HTTP methods are stored with it directly; any filters added with `filter()` are stored
  * alongside them, in the order they were added. {@see HandlerResolver} checks the methods and
- * resolves and runs the guards while matching.
+ * resolves and runs the filters while matching.
  *
- * The handler, middleware and guards end up in the route cache, so they must be plain data (strings,
- * arrays, enums, ...), not closures or objects — a handler, a `middleware()` entry or a `guard()`
+ * The handler, middleware and filters end up in the route cache, so they must be plain data (strings,
+ * arrays, enums, ...), not closures or objects — a handler, a `middleware()` entry or a `filter()`
  * given as a real instance or closure is wrapped into the route's {@see Registry} instead,
  * transparently.
  */
@@ -44,7 +44,7 @@ final class Route
     private array $tags = [];
 
     /** @var list<mixed> */
-    private array $guards = [];
+    private array $filters = [];
 
     /**
      * @param ?non-empty-list<string> $methods upper-case HTTP methods, null for any method
@@ -122,32 +122,32 @@ final class Route
     }
 
     /**
-     * Adds a condition of the application's own, checked in the order guards were added, after the
-     * method check. May be called more than once, including with the same guard class: each instance
-     * is checked independently, which is how to vary one guard's behavior within a single route, e.g.
-     * `guard(new NumericGuard('id'))->guard(new NumericGuard('parentId'))`.
+     * Adds a condition of the application's own, checked in the order filters were added, after the
+     * method check. May be called more than once, including with the same filter class: each instance
+     * is checked independently, which is how to vary one filter's behavior within a single route, e.g.
+     * `filter(new NumericFilter('id'))->filter(new NumericFilter('parentId'))`.
      *
-     * Any configuration a guard needs is a constructor argument of its own, e.g.
-     * `guard(new FeatureGuard('beta'))`, not a separate parameter here: a guard either takes no
+     * Any configuration a filter needs is a constructor argument of its own, e.g.
+     * `filter(new FeatureFilter('beta'))`, not a separate parameter here: a filter either takes no
      * configuration, or is built already configured, by a container resolving a class name or by you
      * giving an instance directly. An instance is wrapped into the route's {@see Registry}, a class
      * name resolved by {@see HandlerResolver} from the container given to it (or built with a plain
-     * `new $guard()` without one), transparently either way.
+     * `new $filter()` without one), transparently either way.
      *
-     * @param string|Guard $guard a class name implementing {@see Guard}, or an instance of one
+     * @param string|Filter $filter a class name implementing {@see Filter}, or an instance of one
      */
-    public function guard(string|Guard $guard): self
+    public function filter(string|Filter $filter): self
     {
-        if (is_string($guard) && !is_subclass_of($guard, Guard::class)) {
+        if (is_string($filter) && !is_subclass_of($filter, Filter::class)) {
             throw new InvalidRouteException(sprintf(
-                'Route "%s" uses guard "%s", which does not implement %s.',
+                'Route "%s" uses filter "%s", which does not implement %s.',
                 $this->path,
-                $guard,
-                Guard::class,
+                $filter,
+                Filter::class,
             ));
         }
 
-        $this->guards[] = $this->registry->wrap($guard);
+        $this->filters[] = $this->registry->wrap($filter);
 
         return $this;
     }
@@ -173,15 +173,15 @@ final class Route
      *
      *     [
      *         'handler'    => [UserController::class, 'show'],
-     *         'middleware' => ['api', 'auth'],     // groups' middleware first, outermost first
-     *         'name'       => 'users.show',        // only when named
-     *         'path'       => '/api/users/{id}',   // only when named, for URL generation
-     *         'tags'       => ['public'],          // only when tagged; groups' tags first, no duplicates
-     *         'methods'    => ['GET'],             // only for routes with methods (not any())
-     *         'guards'     => [FeatureGuard::class], // only when there are any, checked in this order
+     *         'middleware' => ['api', 'auth'],      // groups' middleware first, outermost first
+     *         'name'       => 'users.show',         // only when named
+     *         'path'       => '/api/users/{id}',    // only when named, for URL generation
+     *         'tags'       => ['public'],           // only when tagged; groups' tags first, no duplicates
+     *         'methods'    => ['GET'],              // only for routes with methods (not any())
+     *         'filters'    => [FeatureFilter::class], // only when there are any, checked in this order
      *     ]
      *
-     * `handler` and each `middleware`/`guards` entry is a class name, a container identifier, or a
+     * `handler` and each `middleware`/`filters` entry is a class name, a container identifier, or a
      * {@see Registry} id standing in for a real instance or closure.
      *
      * @internal
@@ -190,7 +190,7 @@ final class Route
      * @param list<mixed> $groupMiddleware
      * @param list<string> $groupTags
      *
-     * @return array{handler: mixed, middleware: list<mixed>, name?: string, path?: string, tags?: non-empty-list<string>, methods?: non-empty-list<string>, guards?: non-empty-list<mixed>}
+     * @return array{handler: mixed, middleware: list<mixed>, name?: string, path?: string, tags?: non-empty-list<string>, methods?: non-empty-list<string>, filters?: non-empty-list<mixed>}
      */
     public function metadata(string $fullPath, array $groupMiddleware, array $groupTags): array
     {
@@ -213,8 +213,8 @@ final class Route
             $metadata['methods'] = $this->methods;
         }
 
-        if ($this->guards !== []) {
-            $metadata['guards'] = $this->guards;
+        if ($this->filters !== []) {
+            $metadata['filters'] = $this->filters;
         }
 
         return $metadata;

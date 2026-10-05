@@ -382,7 +382,7 @@ final class HandlerResolverTest extends TestCase
             ->filter(new ConfigurableRouteFilter(accepts: true));
 
         $request = new ServerRequest('GET', '/x');
-        $response = $routes->resolve($request, new Psr17Factory())->handle($request);
+        $response = $routes->handler($request, new Psr17Factory())->handle($request);
 
         static::assertSame(204, $response->getStatusCode());
         static::assertSame('instance', $response->getHeaderLine('X-Trail'));

@@ -62,7 +62,7 @@ final class ResolvedHandlerTest extends TestCase
             new Router($routes->table()),
             responseFactory: self::responseFactory(),
             notFoundHandler: $notFoundHandler,
-            registry: $routes->registry(),
+            routes: $routes,
         );
     }
 

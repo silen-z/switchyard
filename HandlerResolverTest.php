@@ -55,7 +55,7 @@ final class HandlerResolverTest extends TestCase
             new Psr17Factory(),
             $container ?? new EchoContainer(),
             $notFoundHandler,
-            registry: $routes->registry(),
+            routes: $routes,
         );
     }
 
@@ -338,11 +338,7 @@ final class HandlerResolverTest extends TestCase
             ->middleware(new TagMiddleware('instance'))
             ->filter(new ConfigurableRouteFilter(accepts: true));
 
-        $resolver = new HandlerResolver(
-            new Router($routes->table()),
-            new Psr17Factory(),
-            registry: $routes->registry(),
-        );
+        $resolver = new HandlerResolver(new Router($routes->table()), new Psr17Factory(), routes: $routes);
 
         $response = self::respond($resolver, new ServerRequest('GET', '/x'));
 
@@ -355,11 +351,7 @@ final class HandlerResolverTest extends TestCase
         $routes = new Routes();
         $routes->get('/x', new PlainHandler())->filter(new ConfigurableRouteFilter(accepts: false));
 
-        $resolver = new HandlerResolver(
-            new Router($routes->table()),
-            new Psr17Factory(),
-            registry: $routes->registry(),
-        );
+        $resolver = new HandlerResolver(new Router($routes->table()), new Psr17Factory(), routes: $routes);
 
         self::assertNotFound($resolver, new ServerRequest('GET', '/x'));
     }
@@ -372,16 +364,27 @@ final class HandlerResolverTest extends TestCase
             ->filter(new NumericRouteFilter('id'))
             ->filter(new NumericRouteFilter('postId'));
 
-        $resolver = new HandlerResolver(
-            new Router($routes->table()),
-            new Psr17Factory(),
-            registry: $routes->registry(),
-        );
+        $resolver = new HandlerResolver(new Router($routes->table()), new Psr17Factory(), routes: $routes);
 
         $response = self::respond($resolver, new ServerRequest('GET', '/users/42/posts/7'));
         static::assertSame(204, $response->getStatusCode());
 
         // The second filter rejects: "posts/new" isn't numeric.
         self::assertNotFound($resolver, new ServerRequest('GET', '/users/42/posts/new'));
+    }
+
+    public function testRoutesResolveBuildsARouterAndHandlerResolverFromTheSameDeclaration(): void
+    {
+        $routes = new Routes();
+        $routes
+            ->get('/x', new PlainHandler())
+            ->middleware(new TagMiddleware('instance'))
+            ->filter(new ConfigurableRouteFilter(accepts: true));
+
+        $request = new ServerRequest('GET', '/x');
+        $response = $routes->resolve($request, new Psr17Factory())->handle($request);
+
+        static::assertSame(204, $response->getStatusCode());
+        static::assertSame('instance', $response->getHeaderLine('X-Trail'));
     }
 }

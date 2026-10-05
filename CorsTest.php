@@ -32,11 +32,7 @@ final class CorsTest extends TestCase
         $routes->get('/reports', PlainHandler::class);
         $routes->map(['OPTIONS'], '/reports', PlainHandler::class);
 
-        $resolver = new HandlerResolver(
-            new Router($routes->table()),
-            new Psr17Factory(),
-            registry: $routes->registry(),
-        );
+        $resolver = new HandlerResolver(new Router($routes->table()), new Psr17Factory(), routes: $routes);
         $resolver->addMiddleware(new CorsMiddleware([self::ORIGIN], headers: ['Content-Type'], maxAge: 300));
 
         return $resolver->resolve($request)->handle($request);

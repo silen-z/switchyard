@@ -9,14 +9,14 @@ use Psr\Http\Message\ServerRequestInterface;
 /**
  * A condition a route attaches to itself, checked while matching.
  *
- * A route usually references a guard by class name together with plain-data configuration, so both
- * survive the route cache; {@see HandlerResolver} resolves one instance per guard class from the
- * container given to it (or builds a plain `new $guard()` without one). A route may instead be given a
- * ready instance directly ({@see Route::guard()}), which skips the container and the cache — the
- * instance is kept in the route's {@see Registry} instead. That instance can bake its own
- * configuration into its constructor, so `$config` mainly earns its keep for the class-name form,
- * where the same guard class is shared across routes that each need it configured differently (e.g. a
- * feature name).
+ * A route usually references a guard by class name, so it survives the route cache; {@see
+ * HandlerResolver} resolves one instance per guard class from the container given to it (or builds a
+ * plain `new $guard()` without one), which wires up whatever dependencies that class always needs,
+ * the same way for every route that uses it. A route may instead be given a ready instance directly
+ * ({@see Route::guard()}), which skips the container and bakes its own configuration into its
+ * constructor instead — the only way to vary one guard's behavior per route, since a class name gives
+ * the container no way to tell routes apart. Either way the instance is kept in the route's
+ * {@see Registry}, transparently.
  *
  * Either way, {@see HandlerResolver} calls {@see accepts()} for every candidate route of a request. A
  * guard that returns false makes the route behave as if it didn't exist, and matching moves on.
@@ -29,9 +29,7 @@ use Psr\Http\Message\ServerRequestInterface;
 interface Guard
 {
     /**
-     * @param mixed $config the configuration the route was declared with, null when the guard was
-     *                       given as an instance and none was passed alongside it
      * @param array<string, string> $params the route's URL-decoded parameters for this request
      */
-    public function accepts(mixed $config, ServerRequestInterface $request, array $params): bool;
+    public function accepts(ServerRequestInterface $request, array $params): bool;
 }

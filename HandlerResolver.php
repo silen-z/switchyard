@@ -216,14 +216,14 @@ final class HandlerResolver
             return true;
         }
 
-        /** @var array<int|class-string<Guard>, mixed> $guards */
+        /** @var list<mixed> $guards */
         $guards = $route['guards'];
 
         // @mago-expect analysis:mixed-assignment
-        foreach ($guards as $guard => $config) {
+        foreach ($guards as $guard) {
             /** @var Guard $instance */
             $instance = $this->instances->of($guard);
-            if (!$instance->accepts($config, $request, $params)) {
+            if (!$instance->accepts($request, $params)) {
                 return false;
             }
         }

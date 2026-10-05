@@ -187,7 +187,7 @@ final class RoutesHandlerBuilder
         ServerRequestInterface $request,
         ?RequestHandlerInterface $notFoundHandler = null,
     ): RequestHandlerInterface {
-        $this->dispatcher ??= new Dispatcher($this->router(), $this->registry, $this->container);
+        $this->dispatcher ??= new Dispatcher($this->router(), new Resolver($this->registry, $this->container));
 
         return $this->dispatcher->handler($request, $notFoundHandler);
     }

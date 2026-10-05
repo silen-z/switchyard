@@ -9,6 +9,7 @@ use SilenZ\Segmatch\RouteDefinition;
 
 use function array_unique;
 use function array_values;
+use function class_exists;
 use function is_array;
 use function is_string;
 use function is_subclass_of;
@@ -57,7 +58,9 @@ final class Route
         mixed $handler,
         private readonly Registry $registry,
     ) {
-        $this->handler = $this->registry->wrap($handler, sprintf('Route "%s" handler', $path));
+        $owner = sprintf('Route "%s" handler', $path);
+        MethodHandler::check($handler, $owner);
+        $this->handler = $this->registry->wrap($handler, $owner);
     }
 
     /**
@@ -131,16 +134,23 @@ final class Route
      *
      * Any configuration a filter needs is a constructor argument of its own, e.g.
      * `filter(new FeatureRouteFilter('beta'))`, not a separate parameter here: a filter either takes no
-     * configuration, or is built already configured, by the container resolving a class name or by you
-     * giving an instance directly. An instance is wrapped into the route's {@see Registry}, a class
-     * name resolved from the container by {@see RoutesHandlerBuilder}, transparently either way.
+     * configuration, or is built already configured, by the container resolving a class name or
+     * identifier, or by you giving an instance directly. An instance is wrapped into the route's
+     * {@see Registry}, a class name or identifier resolved from the container by
+     * {@see RoutesHandlerBuilder}, transparently either way. A container identifier per configuration,
+     * e.g. `filter('feature.beta')`, is how routes declared lazily, which can't take instances, vary a
+     * filter per route.
      *
-     * @param string|RouteFilter $filter a class name implementing {@see RouteFilter}, or an instance
-     *                                    of one
+     * @param string|RouteFilter $filter a class name implementing {@see RouteFilter}, a container
+     *                                    identifier resolving to one, or an instance of one
+     *
+     * @throws InvalidRouteException for the name of an existing class that doesn't implement
+     *                               {@see RouteFilter}; any other string is taken to be a container
+     *                               identifier, checked once the container resolves it
      */
     public function filter(string|RouteFilter $filter): self
     {
-        if (is_string($filter) && !is_subclass_of($filter, RouteFilter::class)) {
+        if (is_string($filter) && class_exists($filter) && !is_subclass_of($filter, RouteFilter::class)) {
             throw new InvalidRouteException(sprintf(
                 'Route "%s" uses filter "%s", which does not implement %s.',
                 $this->path,

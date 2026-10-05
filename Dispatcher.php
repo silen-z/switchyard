@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace SilenZ\Segmatch\Http;
 
-use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Relay\Relay;
@@ -15,8 +14,6 @@ use function array_keys;
 use function array_push;
 use function array_unshift;
 use function is_array;
-use function is_int;
-use function is_string;
 use function ltrim;
 use function strtoupper;
 
@@ -24,9 +21,9 @@ use function strtoupper;
  * Turns a request into the PSR-15 handler that answers it, for {@see RoutesHandlerBuilder::handler()},
  * which documents the behavior.
  *
- * `$router` and `$registry` must come from the same declaration — the registry is what the ids in the
- * router's metadata resolve against — which is why only {@see RoutesHandlerBuilder} builds one, from
- * the tree it owns.
+ * `$router` and `$resolver` must come from the same declaration — the resolver's registry is what the
+ * ids in the router's metadata resolve against — which is why only {@see RoutesHandlerBuilder} builds
+ * one, from the tree it owns.
  *
  * @internal
  */
@@ -34,8 +31,7 @@ final readonly class Dispatcher
 {
     public function __construct(
         private Router $router,
-        private Registry $registry,
-        private ContainerInterface $container,
+        private Resolver $resolver,
     ) {}
 
     public function handler(
@@ -70,12 +66,13 @@ final readonly class Dispatcher
             array_unshift($queue, HeadMiddleware::class);
         }
 
-        return new Relay($queue, $this->instantiate(...));
+        return new Relay($queue, $this->resolver->entry(...));
     }
 
     /**
      * A matched route's Relay queue: its {@see Found} for {@see RouteContextMiddleware}, then the
-     * route's own middleware (groups' first, outermost first) and handler, both as declared.
+     * route's own middleware (groups' first, outermost first) and handler, both as declared — a
+     * `[target, 'method']` handler as a {@see MethodHandler}.
      *
      * @return non-empty-list<mixed>
      */
@@ -86,7 +83,11 @@ final readonly class Dispatcher
         /** @var list<mixed> $middleware */
         $middleware = is_array($route['middleware'] ?? null) ? $route['middleware'] : [];
 
-        return [new RouteContextMiddleware(Found::fromMatch($match)), ...$middleware, $route['handler'] ?? null];
+        return [
+            new RouteContextMiddleware(Found::fromMatch($match)),
+            ...$middleware,
+            MethodHandler::wrap($this->resolver, $route['handler'] ?? null),
+        ];
     }
 
     /**
@@ -161,31 +162,11 @@ final readonly class Dispatcher
 
         // @mago-expect analysis:mixed-assignment
         foreach ($filters as $filter) {
-            /** @var RouteFilter $instance */
-            $instance = $this->instantiate($filter);
-            if (!$instance->accepts($match, $request)) {
+            if (!$this->resolver->filter($filter)->accepts($match, $request)) {
                 return false;
             }
         }
 
         return true;
-    }
-
-    /**
-     * One Relay queue entry as the real thing to run: a {@see Registry} id standing in for an instance
-     * or closure the routes were declared with, a class name or container identifier for the
-     * container to resolve, or anything else as itself.
-     */
-    private function instantiate(mixed $entry): mixed
-    {
-        if (is_int($entry)) {
-            return $this->registry->get($entry);
-        }
-
-        if (!is_string($entry)) {
-            return $entry;
-        }
-
-        return $this->container->get($entry);
     }
 }

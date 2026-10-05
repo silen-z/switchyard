@@ -95,7 +95,7 @@ final class Registry
     }
 
     /**
-     * @internal shared with {@see Dispatcher}
+     * @internal shared with {@see Resolver}
      */
     public function get(int $id): mixed
     {

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace SilenZ\Segmatch\Http;
 
-use SilenZ\Segmatch\CallableRouteTable;
 use SilenZ\Segmatch\Exception\InvalidRouteException;
 use SilenZ\Segmatch\RouteDefinition;
 use SilenZ\Segmatch\Router;
@@ -55,7 +54,8 @@ use function strtoupper;
  * `->middleware()` on a group only ever runs for a request one of its own routes matches, since it's
  * baked into each of them. `->middleware()` on the root is different: it also wraps the not-found and
  * method-not-allowed/OPTIONS responses, so it's the way to run middleware — logging, CORS — for every
- * outcome, not just matched routes.
+ * outcome, not just matched routes. It's baked into no route; {@see table()} keeps it as the table's
+ * own metadata instead, cached with the routes.
  */
 final class Routes
 {
@@ -63,7 +63,7 @@ final class Routes
     private array $items = [];
 
     /** @var list<mixed> */
-    public array $middleware = [];
+    private array $middleware = [];
 
     /** @var list<string> */
     private array $tags = [];
@@ -207,10 +207,13 @@ final class Routes
      * it, compiling on every request regardless of whether `Router` was given a cache. Pass something
      * that changes whenever these declarations would, e.g. an application version or a configuration
      * hash, for the caching described in {@see \SilenZ\Segmatch\Router} to actually take effect.
+     *
+     * The table's metadata ({@see RouteTable::metadata()}) is this scope's own middleware,
+     * `['middleware' => [...]]`, which {@see definitions()} bakes into no route.
      */
     public function table(?string $cacheKey = null): RouteTable
     {
-        return new CallableRouteTable($this->definitions(...), $cacheKey);
+        return new RoutesTable(fn(): self => $this, $cacheKey);
     }
 
     /**
@@ -275,6 +278,19 @@ final class Routes
 
             $routes[] = $item->definition($prefix, $middleware, $tags, $names);
         }
+    }
+
+    /**
+     * This scope's own middleware, without any enclosing group's: for the root, what wraps every
+     * outcome rather than being baked into its routes.
+     *
+     * @internal shared with {@see RoutesTable}
+     *
+     * @return list<mixed>
+     */
+    public function ownMiddleware(): array
+    {
+        return $this->middleware;
     }
 
     /**

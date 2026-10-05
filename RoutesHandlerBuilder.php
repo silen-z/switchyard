@@ -143,7 +143,7 @@ final class RoutesHandlerBuilder
             ),
         );
 
-        $queue = $this->routes->middleware;
+        $queue = $this->rootMiddleware();
 
         if ($match instanceof RouteMatch) {
             array_push($queue, ...$this->matched($match));
@@ -161,6 +161,18 @@ final class RoutesHandlerBuilder
         }
 
         return new Relay($queue, $this->instantiate(...));
+    }
+
+    /**
+     * The root's own middleware, which wraps every outcome: kept by {@see RoutesTable} as the table's
+     * metadata, so it's read from the router — from the cache on a hit, like the routes — rather than
+     * from the tree.
+     *
+     * @return list<mixed>
+     */
+    private function rootMiddleware(): array
+    {
+        return RoutesTable::middlewareOf($this->router()->tableMetadata());
     }
 
     /**

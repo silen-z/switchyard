@@ -241,6 +241,33 @@ final class RoutesTest extends TestCase
         static::assertSame([FeatureRouteFilter::class], $metadata['filters']);
     }
 
+    public function testRootMiddlewareIsTheTableMetadataNotPartOfAnyRoute(): void
+    {
+        $routes = new Routes(new Registry());
+        $routes->middleware(['log', 'cors']);
+        $routes->get('/a', 'a');
+        $routes->group('/api')->middleware('api')->get('/b', 'b');
+
+        $router = new Router($routes->table());
+
+        static::assertSame(['middleware' => ['log', 'cors']], $router->tableMetadata());
+        static::assertSame([], self::find($router, 'GET', '/a')['middleware'] ?? null);
+        static::assertSame(['api'], self::find($router, 'GET', '/api/b')['middleware'] ?? null);
+    }
+
+    public function testRootMiddlewareGivenAsAnInstanceIsARegistryIdInTheTableMetadata(): void
+    {
+        $routes = new Routes(new Registry());
+        $middleware = new stdClass();
+        $routes->middleware($middleware);
+
+        /** @var array{middleware: list<mixed>} $metadata */
+        $metadata = $routes->table()->metadata();
+
+        static::assertIsInt($metadata['middleware'][0]);
+        static::assertSame($middleware, $routes->registry()->get($metadata['middleware'][0]));
+    }
+
     public function testRoutesKeepDeclarationOrderAcrossGroups(): void
     {
         $router = self::router(static function (Routes $r): void {

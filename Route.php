@@ -57,7 +57,7 @@ final class Route
         mixed $handler,
         private readonly Registry $registry,
     ) {
-        $this->handler = $this->registry->wrap($handler);
+        $this->handler = $this->registry->wrap($handler, sprintf('Route "%s" handler', $path));
     }
 
     /**
@@ -87,7 +87,7 @@ final class Route
         // Middleware is arbitrary user data, so its entries are mixed by definition.
         // @mago-expect analysis:mixed-assignment
         foreach ($entries as $entry) {
-            $this->middleware[] = $this->registry->wrap($entry);
+            $this->middleware[] = $this->registry->wrap($entry, sprintf('Route "%s" middleware', $this->path));
         }
 
         return $this;
@@ -149,7 +149,7 @@ final class Route
             ));
         }
 
-        $this->filters[] = $this->registry->wrap($filter);
+        $this->filters[] = $this->registry->wrap($filter, sprintf('Route "%s" filter', $this->path));
 
         return $this;
     }

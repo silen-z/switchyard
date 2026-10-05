@@ -181,10 +181,11 @@ final class Routes
     public function middleware(mixed $middleware): self
     {
         $entries = is_array($middleware) ? array_values($middleware) : [$middleware];
+        $owner = sprintf('%s middleware', $this->owner());
         // Middleware is arbitrary user data, so its entries are mixed by definition.
         // @mago-expect analysis:mixed-assignment
         foreach ($entries as $entry) {
-            $this->middleware[] = $this->registry->wrap($entry);
+            $this->middleware[] = $this->registry->wrap($entry, $owner);
         }
 
         return $this;
@@ -196,8 +197,7 @@ final class Routes
      */
     public function tag(string ...$tags): self
     {
-        $owner = $this->prefix === '' ? 'Routes without a prefix' : sprintf('Group "%s"', $this->prefix);
-        $this->tags = [...$this->tags, ...Route::validTags($owner, $tags)];
+        $this->tags = [...$this->tags, ...Route::validTags($this->owner(), $tags)];
 
         return $this;
     }
@@ -275,5 +275,13 @@ final class Routes
 
             $routes[] = $item->definition($prefix, $middleware, $tags, $names);
         }
+    }
+
+    /**
+     * This scope as error messages name it.
+     */
+    private function owner(): string
+    {
+        return $this->prefix === '' ? 'Routes without a prefix' : sprintf('Group "%s"', $this->prefix);
     }
 }

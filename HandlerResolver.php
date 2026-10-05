@@ -7,7 +7,6 @@ namespace SilenZ\Segmatch\Http;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ServerRequestInterface;
-use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Relay\Relay;
 use SilenZ\Segmatch\RouteMatch;
@@ -44,11 +43,9 @@ use function strtoupper;
  *   `Allow` header;
  * - the same for an OPTIONS request: {@see AllowedMethodsHandler}, a 200 with the `Allow` header.
  *
- * The latter two give middleware the allowed methods as `$request->getAttribute(MethodNotAllowed::class)`.
- *
- * Middleware added with {@see addMiddleware()} wraps whichever of these answers. That's how to change
- * the 405 and OPTIONS answers, e.g. for CORS preflights: middleware sees the attribute, and can
- * decorate the response or answer itself.
+ * The latter two give middleware the allowed methods as `$request->getAttribute(MethodNotAllowed::class)`,
+ * but only a route's own middleware ever runs — none of these three has one, so nothing decorates them
+ * beyond what {@see NotFoundHandler} and {@see AllowedMethodsHandler} already build.
  *
  * Matching checks a route's own HTTP methods ({@see MethodNotAllowed}, container-free) and runs its
  * {@see RouteFilter}s, each resolved by {@see Instances} the same way as middleware and handlers. The
@@ -63,9 +60,6 @@ use function strtoupper;
 final class HandlerResolver
 {
     private readonly RequestHandlerInterface $notFoundHandler;
-
-    /** @var list<string|MiddlewareInterface> */
-    private array $middleware = [];
 
     private readonly Instances $instances;
 
@@ -88,21 +82,6 @@ final class HandlerResolver
     ) {
         $this->notFoundHandler = $notFoundHandler ?? new NotFoundHandler($responseFactory);
         $this->instances = new Instances($container, $routes?->registry() ?? new Registry());
-    }
-
-    /**
-     * Middleware for every request, whatever answers it: a route, or the not-found,
-     * method-not-allowed or OPTIONS handler. It runs after matching, outside the route's own
-     * middleware, and sees the `Found::class` or `MethodNotAllowed::class` request attribute (neither
-     * for a 404). Identifiers are resolved like route middleware; calls add to the end, so the first
-     * added is outermost.
-     *
-     * Middleware that must run before matching, e.g. to set attributes filters read, belongs in a
-     * stack around {@see resolve()} instead.
-     */
-    public function addMiddleware(string|MiddlewareInterface ...$middleware): void
-    {
-        $this->middleware = [...$this->middleware, ...$middleware];
     }
 
     /**
@@ -137,9 +116,8 @@ final class HandlerResolver
     }
 
     /**
-     * A matched route's Relay queue: its {@see Found} for {@see RouteContextMiddleware}, the
-     * application middleware, then the route's own middleware (groups' first, outermost first) and
-     * handler, both as declared.
+     * A matched route's Relay queue: its {@see Found} for {@see RouteContextMiddleware}, then the
+     * route's own middleware (groups' first, outermost first) and handler, both as declared.
      *
      * @return non-empty-list<mixed>
      */
@@ -150,12 +128,7 @@ final class HandlerResolver
         /** @var list<mixed> $middleware */
         $middleware = is_array($route['middleware'] ?? null) ? $route['middleware'] : [];
 
-        return [
-            new RouteContextMiddleware(Found::fromMatch($match)),
-            ...$this->middleware,
-            ...$middleware,
-            $route['handler'] ?? null,
-        ];
+        return [new RouteContextMiddleware(Found::fromMatch($match)), ...$middleware, $route['handler'] ?? null];
     }
 
     /**
@@ -165,8 +138,8 @@ final class HandlerResolver
      *   The router tried them in order, so it's the route a second pass for GET would find. The
      *   request isn't rewritten: filters and the route still see HEAD;
      * - otherwise a {@see MethodNotAllowed} of the methods of the routes whose filters accept (HEAD
-     *   included whenever GET is), the application middleware, and {@see AllowedMethodsHandler};
-     * - or, when no route's filters accept, the application middleware and the not-found handler.
+     *   included whenever GET is), and {@see AllowedMethodsHandler};
+     * - or, when no route's filters accept, the not-found handler.
      *
      * Routes without methods (`any()`) are skipped: rejected, so their filters failed.
      *
@@ -202,12 +175,11 @@ final class HandlerResolver
         if ($allowed !== []) {
             return [
                 new RouteContextMiddleware(new MethodNotAllowed($allowed)),
-                ...$this->middleware,
                 new AllowedMethodsHandler($this->responseFactory),
             ];
         }
 
-        return [...$this->middleware, $this->notFoundHandler];
+        return [$this->notFoundHandler];
     }
 
     /**

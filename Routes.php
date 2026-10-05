@@ -45,11 +45,10 @@ use function strtoupper;
  * container identifier: anything that isn't already cacheable plain data is transparently wrapped into
  * this tree's {@see Registry} instead, shared by the root and every nested group. Unlike the compiled
  * routes, the `Registry` is never cached — it's rebuilt fresh every time this tree is declared, which
- * is why {@see resolve()} builds its `Router` and `HandlerResolver` from this same tree: pairing a
+ * is why {@see handler()} builds its `Router` and `HandlerResolver` from this same tree: pairing a
  * `Router` with a different declaration's registry (e.g. one built earlier and reused) would resolve
  * the wrong instance, or none at all, for anything given to `->middleware()`, `->filter()` or a
- * handler as a real instance. {@see HandlerResolver} directly is still there for the finer control
- * `resolve()` doesn't expose, e.g. `addMiddleware()`.
+ * handler as a real instance.
  */
 final class Routes
 {
@@ -226,8 +225,7 @@ final class Routes
     /**
      * Builds the `Router` and `HandlerResolver` for this tree and resolves `$request` with them, in
      * one call — the common case of one `Routes` tree answering its own requests, where the two can
-     * never end up built from different declarations (see the class docblock). Reach for
-     * `HandlerResolver` directly instead for anything {@see HandlerResolver::addMiddleware()} is for.
+     * never end up built from different declarations (see the class docblock).
      *
      * @param ?RouteCache $cache where compiled routes are kept; null compiles on every request
      * @param ?string $cacheKey identifies these routes in the cache; null (the default) never caches

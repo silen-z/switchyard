@@ -28,7 +28,7 @@ use function sprintf;
  * then `$target->method($request)` answers it. The route's parameters are on the request, as
  * `$request->getAttribute(Found::class)->params`, like for any other handler.
  *
- * @internal built by {@see Dispatcher} for an array handler
+ * @internal built by {@see RoutesHandlerBuilder} for an array handler
  */
 final readonly class MethodHandler implements RequestHandlerInterface
 {

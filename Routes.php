@@ -241,7 +241,7 @@ final class Routes
      * The root's middleware out of a table's metadata as {@see table()} gave it, e.g. read back with
      * {@see \SilenZ\Segmatch\Router::tableMetadata()}; none for anything else.
      *
-     * @internal for {@see Dispatcher}
+     * @internal for {@see RoutesHandlerBuilder}
      *
      * @return list<mixed>
      */

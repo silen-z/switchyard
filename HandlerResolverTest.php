@@ -16,13 +16,13 @@ use SilenZ\Segmatch\Http\HandlerResolver;
 use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\RouteDefinition;
 use SilenZ\Segmatch\Router;
-use SilenZ\Segmatch\Tests\Http\Fixtures\ConfigurableGuard;
+use SilenZ\Segmatch\Tests\Http\Fixtures\ConfigurableFilter;
 use SilenZ\Segmatch\Tests\Http\Fixtures\EchoContainer;
 use SilenZ\Segmatch\Tests\Http\Fixtures\EchoHandler;
-use SilenZ\Segmatch\Tests\Http\Fixtures\FeatureGuard;
-use SilenZ\Segmatch\Tests\Http\Fixtures\NumericGuard;
+use SilenZ\Segmatch\Tests\Http\Fixtures\FeatureFilter;
+use SilenZ\Segmatch\Tests\Http\Fixtures\NumericFilter;
 use SilenZ\Segmatch\Tests\Http\Fixtures\PlainHandler;
-use SilenZ\Segmatch\Tests\Http\Fixtures\RequestMethodGuard;
+use SilenZ\Segmatch\Tests\Http\Fixtures\RequestMethodFilter;
 use SilenZ\Segmatch\Tests\Http\Fixtures\TagMiddleware;
 
 use function json_decode;
@@ -122,7 +122,7 @@ final class HandlerResolverTest extends TestCase
                 $api = $r->group('/api')->middleware('api')->tag('json');
                 $api->get('/users/{id}', 'show')->name('users.show')->middleware('auth')->tag('public');
                 $api->put('/users/{id}', 'update');
-                $api->get('/beta', 'beta')->guard(new FeatureGuard('beta'));
+                $api->get('/beta', 'beta')->filter(new FeatureFilter('beta'));
 
                 $r->get('/ping', 'ping');
                 $r->map(['HEAD'], '/ping', 'ping-head');
@@ -174,12 +174,12 @@ final class HandlerResolverTest extends TestCase
     public function testHeadRequestsAreNeverRewrittenToGet(): void
     {
         $resolver = self::resolver(self::router(static function (Routes $r): void {
-            $r->get('/head-only', 'head-only')->guard(new RequestMethodGuard('HEAD'));
+            $r->get('/head-only', 'head-only')->filter(new RequestMethodFilter('HEAD'));
         }));
 
         $response = self::respond($resolver, new ServerRequest('HEAD', '/head-only'));
 
-        // The guard accepted, so it saw HEAD; so does the handler.
+        // The filter accepted, so it saw HEAD; so does the handler.
         static::assertSame('head-only', $response->getHeaderLine('X-Handler'));
         static::assertSame('HEAD', $response->getHeaderLine('X-Method'));
     }
@@ -226,7 +226,7 @@ final class HandlerResolverTest extends TestCase
         self::assertNotFound(self::apiResolver(), new ServerRequest('GET', '/nope'));
     }
 
-    public function testRoutesRejectedByTheirOwnGuardsAreNotFound(): void
+    public function testRoutesRejectedByTheirOwnFiltersAreNotFound(): void
     {
         $resolver = self::apiResolver();
 
@@ -239,7 +239,7 @@ final class HandlerResolverTest extends TestCase
         ])));
     }
 
-    public function testRoutesWithoutMethodsOrGuardsAlwaysApply(): void
+    public function testRoutesWithoutMethodsOrFiltersAlwaysApply(): void
     {
         $resolver = self::resolver(new Router(static fn(): array => [new RouteDefinition('/raw', [
             'handler' => 'raw',
@@ -254,9 +254,9 @@ final class HandlerResolverTest extends TestCase
             $r->get('/users', 'list');
             $r->post('/users', 'create');
             $r->post('/users/new', 'create-form');
-            $r->get('/users/{id}', 'show')->guard(new NumericGuard('id'));
+            $r->get('/users/{id}', 'show')->filter(new NumericFilter('id'));
             $r->get('/users/{slug}', 'by-slug');
-            $r->map(['PUT', 'PATCH'], '/users/{id}', 'update')->guard(new NumericGuard('id'));
+            $r->map(['PUT', 'PATCH'], '/users/{id}', 'update')->filter(new NumericFilter('id'));
             $r->get('/{path+}', 'frontend');
         }));
     }
@@ -277,15 +277,15 @@ final class HandlerResolverTest extends TestCase
         static::assertSame('by-slug', self::handlerOf($resolver, new ServerRequest('GET', '/users/john')));
     }
 
-    public function testHeadFallsBackToTheFirstGetRouteWhoseGuardsAccept(): void
+    public function testHeadFallsBackToTheFirstGetRouteWhoseFiltersAccept(): void
     {
         $resolver = self::routingResolver();
 
-        // "/users/42": show comes first and its numeric guard accepts.
+        // "/users/42": show comes first and its numeric filter accepts.
         $show = self::respond($resolver, new ServerRequest('HEAD', '/users/42'));
         static::assertSame('show', $show->getHeaderLine('X-Handler'));
 
-        // "/users/john": show's guard rejects, so the next GET route, by-slug, takes it.
+        // "/users/john": show's filter rejects, so the next GET route, by-slug, takes it.
         $bySlug = self::respond($resolver, new ServerRequest('HEAD', '/users/john'));
         static::assertSame('by-slug', $bySlug->getHeaderLine('X-Handler'));
     }
@@ -299,43 +299,43 @@ final class HandlerResolverTest extends TestCase
         // "/users/7": show and update match the pattern, by-slug matches too, the catch-all is GET.
         self::assertMethodNotAllowed('GET, PUT, PATCH, HEAD', $resolver, new ServerRequest('DELETE', '/users/7'));
 
-        // "/users/john": show and update's numeric guard fails, so only by-slug and the catch-all count.
+        // "/users/john": show and update's numeric filter fails, so only by-slug and the catch-all count.
         self::assertMethodNotAllowed('GET, HEAD', $resolver, new ServerRequest('DELETE', '/users/john'));
     }
 
     public function testRouteRejectedForAnotherReasonDoesNotCountAsAllowed(): void
     {
         $resolver = self::resolver(self::router(static function (Routes $r): void {
-            $r->get('/beta', 'beta')->guard(new FeatureGuard('beta'));
+            $r->get('/beta', 'beta')->filter(new FeatureFilter('beta'));
         }));
 
         self::assertNotFound($resolver, new ServerRequest('POST', '/beta'));
     }
 
-    public function testGuardsAreResolvedFromTheContainer(): void
+    public function testFiltersAreResolvedFromTheContainer(): void
     {
         $routes = self::router(static function (Routes $r): void {
-            $r->get('/locked', 'locked')->guard(ConfigurableGuard::class);
+            $r->get('/locked', 'locked')->filter(ConfigurableFilter::class);
         });
 
         $allowing = self::resolver($routes, new EchoContainer([
-            ConfigurableGuard::class => new ConfigurableGuard(accepts: true),
+            ConfigurableFilter::class => new ConfigurableFilter(accepts: true),
         ]));
         static::assertSame('locked', self::handlerOf($allowing, new ServerRequest('GET', '/locked')));
 
         $blocking = self::resolver($routes, new EchoContainer([
-            ConfigurableGuard::class => new ConfigurableGuard(accepts: false),
+            ConfigurableFilter::class => new ConfigurableFilter(accepts: false),
         ]));
         self::assertNotFound($blocking, new ServerRequest('GET', '/locked'));
     }
 
-    public function testHandlerMiddlewareAndGuardMayBeRealInstances(): void
+    public function testHandlerMiddlewareAndFilterMayBeRealInstances(): void
     {
         $routes = new Routes();
         $routes
             ->get('/x', new PlainHandler())
             ->middleware(new TagMiddleware('instance'))
-            ->guard(new ConfigurableGuard(accepts: true));
+            ->filter(new ConfigurableFilter(accepts: true));
 
         $resolver = new HandlerResolver(
             new Router($routes->compiled()),
@@ -349,10 +349,10 @@ final class HandlerResolverTest extends TestCase
         static::assertSame('instance', $response->getHeaderLine('X-Trail'));
     }
 
-    public function testGuardInstanceRejectsJustLikeAClassWould(): void
+    public function testFilterInstanceRejectsJustLikeAClassWould(): void
     {
         $routes = new Routes();
-        $routes->get('/x', new PlainHandler())->guard(new ConfigurableGuard(accepts: false));
+        $routes->get('/x', new PlainHandler())->filter(new ConfigurableFilter(accepts: false));
 
         $resolver = new HandlerResolver(
             new Router($routes->compiled()),
@@ -363,13 +363,13 @@ final class HandlerResolverTest extends TestCase
         self::assertNotFound($resolver, new ServerRequest('GET', '/x'));
     }
 
-    public function testTheSameGuardClassMayBeUsedTwiceWithDifferentInstances(): void
+    public function testTheSameFilterClassMayBeUsedTwiceWithDifferentInstances(): void
     {
         $routes = new Routes();
         $routes
             ->get('/users/{id}/posts/{postId}', new PlainHandler())
-            ->guard(new NumericGuard('id'))
-            ->guard(new NumericGuard('postId'));
+            ->filter(new NumericFilter('id'))
+            ->filter(new NumericFilter('postId'));
 
         $resolver = new HandlerResolver(
             new Router($routes->compiled()),
@@ -380,7 +380,7 @@ final class HandlerResolverTest extends TestCase
         $response = self::respond($resolver, new ServerRequest('GET', '/users/42/posts/7'));
         static::assertSame(204, $response->getStatusCode());
 
-        // The second guard rejects: "posts/new" isn't numeric.
+        // The second filter rejects: "posts/new" isn't numeric.
         self::assertNotFound($resolver, new ServerRequest('GET', '/users/42/posts/new'));
     }
 }

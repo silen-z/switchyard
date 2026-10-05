@@ -12,7 +12,7 @@ use SilenZ\Segmatch\Http\HandlerResolver;
 use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\Router;
 use SilenZ\Segmatch\Tests\Http\Fixtures\CorsMiddleware;
-use SilenZ\Segmatch\Tests\Http\Fixtures\FeatureGuard;
+use SilenZ\Segmatch\Tests\Http\Fixtures\FeatureFilter;
 use SilenZ\Segmatch\Tests\Http\Fixtures\PlainHandler;
 
 /**
@@ -28,7 +28,7 @@ final class CorsTest extends TestCase
         $routes = new Routes();
         $routes->get('/users', PlainHandler::class);
         $routes->post('/users', PlainHandler::class);
-        $routes->put('/users', PlainHandler::class)->guard(new FeatureGuard('bulk-edit'));
+        $routes->put('/users', PlainHandler::class)->filter(new FeatureFilter('bulk-edit'));
         $routes->get('/reports', PlainHandler::class);
         $routes->map(['OPTIONS'], '/reports', PlainHandler::class);
 
@@ -65,7 +65,7 @@ final class CorsTest extends TestCase
         static::assertSame('GET, POST, HEAD', $response->getHeaderLine('Allow'));
     }
 
-    public function testPreflightAllowedMethodsRespectGuards(): void
+    public function testPreflightAllowedMethodsRespectFilters(): void
     {
         // PUT /users only exists while the feature is on.
         $on = self::respond(self::preflight('/users')->withAttribute('features', ['bulk-edit' => true]));

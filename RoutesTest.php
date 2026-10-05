@@ -14,7 +14,7 @@ use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\RouteDefinition;
 use SilenZ\Segmatch\RouteMatch;
 use SilenZ\Segmatch\Router;
-use SilenZ\Segmatch\Tests\Http\Fixtures\FeatureGuard;
+use SilenZ\Segmatch\Tests\Http\Fixtures\FeatureFilter;
 use stdClass;
 
 use function preg_quote;
@@ -39,7 +39,10 @@ final class RoutesTest extends TestCase
      */
     private static function find(Router $router, string $method, string $path): ?array
     {
-        $result = $router->match($path, static fn(mixed $route): bool => MethodNotAllowed::accepts($route, $method));
+        $result = $router->match($path, static fn(RouteMatch $match): bool => MethodNotAllowed::accepts(
+            $match->route,
+            $method,
+        ));
 
         if (!$result instanceof RouteMatch) {
             return null;
@@ -179,10 +182,10 @@ final class RoutesTest extends TestCase
         );
     }
 
-    public function testGuardsAreStoredInTheMetadataAlongsideMethods(): void
+    public function testFiltersAreStoredInTheMetadataAlongsideMethods(): void
     {
         $router = self::router(static function (Routes $r): void {
-            $r->get('/beta', 'beta')->guard(FeatureGuard::class);
+            $r->get('/beta', 'beta')->filter(FeatureFilter::class);
         });
 
         static::assertSame(
@@ -190,26 +193,26 @@ final class RoutesTest extends TestCase
                 'handler' => 'beta',
                 'middleware' => [],
                 'methods' => ['GET'],
-                'guards' => [FeatureGuard::class],
+                'filters' => [FeatureFilter::class],
             ],
             self::find($router, 'GET', '/beta'),
         );
     }
 
-    public function testAHandlerMiddlewareOrGuardInstanceBecomesARegistryId(): void
+    public function testAHandlerMiddlewareOrFilterInstanceBecomesARegistryId(): void
     {
         $routes = new Routes();
         $handler = new stdClass();
         $middleware = new stdClass();
-        $guard = new FeatureGuard('beta');
-        $routes->get('/x', $handler)->middleware($middleware)->guard($guard);
+        $filter = new FeatureFilter('beta');
+        $routes->get('/x', $handler)->middleware($middleware)->filter($filter);
 
         /** @var array<string, mixed> $metadata */
         $metadata = $routes->definitions()[0]->metadata;
         /** @var list<mixed> $middlewareIds */
         $middlewareIds = $metadata['middleware'];
-        /** @var list<mixed> $guards */
-        $guards = $metadata['guards'];
+        /** @var list<mixed> $filters */
+        $filters = $metadata['filters'];
 
         static::assertIsInt($metadata['handler']);
         static::assertSame($handler, $routes->registry()->get($metadata['handler']));
@@ -218,22 +221,22 @@ final class RoutesTest extends TestCase
         static::assertIsInt($middlewareIds[0]);
         static::assertSame($middleware, $routes->registry()->get($middlewareIds[0]));
 
-        static::assertCount(1, $guards);
-        static::assertIsInt($guards[0]);
-        static::assertSame($guard, $routes->registry()->get($guards[0]));
+        static::assertCount(1, $filters);
+        static::assertIsInt($filters[0]);
+        static::assertSame($filter, $routes->registry()->get($filters[0]));
     }
 
     public function testAClassNameStaysLiteralEvenWithOtherInstancesAround(): void
     {
         $routes = new Routes();
-        $routes->get('/x', 'show')->middleware('api')->guard(FeatureGuard::class);
+        $routes->get('/x', 'show')->middleware('api')->filter(FeatureFilter::class);
 
         /** @var array<string, mixed> $metadata */
         $metadata = $routes->definitions()[0]->metadata;
 
         static::assertSame('show', $metadata['handler']);
         static::assertSame(['api'], $metadata['middleware']);
-        static::assertSame([FeatureGuard::class], $metadata['guards']);
+        static::assertSame([FeatureFilter::class], $metadata['filters']);
     }
 
     public function testRoutesKeepDeclarationOrderAcrossGroups(): void
@@ -328,9 +331,9 @@ final class RoutesTest extends TestCase
             static fn(Routes $r) => $r->group('/api')->tag(''),
             'Group "/api" cannot have an empty tag',
         ];
-        yield 'guard class that does not implement Guard' => [
-            static fn(Routes $r) => $r->get('/a', 'a')->guard(stdClass::class),
-            'uses guard "stdClass", which does not implement',
+        yield 'filter class that does not implement Filter' => [
+            static fn(Routes $r) => $r->get('/a', 'a')->filter(stdClass::class),
+            'uses filter "stdClass", which does not implement',
         ];
     }
 

@@ -18,8 +18,8 @@ use SilenZ\Segmatch\Http\HandlerResolver;
 use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\Router;
 use SilenZ\Segmatch\Tests\Http\Fixtures\ArrayContainer;
-use SilenZ\Segmatch\Tests\Http\Fixtures\FeatureGuard;
-use SilenZ\Segmatch\Tests\Http\Fixtures\NumericGuard;
+use SilenZ\Segmatch\Tests\Http\Fixtures\FeatureFilter;
+use SilenZ\Segmatch\Tests\Http\Fixtures\NumericFilter;
 use SilenZ\Segmatch\Tests\Http\Fixtures\PlainHandler;
 use SilenZ\Segmatch\Tests\Http\Fixtures\RouteInfoMiddleware;
 use SilenZ\Segmatch\Tests\Http\Fixtures\ShowHandler;
@@ -50,10 +50,10 @@ final class ResolvedHandlerTest extends TestCase
         $routes->get('/ping', PlainHandler::class);
         $routes->get('/users', PlainHandler::class);
         $routes->post('/users', PlainHandler::class);
-        $routes->get('/users/{id}', PlainHandler::class)->guard(new NumericGuard('id'));
+        $routes->get('/users/{id}', PlainHandler::class)->filter(new NumericFilter('id'));
         $routes->get('/users/{slug}', PlainHandler::class);
-        $routes->map(['PUT', 'PATCH'], '/users/{id}', PlainHandler::class)->guard(new NumericGuard('id'));
-        $routes->get('/beta', PlainHandler::class)->guard(new FeatureGuard('beta'));
+        $routes->map(['PUT', 'PATCH'], '/users/{id}', PlainHandler::class)->filter(new NumericFilter('id'));
+        $routes->get('/beta', PlainHandler::class)->filter(new FeatureFilter('beta'));
         $routes->any('/webhooks/{provider}', PlainHandler::class);
         $routes->get('/cors', PlainHandler::class);
         $routes->map(['OPTIONS'], '/cors', PlainHandler::class);
@@ -188,9 +188,9 @@ final class ResolvedHandlerTest extends TestCase
     {
         yield 'GET implies HEAD' => [new ServerRequest('OPTIONS', '/ping'), 'GET, HEAD'];
         yield 'several routes' => [new ServerRequest('OPTIONS', '/users'), 'GET, POST, HEAD'];
-        yield 'guard accepts' => [new ServerRequest('OPTIONS', '/users/7'), 'GET, PUT, PATCH, HEAD'];
-        // NumericGuard rejects "john", so only the slug route counts.
-        yield 'guard rejects some' => [new ServerRequest('OPTIONS', '/users/john'), 'GET, HEAD'];
+        yield 'filter accepts' => [new ServerRequest('OPTIONS', '/users/7'), 'GET, PUT, PATCH, HEAD'];
+        // NumericFilter rejects "john", so only the slug route counts.
+        yield 'filter rejects some' => [new ServerRequest('OPTIONS', '/users/john'), 'GET, HEAD'];
         yield 'feature on' => [
             new ServerRequest('OPTIONS', '/beta')->withAttribute('features', ['beta' => true]),
             'GET, HEAD',
@@ -206,7 +206,7 @@ final class ResolvedHandlerTest extends TestCase
         static::assertSame($allow, $response->getHeaderLine('Allow'));
     }
 
-    public function testOptionsForRoutesRejectedByTheirOwnGuardsIsNotFound(): void
+    public function testOptionsForRoutesRejectedByTheirOwnFiltersIsNotFound(): void
     {
         static::assertSame(
             404,

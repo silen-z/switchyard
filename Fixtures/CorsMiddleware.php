@@ -17,7 +17,7 @@ use function strtoupper;
 /**
  * A basic CORS middleware, added with `HandlerResolver::addMiddleware()`, to show the mechanism an
  * application would use: it runs for every outcome, and on the resolver's default OPTIONS answer it
- * sees the allowed methods as the `MethodNotAllowed::class` request attribute, guards included.
+ * sees the allowed methods as the `MethodNotAllowed::class` request attribute, filters included.
  *
  * Requests without an `Origin`, or from an origin not listed, pass through untouched. A preflight
  * (OPTIONS with `Access-Control-Request-Method`, that no route took) gets the default 200 decorated

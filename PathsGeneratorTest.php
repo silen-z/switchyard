@@ -73,7 +73,10 @@ final class PathsGeneratorTest extends TestCase
 
         $paths = PathsGenerator::generate($router->definitions())['paths'];
 
-        static::assertTrue($paths['/files/{path}']['get']['parameters'][0]['required']);
+        static::assertSame(
+            [['name' => 'path', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'string']]],
+            $paths['/files/{path}']['get']['parameters'],
+        );
     }
 
     public function testNameBecomesTheOperationId(): void

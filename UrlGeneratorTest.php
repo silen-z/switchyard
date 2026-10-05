@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace SilenZ\Segmatch\Tests\Http;
 
-use Nyholm\Psr7\Factory\Psr17Factory;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -12,8 +11,9 @@ use RuntimeException;
 use SilenZ\Segmatch\Cache\RouteCache;
 use SilenZ\Segmatch\CallableRouteTable;
 use SilenZ\Segmatch\Exception\UrlGenerationException;
-use SilenZ\Segmatch\Http\HandlerResolver;
+use SilenZ\Segmatch\Http\Registry;
 use SilenZ\Segmatch\Http\Routes;
+use SilenZ\Segmatch\Http\RoutesHandlerBuilder;
 use SilenZ\Segmatch\Http\UrlGenerator;
 use SilenZ\Segmatch\Router;
 use SilenZ\Segmatch\Tests\Http\Fixtures\EchoContainer;
@@ -26,9 +26,8 @@ use const JSON_THROW_ON_ERROR;
 
 final class UrlGeneratorTest extends TestCase
 {
-    private static function router(?RouteCache $cache = null, ?string $cacheKey = null): Router
+    private static function declare(Routes $routes): void
     {
-        $routes = new Routes();
         $routes->get('/', 'home')->name('home');
 
         $api = $routes->group('/api');
@@ -39,6 +38,12 @@ final class UrlGeneratorTest extends TestCase
         $routes->get('/assets/{path*}', 'assets')->name('assets');
         $routes->get('/files/{path+}', 'files')->name('files');
         $routes->get('/{page*}', 'frontend')->name('frontend');
+    }
+
+    private static function router(?RouteCache $cache = null, ?string $cacheKey = null): Router
+    {
+        $routes = new Routes(new Registry());
+        self::declare($routes);
 
         return new Router($routes->table($cacheKey), $cache);
     }
@@ -74,9 +79,9 @@ final class UrlGeneratorTest extends TestCase
 
     public function testGeneratedUrlsMatchTheirRoute(): void
     {
-        $router = self::router();
-        $urls = new UrlGenerator($router);
-        $resolver = new HandlerResolver($router, new Psr17Factory(), new EchoContainer());
+        $urls = new UrlGenerator(self::router());
+        $builder = new RoutesHandlerBuilder(new EchoContainer());
+        self::declare($builder->routes());
 
         foreach ([
             ['users.show', ['id' => 'a/b c?']],
@@ -87,7 +92,7 @@ final class UrlGeneratorTest extends TestCase
             // EchoHandler answers with the route's Found as JSON.
             // @mago-expect analysis:mixed-assignment
             $found = json_decode(
-                (string) $resolver->resolve($request)->handle($request)->getBody(),
+                (string) $builder->handler($request)->handle($request)->getBody(),
                 associative: true,
                 flags: JSON_THROW_ON_ERROR,
             );

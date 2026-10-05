@@ -4,19 +4,19 @@ declare(strict_types=1);
 
 namespace SilenZ\Segmatch\Tests\Http;
 
-use Nyholm\Psr7\Factory\Psr17Factory;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
-use SilenZ\Segmatch\Http\Routes;
+use SilenZ\Segmatch\Http\RoutesHandlerBuilder;
 use SilenZ\Segmatch\Tests\Http\Fixtures\CorsMiddleware;
+use SilenZ\Segmatch\Tests\Http\Fixtures\EchoContainer;
 use SilenZ\Segmatch\Tests\Http\Fixtures\FeatureRouteFilter;
 use SilenZ\Segmatch\Tests\Http\Fixtures\PlainHandler;
 
 /**
  * CORS declared as middleware on the root `Http\Routes`, so it wraps every outcome of
- * `$routes->handler($request, ...)->handle($request)`, not just matched routes. It reads the allowed
+ * `$builder->handler($request)->handle($request)`, not just matched routes. It reads the allowed
  * methods from the response's `Allow` header instead of the `MethodNotAllowed` request attribute,
  * which only exists inside the resolver's own stack (see `Fixtures\CorsMiddleware`).
  */
@@ -26,7 +26,8 @@ final class CorsTest extends TestCase
 
     private static function respond(ServerRequestInterface $request): ResponseInterface
     {
-        $routes = new Routes();
+        $builder = new RoutesHandlerBuilder(new EchoContainer());
+        $routes = $builder->routes();
         $routes->middleware(new CorsMiddleware([self::ORIGIN], headers: ['Content-Type'], maxAge: 300));
         $routes->get('/users', PlainHandler::class);
         $routes->post('/users', PlainHandler::class);
@@ -34,7 +35,7 @@ final class CorsTest extends TestCase
         $routes->get('/reports', PlainHandler::class);
         $routes->map(['OPTIONS'], '/reports', PlainHandler::class);
 
-        return $routes->handler($request, new Psr17Factory())->handle($request);
+        return $builder->handler($request)->handle($request);
     }
 
     private static function preflight(string $path, string $origin = self::ORIGIN): ServerRequest

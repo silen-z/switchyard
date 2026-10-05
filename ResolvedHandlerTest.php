@@ -9,15 +9,15 @@ use Nyholm\Psr7\Response;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use Psr\Http\Message\ResponseFactoryInterface;
+use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use SilenZ\Segmatch\Http\Found;
-use SilenZ\Segmatch\Http\HandlerResolver;
 use SilenZ\Segmatch\Http\Routes;
-use SilenZ\Segmatch\Router;
+use SilenZ\Segmatch\Http\RoutesHandlerBuilder;
 use SilenZ\Segmatch\Tests\Http\Fixtures\ArrayContainer;
+use SilenZ\Segmatch\Tests\Http\Fixtures\EchoContainer;
 use SilenZ\Segmatch\Tests\Http\Fixtures\FeatureRouteFilter;
 use SilenZ\Segmatch\Tests\Http\Fixtures\NumericRouteFilter;
 use SilenZ\Segmatch\Tests\Http\Fixtures\PlainHandler;
@@ -28,47 +28,39 @@ use SilenZ\Segmatch\Tests\Http\Fixtures\TagMiddleware;
 
 final class ResolvedHandlerTest extends TestCase
 {
-    private static function responseFactory(): ResponseFactoryInterface
-    {
-        return new Psr17Factory();
-    }
-
     /**
      * @param callable(Routes): void $define
      */
-    private static function router(callable $define): Router
+    private static function builder(callable $define, ContainerInterface $container): RoutesHandlerBuilder
     {
-        $routes = new Routes();
-        $define($routes);
+        $builder = new RoutesHandlerBuilder($container);
+        $define($builder->routes());
 
-        return new Router($routes->table());
+        return $builder;
     }
 
-    private static function resolver(?RequestHandlerInterface $notFoundHandler = null): HandlerResolver
+    private static function resolver(): RoutesHandlerBuilder
     {
-        $routes = new Routes();
-        $routes->get('/ping', PlainHandler::class);
-        $routes->get('/users', PlainHandler::class);
-        $routes->post('/users', PlainHandler::class);
-        $routes->get('/users/{id}', PlainHandler::class)->filter(new NumericRouteFilter('id'));
-        $routes->get('/users/{slug}', PlainHandler::class);
-        $routes->map(['PUT', 'PATCH'], '/users/{id}', PlainHandler::class)->filter(new NumericRouteFilter('id'));
-        $routes->get('/beta', PlainHandler::class)->filter(new FeatureRouteFilter('beta'));
-        $routes->any('/webhooks/{provider}', PlainHandler::class);
-        $routes->get('/cors', PlainHandler::class);
-        $routes->map(['OPTIONS'], '/cors', PlainHandler::class);
-
-        return new HandlerResolver(
-            new Router($routes->table()),
-            responseFactory: self::responseFactory(),
-            notFoundHandler: $notFoundHandler,
-            routes: $routes,
-        );
+        return self::builder(static function (Routes $routes): void {
+            $routes->get('/ping', PlainHandler::class);
+            $routes->get('/users', PlainHandler::class);
+            $routes->post('/users', PlainHandler::class);
+            $routes->get('/users/{id}', PlainHandler::class)->filter(new NumericRouteFilter('id'));
+            $routes->get('/users/{slug}', PlainHandler::class);
+            $routes->map(['PUT', 'PATCH'], '/users/{id}', PlainHandler::class)->filter(new NumericRouteFilter('id'));
+            $routes->get('/beta', PlainHandler::class)->filter(new FeatureRouteFilter('beta'));
+            $routes->any('/webhooks/{provider}', PlainHandler::class);
+            $routes->get('/cors', PlainHandler::class);
+            $routes->map(['OPTIONS'], '/cors', PlainHandler::class);
+        }, new EchoContainer());
     }
 
-    private static function respond(HandlerResolver $resolver, ServerRequestInterface $request): ResponseInterface
-    {
-        return $resolver->resolve($request)->handle($request);
+    private static function respond(
+        RoutesHandlerBuilder $resolver,
+        ServerRequestInterface $request,
+        ?RequestHandlerInterface $notFoundHandler = null,
+    ): ResponseInterface {
+        return $resolver->handler($request, $notFoundHandler)->handle($request);
     }
 
     /**
@@ -86,22 +78,20 @@ final class ResolvedHandlerTest extends TestCase
     {
         static::assertInstanceOf(
             RequestHandlerInterface::class,
-            self::resolver()->resolve(new ServerRequest($method, $path)),
+            self::resolver()->handler(new ServerRequest($method, $path)),
         );
     }
 
     public function testRunsTheRoutesMiddlewareThenItsHandler(): void
     {
-        $responseFactory = self::responseFactory();
-        $router = self::router(static function (Routes $r): void {
-            $r->get('/users/{id}', 'show')->middleware(['first', 'second']);
-        });
         $container = new ArrayContainer([
-            'show' => new ShowHandler($responseFactory),
+            'show' => new ShowHandler(new Psr17Factory()),
             'first' => new TagMiddleware('first'),
             'second' => new TagMiddleware('second'),
         ]);
-        $resolver = new HandlerResolver($router, $responseFactory, $container);
+        $resolver = self::builder(static function (Routes $r): void {
+            $r->get('/users/{id}', 'show')->middleware(['first', 'second']);
+        }, $container);
 
         $response = self::respond($resolver, new ServerRequest('GET', '/users/42'));
 
@@ -124,11 +114,10 @@ final class ResolvedHandlerTest extends TestCase
                 return new Response(204);
             }
         };
-        $resolver = new HandlerResolver(
-            self::router(static function (Routes $r): void {
+        $resolver = self::builder(
+            static function (Routes $r): void {
                 $r->get('/users/{id}', 'show');
-            }),
-            self::responseFactory(),
+            },
             new ArrayContainer(['show' => $handler]),
         );
 
@@ -143,7 +132,7 @@ final class ResolvedHandlerTest extends TestCase
 
     public function testRouteMiddlewareSeesTheWholeMatch(): void
     {
-        $resolver = new HandlerResolver(self::router(static function (Routes $r): void {
+        $resolver = self::builder(static function (Routes $r): void {
             $r
                 ->group('/api')
                 ->tag('json')
@@ -151,7 +140,7 @@ final class ResolvedHandlerTest extends TestCase
                 ->name('users.show')
                 ->tag('public')
                 ->middleware(RouteInfoMiddleware::class);
-        }), self::responseFactory());
+        }, new EchoContainer());
 
         $response = self::respond($resolver, new ServerRequest('GET', '/api/users/42'));
 
@@ -231,9 +220,13 @@ final class ResolvedHandlerTest extends TestCase
 
     public function testOwnNotFoundHandlerReplacesTheDefault(): void
     {
-        $resolver = self::resolver(notFoundHandler: new StatusHandler(410));
+        $resolver = self::resolver();
+        $notFoundHandler = new StatusHandler(410);
 
-        static::assertSame(410, self::respond($resolver, new ServerRequest('GET', '/nope'))->getStatusCode());
+        static::assertSame(
+            410,
+            self::respond($resolver, new ServerRequest('GET', '/nope'), $notFoundHandler)->getStatusCode(),
+        );
 
         // The 405 and OPTIONS answers stay the defaults, and matched routes are unaffected.
         $methodNotAllowed = self::respond($resolver, new ServerRequest('POST', '/ping'));

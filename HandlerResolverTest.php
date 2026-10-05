@@ -4,19 +4,15 @@ declare(strict_types=1);
 
 namespace SilenZ\Segmatch\Tests\Http;
 
-use Nyholm\Psr7\Factory\Psr17Factory;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-use SilenZ\Segmatch\CallableRouteTable;
 use SilenZ\Segmatch\Http\Found;
-use SilenZ\Segmatch\Http\HandlerResolver;
 use SilenZ\Segmatch\Http\Routes;
-use SilenZ\Segmatch\RouteDefinition;
-use SilenZ\Segmatch\Router;
+use SilenZ\Segmatch\Http\RoutesHandlerBuilder;
 use SilenZ\Segmatch\Tests\Http\Fixtures\ConfigurableRouteFilter;
 use SilenZ\Segmatch\Tests\Http\Fixtures\EchoContainer;
 use SilenZ\Segmatch\Tests\Http\Fixtures\EchoHandler;
@@ -36,49 +32,29 @@ use const JSON_THROW_ON_ERROR;
  */
 final class HandlerResolverTest extends TestCase
 {
-    private static function resolver(
-        Routes|Router $routes,
-        ?ContainerInterface $container = null,
-        ?RequestHandlerInterface $notFoundHandler = null,
-    ): HandlerResolver {
-        if ($routes instanceof Router) {
-            return new HandlerResolver(
-                $routes,
-                new Psr17Factory(),
-                $container ?? new EchoContainer(),
-                $notFoundHandler,
-            );
-        }
-
-        return new HandlerResolver(
-            new Router($routes->table()),
-            new Psr17Factory(),
-            $container ?? new EchoContainer(),
-            $notFoundHandler,
-            routes: $routes,
-        );
-    }
-
     /**
      * @param callable(Routes): void $define
      */
-    private static function router(callable $define): Routes
+    private static function builder(callable $define, ?ContainerInterface $container = null): RoutesHandlerBuilder
     {
-        $routes = new Routes();
-        $define($routes);
+        $builder = new RoutesHandlerBuilder($container ?? new EchoContainer());
+        $define($builder->routes());
 
-        return $routes;
+        return $builder;
     }
 
-    private static function respond(HandlerResolver $resolver, ServerRequestInterface $request): ResponseInterface
-    {
-        return $resolver->resolve($request)->handle($request);
+    private static function respond(
+        RoutesHandlerBuilder $resolver,
+        ServerRequestInterface $request,
+        ?RequestHandlerInterface $notFoundHandler = null,
+    ): ResponseInterface {
+        return $resolver->handler($request, $notFoundHandler)->handle($request);
     }
 
     /**
      * The `Found` the route's handler was given, as it echoed it back.
      */
-    private static function found(HandlerResolver $resolver, ServerRequestInterface $request): Found
+    private static function found(RoutesHandlerBuilder $resolver, ServerRequestInterface $request): Found
     {
         $response = self::respond($resolver, $request);
         static::assertSame(200, $response->getStatusCode());
@@ -92,7 +68,7 @@ final class HandlerResolverTest extends TestCase
     /**
      * The handler identifier of the route the request reached.
      */
-    private static function handlerOf(HandlerResolver $resolver, ServerRequestInterface $request): string
+    private static function handlerOf(RoutesHandlerBuilder $resolver, ServerRequestInterface $request): string
     {
         $response = self::respond($resolver, $request);
         static::assertSame(200, $response->getStatusCode());
@@ -100,14 +76,14 @@ final class HandlerResolverTest extends TestCase
         return $response->getHeaderLine('X-Handler');
     }
 
-    private static function assertNotFound(HandlerResolver $resolver, ServerRequestInterface $request): void
+    private static function assertNotFound(RoutesHandlerBuilder $resolver, ServerRequestInterface $request): void
     {
         static::assertSame(404, self::respond($resolver, $request)->getStatusCode());
     }
 
     private static function assertMethodNotAllowed(
         string $allow,
-        HandlerResolver $resolver,
+        RoutesHandlerBuilder $resolver,
         ServerRequestInterface $request,
     ): void {
         $response = self::respond($resolver, $request);
@@ -116,10 +92,10 @@ final class HandlerResolverTest extends TestCase
         static::assertSame($allow, $response->getHeaderLine('Allow'));
     }
 
-    private static function apiResolver(?RequestHandlerInterface $notFoundHandler = null): HandlerResolver
+    private static function apiResolver(): RoutesHandlerBuilder
     {
-        return self::resolver(
-            self::router(static function (Routes $r): void {
+        return self::builder(
+            static function (Routes $r): void {
                 $api = $r->group('/api')->middleware('api')->tag('json');
                 $api->get('/users/{id}', 'show')->name('users.show')->middleware('auth')->tag('public');
                 $api->put('/users/{id}', 'update');
@@ -129,9 +105,8 @@ final class HandlerResolverTest extends TestCase
                 $r->map(['HEAD'], '/ping', 'ping-head');
                 $r->post('/login', 'login');
                 $r->any('/webhooks/{provider}', 'webhook');
-            }),
+            },
             new EchoContainer(['api' => new TagMiddleware('api'), 'auth' => new TagMiddleware('auth')]),
-            $notFoundHandler,
         );
     }
 
@@ -174,9 +149,9 @@ final class HandlerResolverTest extends TestCase
 
     public function testHeadRequestsAreNeverRewrittenToGet(): void
     {
-        $resolver = self::resolver(self::router(static function (Routes $r): void {
+        $resolver = self::builder(static function (Routes $r): void {
             $r->get('/head-only', 'head-only')->filter(new RequestMethodRouteFilter('HEAD'));
-        }));
+        });
 
         $response = self::respond($resolver, new ServerRequest('HEAD', '/head-only'));
 
@@ -196,7 +171,8 @@ final class HandlerResolverTest extends TestCase
 
     public function testEveryHeadResponseLosesItsBody(): void
     {
-        $resolver = self::apiResolver(notFoundHandler: new EchoHandler());
+        $resolver = self::apiResolver();
+        $notFoundHandler = new EchoHandler();
 
         // An any() route, which writes a body whatever the method.
         $any = self::respond($resolver, new ServerRequest('HEAD', '/webhooks/github'));
@@ -204,12 +180,15 @@ final class HandlerResolverTest extends TestCase
         static::assertSame('', (string) $any->getBody());
 
         // An application's own not-found handler, which writes a body too.
-        $notFound = self::respond($resolver, new ServerRequest('HEAD', '/nope'));
+        $notFound = self::respond($resolver, new ServerRequest('HEAD', '/nope'), $notFoundHandler);
         static::assertSame('application/json', $notFound->getHeaderLine('Content-Type'));
         static::assertSame('', (string) $notFound->getBody());
 
         // The same handler still writes its body for other methods.
-        static::assertSame('null', (string) self::respond($resolver, new ServerRequest('GET', '/nope'))->getBody());
+        static::assertSame(
+            'null',
+            (string) self::respond($resolver, new ServerRequest('GET', '/nope'), $notFoundHandler)->getBody(),
+        );
     }
 
     public function testMethodNotAllowedListsTheAllowedMethods(): void
@@ -242,16 +221,15 @@ final class HandlerResolverTest extends TestCase
 
     public function testRoutesWithoutMethodsOrFiltersAlwaysApply(): void
     {
-        $resolver = self::resolver(new Router(new CallableRouteTable(static fn(): array => [new RouteDefinition('/raw', [
-            'handler' => 'raw',
-        ])])));
+        // any() produces a route with no 'methods' and no 'filters' metadata, same as a raw definition would.
+        $resolver = self::builder(static fn(Routes $r) => $r->any('/raw', 'raw'));
 
         static::assertSame('raw', self::handlerOf($resolver, new ServerRequest('DELETE', '/raw')));
     }
 
-    private static function routingResolver(): HandlerResolver
+    private static function routingResolver(): RoutesHandlerBuilder
     {
-        return self::resolver(self::router(static function (Routes $r): void {
+        return self::builder(static function (Routes $r): void {
             $r->get('/users', 'list');
             $r->post('/users', 'create');
             $r->post('/users/new', 'create-form');
@@ -259,7 +237,7 @@ final class HandlerResolverTest extends TestCase
             $r->get('/users/{slug}', 'by-slug');
             $r->map(['PUT', 'PATCH'], '/users/{id}', 'update')->filter(new NumericRouteFilter('id'));
             $r->get('/{path+}', 'frontend');
-        }));
+        });
     }
 
     public function testFallsThroughToARouteThatAcceptsTheMethod(): void
@@ -306,25 +284,25 @@ final class HandlerResolverTest extends TestCase
 
     public function testRouteRejectedForAnotherReasonDoesNotCountAsAllowed(): void
     {
-        $resolver = self::resolver(self::router(static function (Routes $r): void {
+        $resolver = self::builder(static function (Routes $r): void {
             $r->get('/beta', 'beta')->filter(new FeatureRouteFilter('beta'));
-        }));
+        });
 
         self::assertNotFound($resolver, new ServerRequest('POST', '/beta'));
     }
 
     public function testFiltersAreResolvedFromTheContainer(): void
     {
-        $routes = self::router(static function (Routes $r): void {
+        $define = static function (Routes $r): void {
             $r->get('/locked', 'locked')->filter(ConfigurableRouteFilter::class);
-        });
+        };
 
-        $allowing = self::resolver($routes, new EchoContainer([
+        $allowing = self::builder($define, new EchoContainer([
             ConfigurableRouteFilter::class => new ConfigurableRouteFilter(accepts: true),
         ]));
         static::assertSame('locked', self::handlerOf($allowing, new ServerRequest('GET', '/locked')));
 
-        $blocking = self::resolver($routes, new EchoContainer([
+        $blocking = self::builder($define, new EchoContainer([
             ConfigurableRouteFilter::class => new ConfigurableRouteFilter(accepts: false),
         ]));
         self::assertNotFound($blocking, new ServerRequest('GET', '/locked'));
@@ -338,7 +316,7 @@ final class HandlerResolverTest extends TestCase
             ->middleware(new TagMiddleware('instance'))
             ->filter(new ConfigurableRouteFilter(accepts: true));
 
-        $resolver = new HandlerResolver(new Router($routes->table()), new Psr17Factory(), routes: $routes);
+        $resolver = new RoutesHandlerBuilder(new Router($routes->table()), new Psr17Factory(), routes: $routes);
 
         $response = self::respond($resolver, new ServerRequest('GET', '/x'));
 
@@ -351,7 +329,7 @@ final class HandlerResolverTest extends TestCase
         $routes = new Routes();
         $routes->get('/x', new PlainHandler())->filter(new ConfigurableRouteFilter(accepts: false));
 
-        $resolver = new HandlerResolver(new Router($routes->table()), new Psr17Factory(), routes: $routes);
+        $resolver = new RoutesHandlerBuilder(new Router($routes->table()), new Psr17Factory(), routes: $routes);
 
         self::assertNotFound($resolver, new ServerRequest('GET', '/x'));
     }
@@ -364,7 +342,7 @@ final class HandlerResolverTest extends TestCase
             ->filter(new NumericRouteFilter('id'))
             ->filter(new NumericRouteFilter('postId'));
 
-        $resolver = new HandlerResolver(new Router($routes->table()), new Psr17Factory(), routes: $routes);
+        $resolver = new RoutesHandlerBuilder(new Router($routes->table()), new Psr17Factory(), routes: $routes);
 
         $response = self::respond($resolver, new ServerRequest('GET', '/users/42/posts/7'));
         static::assertSame(204, $response->getStatusCode());

@@ -11,6 +11,7 @@ use PHPUnit\Framework\TestCase;
 use SilenZ\Segmatch\CallableRouteTable;
 use SilenZ\Segmatch\Exception\InvalidRouteException;
 use SilenZ\Segmatch\Http\MethodNotAllowed;
+use SilenZ\Segmatch\Http\Registry;
 use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\RouteDefinition;
 use SilenZ\Segmatch\RouteMatch;
@@ -27,7 +28,7 @@ final class RoutesTest extends TestCase
      */
     private static function router(callable $define): Router
     {
-        $routes = new Routes();
+        $routes = new Routes(new Registry());
         $define($routes);
 
         return new Router($routes->table());
@@ -202,7 +203,7 @@ final class RoutesTest extends TestCase
 
     public function testAHandlerMiddlewareOrFilterInstanceBecomesARegistryId(): void
     {
-        $routes = new Routes();
+        $routes = new Routes(new Registry());
         $handler = new stdClass();
         $middleware = new stdClass();
         $filter = new FeatureRouteFilter('beta');
@@ -229,7 +230,7 @@ final class RoutesTest extends TestCase
 
     public function testAClassNameStaysLiteralEvenWithOtherInstancesAround(): void
     {
-        $routes = new Routes();
+        $routes = new Routes(new Registry());
         $routes->get('/x', 'show')->middleware('api')->filter(FeatureRouteFilter::class);
 
         /** @var array<string, mixed> $metadata */

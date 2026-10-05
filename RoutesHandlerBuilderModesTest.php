@@ -14,11 +14,15 @@ use Psr\Http\Message\ResponseInterface;
 use SilenZ\Segmatch\Exception\InvalidRouteException;
 use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\Http\RoutesHandlerBuilder;
+use SilenZ\Segmatch\Tests\Http\Fixtures\ArrayContainer;
 use SilenZ\Segmatch\Tests\Http\Fixtures\ArrayRouteCache;
 use SilenZ\Segmatch\Tests\Http\Fixtures\EchoContainer;
 use SilenZ\Segmatch\Tests\Http\Fixtures\NumericRouteFilter;
 use SilenZ\Segmatch\Tests\Http\Fixtures\PlainHandler;
+use SilenZ\Segmatch\Tests\Http\Fixtures\StatusMiddleware;
 use SilenZ\Segmatch\Tests\Http\Fixtures\TagMiddleware;
+use SilenZ\Segmatch\Tests\Http\Fixtures\UserController;
+use UnexpectedValueException;
 
 use function preg_quote;
 
@@ -29,8 +33,9 @@ use function preg_quote;
 final class RoutesHandlerBuilderModesTest extends TestCase
 {
     /**
-     * Declares $define on a builder whose container knows the "log", "api" and "auth" middleware and
-     * a {@see NumericRouteFilter} for "id", so the routes can name everything, as lazy routes must.
+     * Declares $define on a builder whose container knows the "log", "api" and "auth" middleware, a
+     * {@see NumericRouteFilter} for "id" under its class name and one for "postId" under
+     * "numeric.postId", and "not-a-filter", so the routes can name everything, as lazy routes must.
      *
      * @param callable(Routes): void $define
      */
@@ -41,6 +46,8 @@ final class RoutesHandlerBuilderModesTest extends TestCase
             'api' => new TagMiddleware('api'),
             'auth' => new TagMiddleware('auth'),
             NumericRouteFilter::class => new NumericRouteFilter('id'),
+            'numeric.postId' => new NumericRouteFilter('postId'),
+            'not-a-filter' => new TagMiddleware('oops'),
         ]));
 
         if ($mode === 'lazy') {
@@ -94,6 +101,76 @@ final class RoutesHandlerBuilderModesTest extends TestCase
 
         static::assertSame(405, $response->getStatusCode());
         static::assertSame('PUT', $response->getHeaderLine('Allow'));
+    }
+
+    #[DataProvider('modes')]
+    public function testAFilterMayBeAContainerIdentifierToConfigureItPerRoute(string $mode): void
+    {
+        $builder = self::declared($mode, static function (Routes $r): void {
+            $r->get('/users/{id}', 'user')->filter(NumericRouteFilter::class);
+            $r->get('/posts/{postId}', 'post')->filter('numeric.postId');
+        });
+
+        static::assertSame('post', self::respond($builder, 'GET', '/posts/7')->getHeaderLine('X-Handler'));
+        static::assertSame(404, self::respond($builder, 'GET', '/posts/new')->getStatusCode());
+    }
+
+    #[DataProvider('modes')]
+    public function testAFilterIdentifierResolvingToSomethingElseFailsClearly(string $mode): void
+    {
+        $builder = self::declared($mode, static fn(Routes $r) => $r->get('/x', 'x')->filter('not-a-filter'));
+
+        $this->expectException(UnexpectedValueException::class);
+        $this->expectExceptionMessageMatches(
+            '/^Filter "not-a-filter" resolved to ' . preg_quote(TagMiddleware::class, delimiter: '/') . ', which/',
+        );
+
+        self::respond($builder, 'GET', '/x');
+    }
+
+    #[DataProvider('modes')]
+    public function testAHandlerMayBeAClassAndMethodPair(string $mode): void
+    {
+        $builder = self::declared($mode, static function (Routes $r): void {
+            $r->middleware('log');
+            $r->get('/users/{id}', [UserController::class, 'show'])->middleware('auth');
+        });
+
+        $response = self::respond($builder, 'GET', '/users/42');
+
+        static::assertSame(200, $response->getStatusCode());
+        static::assertSame('42', $response->getHeaderLine('X-User'));
+        static::assertSame('auth,log', $response->getHeaderLine('X-Trail'));
+    }
+
+    #[DataProvider('modes')]
+    public function testAHandlerMethodMustReturnAResponse(string $mode): void
+    {
+        $builder = self::declared($mode, static fn(Routes $r) => $r->get('/x', [UserController::class, 'broken']));
+
+        $this->expectException(UnexpectedValueException::class);
+        $this->expectExceptionMessageMatches('/::broken\(\) returned string instead of a /');
+
+        self::respond($builder, 'GET', '/x');
+    }
+
+    public function testAHandlerPairMayHoldAnInstanceWhenDeclaredEagerly(): void
+    {
+        $builder = self::declared('eager', static fn(Routes $r) => $r->get('/users/{id}', [
+            new UserController(),
+            'show',
+        ]));
+
+        static::assertSame('7', self::respond($builder, 'GET', '/users/7')->getHeaderLine('X-User'));
+    }
+
+    public function testAHandlerPairsTargetIsOnlyResolvedOnceTheRequestReachesIt(): void
+    {
+        // The container knows nothing but the middleware, so resolving the target would throw.
+        $builder = new RoutesHandlerBuilder(new ArrayContainer(['deny' => new StatusMiddleware(401)]));
+        $builder->lazyRoutes(static fn(Routes $r) => $r->get('/x', ['unknown.controller', 'show'])->middleware('deny'));
+
+        static::assertSame(401, self::respond($builder, 'GET', '/x')->getStatusCode());
     }
 
     #[DataProvider('modes')]

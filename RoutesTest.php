@@ -17,6 +17,7 @@ use SilenZ\Segmatch\RouteMatch;
 use SilenZ\Segmatch\Router;
 use SilenZ\Segmatch\RouteTable;
 use SilenZ\Segmatch\Tests\Http\Fixtures\FeatureRouteFilter;
+use SilenZ\Segmatch\Tests\Http\Fixtures\UserController;
 use stdClass;
 
 use function preg_quote;
@@ -241,6 +242,18 @@ final class RoutesTest extends TestCase
         static::assertSame([FeatureRouteFilter::class], $metadata['filters']);
     }
 
+    public function testAFilterAndAHandlerPairAreKeptAsPlainData(): void
+    {
+        $routes = new Routes(Registry::strict());
+        $routes->get('/x', [UserController::class, 'show'])->filter('feature.beta');
+
+        /** @var array<string, mixed> $metadata */
+        $metadata = $routes->definitions()[0]->metadata;
+
+        static::assertSame([UserController::class, 'show'], $metadata['handler']);
+        static::assertSame(['feature.beta'], $metadata['filters']);
+    }
+
     public function testRootMiddlewareIsTheTableMetadataNotPartOfAnyRoute(): void
     {
         $routes = new Routes(new Registry());
@@ -363,6 +376,26 @@ final class RoutesTest extends TestCase
         yield 'filter class that does not implement Filter' => [
             static fn(Routes $r) => $r->get('/a', 'a')->filter(stdClass::class),
             'uses filter "stdClass", which does not implement',
+        ];
+        yield 'array handler with one element' => [
+            static fn(Routes $r) => $r->get('/a', [UserController::class]),
+            'Route "/a" handler given as an array must be [class name, container identifier or object, \'method\']',
+        ];
+        yield 'array handler with a non-string method' => [
+            static fn(Routes $r) => $r->get('/a', [UserController::class, 1]),
+            'Route "/a" handler given as an array must be',
+        ];
+        yield 'array handler with string keys' => [
+            static fn(Routes $r) => $r->get('/a', ['class' => UserController::class, 'method' => 'show']),
+            'Route "/a" handler given as an array must be',
+        ];
+        yield 'array handler calling a missing method of a class' => [
+            static fn(Routes $r) => $r->get('/a', [UserController::class, 'missing']),
+            'Route "/a" handler calls ' . UserController::class . '::missing(), which does not exist.',
+        ];
+        yield 'array handler calling a missing method of an instance' => [
+            static fn(Routes $r) => $r->get('/a', [new UserController(), 'missing']),
+            'Route "/a" handler calls ' . UserController::class . '::missing(), which does not exist.',
         ];
         yield 'integer handler' => [
             static fn(Routes $r) => $r->get('/a', 7),

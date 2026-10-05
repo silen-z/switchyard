@@ -10,15 +10,19 @@ use SilenZ\Segmatch\Http\Guard;
 use function is_array;
 
 /**
- * Accepts a route only while the feature named in its configuration is switched on in the request
+ * Accepts a route only while the feature named in its constructor is switched on in the request
  * attributes, as an application's feature-flag guard would.
  */
 final class FeatureGuard implements Guard
 {
-    public function accepts(mixed $config, ServerRequestInterface $request, array $params): bool
+    public function __construct(
+        private readonly string $feature,
+    ) {}
+
+    public function accepts(ServerRequestInterface $request, array $params): bool
     {
         $features = $request->getAttribute('features');
 
-        return is_array($features) && ($features[$config] ?? false) === true;
+        return is_array($features) && ($features[$this->feature] ?? false) === true;
     }
 }

@@ -46,21 +46,23 @@ final class ResolvedHandlerTest extends TestCase
 
     private static function resolver(?RequestHandlerInterface $notFoundHandler = null): HandlerResolver
     {
+        $routes = new Routes();
+        $routes->get('/ping', PlainHandler::class);
+        $routes->get('/users', PlainHandler::class);
+        $routes->post('/users', PlainHandler::class);
+        $routes->get('/users/{id}', PlainHandler::class)->guard(new NumericGuard('id'));
+        $routes->get('/users/{slug}', PlainHandler::class);
+        $routes->map(['PUT', 'PATCH'], '/users/{id}', PlainHandler::class)->guard(new NumericGuard('id'));
+        $routes->get('/beta', PlainHandler::class)->guard(new FeatureGuard('beta'));
+        $routes->any('/webhooks/{provider}', PlainHandler::class);
+        $routes->get('/cors', PlainHandler::class);
+        $routes->map(['OPTIONS'], '/cors', PlainHandler::class);
+
         return new HandlerResolver(
-            self::router(static function (Routes $r): void {
-                $r->get('/ping', PlainHandler::class);
-                $r->get('/users', PlainHandler::class);
-                $r->post('/users', PlainHandler::class);
-                $r->get('/users/{id}', PlainHandler::class)->guard(NumericGuard::class, 'id');
-                $r->get('/users/{slug}', PlainHandler::class);
-                $r->map(['PUT', 'PATCH'], '/users/{id}', PlainHandler::class)->guard(NumericGuard::class, 'id');
-                $r->get('/beta', PlainHandler::class)->guard(FeatureGuard::class, 'beta');
-                $r->any('/webhooks/{provider}', PlainHandler::class);
-                $r->get('/cors', PlainHandler::class);
-                $r->map(['OPTIONS'], '/cors', PlainHandler::class);
-            }),
+            new Router($routes->compiled()),
             responseFactory: self::responseFactory(),
             notFoundHandler: $notFoundHandler,
+            registry: $routes->registry(),
         );
     }
 

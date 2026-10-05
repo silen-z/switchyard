@@ -8,16 +8,19 @@ use Psr\Http\Message\ServerRequestInterface;
 use SilenZ\Segmatch\Http\Guard;
 
 use function ctype_digit;
-use function is_string;
 
 /**
- * Accepts a route only when the parameter named in its configuration is all digits, as an
+ * Accepts a route only when the parameter named in its constructor is all digits, as an
  * application's own parameter guard would.
  */
 final class NumericGuard implements Guard
 {
-    public function accepts(mixed $config, ServerRequestInterface $request, array $params): bool
+    public function __construct(
+        private readonly string $param,
+    ) {}
+
+    public function accepts(ServerRequestInterface $request, array $params): bool
     {
-        return is_string($config) && ctype_digit($params[$config] ?? '');
+        return ctype_digit($params[$this->param] ?? '');
     }
 }

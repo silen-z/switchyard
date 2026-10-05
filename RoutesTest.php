@@ -17,8 +17,6 @@ use SilenZ\Segmatch\Router;
 use SilenZ\Segmatch\Tests\Http\Fixtures\FeatureGuard;
 use stdClass;
 
-use function array_keys;
-use function array_values;
 use function preg_quote;
 
 final class RoutesTest extends TestCase
@@ -184,7 +182,7 @@ final class RoutesTest extends TestCase
     public function testGuardsAreStoredInTheMetadataAlongsideMethods(): void
     {
         $router = self::router(static function (Routes $r): void {
-            $r->get('/beta', 'beta')->guard(FeatureGuard::class, 'beta');
+            $r->get('/beta', 'beta')->guard(FeatureGuard::class);
         });
 
         static::assertSame(
@@ -192,7 +190,7 @@ final class RoutesTest extends TestCase
                 'handler' => 'beta',
                 'middleware' => [],
                 'methods' => ['GET'],
-                'guards' => [FeatureGuard::class => 'beta'],
+                'guards' => [FeatureGuard::class],
             ],
             self::find($router, 'GET', '/beta'),
         );
@@ -203,14 +201,14 @@ final class RoutesTest extends TestCase
         $routes = new Routes();
         $handler = new stdClass();
         $middleware = new stdClass();
-        $guard = new FeatureGuard();
-        $routes->get('/x', $handler)->middleware($middleware)->guard($guard, 'beta');
+        $guard = new FeatureGuard('beta');
+        $routes->get('/x', $handler)->middleware($middleware)->guard($guard);
 
         /** @var array<string, mixed> $metadata */
         $metadata = $routes->definitions()[0]->metadata;
         /** @var list<mixed> $middlewareIds */
         $middlewareIds = $metadata['middleware'];
-        /** @var array<array-key, mixed> $guards */
+        /** @var list<mixed> $guards */
         $guards = $metadata['guards'];
 
         static::assertIsInt($metadata['handler']);
@@ -221,26 +219,21 @@ final class RoutesTest extends TestCase
         static::assertSame($middleware, $routes->registry()->get($middlewareIds[0]));
 
         static::assertCount(1, $guards);
-        [$guardId] = array_keys($guards);
-        static::assertIsInt($guardId);
-        static::assertSame($guard, $routes->registry()->get($guardId));
-        static::assertSame('beta', $guards[$guardId]);
+        static::assertIsInt($guards[0]);
+        static::assertSame($guard, $routes->registry()->get($guards[0]));
     }
 
     public function testAClassNameStaysLiteralEvenWithOtherInstancesAround(): void
     {
         $routes = new Routes();
-        $routes->get('/x', 'show')->middleware('api')->guard(FeatureGuard::class, 'beta');
+        $routes->get('/x', 'show')->middleware('api')->guard(FeatureGuard::class);
 
         /** @var array<string, mixed> $metadata */
         $metadata = $routes->definitions()[0]->metadata;
-        /** @var array<array-key, mixed> $guards */
-        $guards = $metadata['guards'];
 
         static::assertSame('show', $metadata['handler']);
         static::assertSame(['api'], $metadata['middleware']);
-        static::assertSame(['beta'], array_values($guards));
-        static::assertSame([FeatureGuard::class], array_keys($guards));
+        static::assertSame([FeatureGuard::class], $metadata['guards']);
     }
 
     public function testRoutesKeepDeclarationOrderAcrossGroups(): void
@@ -338,17 +331,6 @@ final class RoutesTest extends TestCase
         yield 'guard class that does not implement Guard' => [
             static fn(Routes $r) => $r->get('/a', 'a')->guard(stdClass::class),
             'uses guard "stdClass", which does not implement',
-        ];
-        yield 'same guard twice' => [
-            static fn(Routes $r) => $r->get('/a', 'a')->guard(FeatureGuard::class, 'x')->guard(
-                FeatureGuard::class,
-                'y',
-            ),
-            'uses guard "' . FeatureGuard::class . '" twice',
-        ];
-        yield 'object as guard configuration' => [
-            static fn(Routes $r) => $r->get('/a', 'a')->guard(FeatureGuard::class, new stdClass()),
-            'Metadata of route "/a" contains a value of type stdClass',
         ];
     }
 

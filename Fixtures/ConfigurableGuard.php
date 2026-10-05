@@ -17,7 +17,7 @@ final class ConfigurableGuard implements Guard
         private readonly bool $accepts,
     ) {}
 
-    public function accepts(mixed $config, ServerRequestInterface $request, array $params): bool
+    public function accepts(ServerRequestInterface $request, array $params): bool
     {
         return $this->accepts;
     }

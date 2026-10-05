@@ -36,22 +36,37 @@ use const JSON_THROW_ON_ERROR;
 final class HandlerResolverTest extends TestCase
 {
     private static function resolver(
-        Router $router,
+        Routes|Router $routes,
         ?ContainerInterface $container = null,
         ?RequestHandlerInterface $notFoundHandler = null,
     ): HandlerResolver {
-        return new HandlerResolver($router, new Psr17Factory(), $container ?? new EchoContainer(), $notFoundHandler);
+        if ($routes instanceof Router) {
+            return new HandlerResolver(
+                $routes,
+                new Psr17Factory(),
+                $container ?? new EchoContainer(),
+                $notFoundHandler,
+            );
+        }
+
+        return new HandlerResolver(
+            new Router($routes->compiled()),
+            new Psr17Factory(),
+            $container ?? new EchoContainer(),
+            $notFoundHandler,
+            registry: $routes->registry(),
+        );
     }
 
     /**
      * @param callable(Routes): void $define
      */
-    private static function router(callable $define): Router
+    private static function router(callable $define): Routes
     {
         $routes = new Routes();
         $define($routes);
 
-        return new Router($routes->compiled());
+        return $routes;
     }
 
     private static function respond(HandlerResolver $resolver, ServerRequestInterface $request): ResponseInterface
@@ -107,7 +122,7 @@ final class HandlerResolverTest extends TestCase
                 $api = $r->group('/api')->middleware('api')->tag('json');
                 $api->get('/users/{id}', 'show')->name('users.show')->middleware('auth')->tag('public');
                 $api->put('/users/{id}', 'update');
-                $api->get('/beta', 'beta')->guard(FeatureGuard::class, 'beta');
+                $api->get('/beta', 'beta')->guard(new FeatureGuard('beta'));
 
                 $r->get('/ping', 'ping');
                 $r->map(['HEAD'], '/ping', 'ping-head');
@@ -159,7 +174,7 @@ final class HandlerResolverTest extends TestCase
     public function testHeadRequestsAreNeverRewrittenToGet(): void
     {
         $resolver = self::resolver(self::router(static function (Routes $r): void {
-            $r->get('/head-only', 'head-only')->guard(RequestMethodGuard::class, 'HEAD');
+            $r->get('/head-only', 'head-only')->guard(new RequestMethodGuard('HEAD'));
         }));
 
         $response = self::respond($resolver, new ServerRequest('HEAD', '/head-only'));
@@ -239,9 +254,9 @@ final class HandlerResolverTest extends TestCase
             $r->get('/users', 'list');
             $r->post('/users', 'create');
             $r->post('/users/new', 'create-form');
-            $r->get('/users/{id}', 'show')->guard(NumericGuard::class, 'id');
+            $r->get('/users/{id}', 'show')->guard(new NumericGuard('id'));
             $r->get('/users/{slug}', 'by-slug');
-            $r->map(['PUT', 'PATCH'], '/users/{id}', 'update')->guard(NumericGuard::class, 'id');
+            $r->map(['PUT', 'PATCH'], '/users/{id}', 'update')->guard(new NumericGuard('id'));
             $r->get('/{path+}', 'frontend');
         }));
     }
@@ -291,7 +306,7 @@ final class HandlerResolverTest extends TestCase
     public function testRouteRejectedForAnotherReasonDoesNotCountAsAllowed(): void
     {
         $resolver = self::resolver(self::router(static function (Routes $r): void {
-            $r->get('/beta', 'beta')->guard(FeatureGuard::class, 'beta');
+            $r->get('/beta', 'beta')->guard(new FeatureGuard('beta'));
         }));
 
         self::assertNotFound($resolver, new ServerRequest('POST', '/beta'));
@@ -299,16 +314,16 @@ final class HandlerResolverTest extends TestCase
 
     public function testGuardsAreResolvedFromTheContainer(): void
     {
-        $router = self::router(static function (Routes $r): void {
+        $routes = self::router(static function (Routes $r): void {
             $r->get('/locked', 'locked')->guard(ConfigurableGuard::class);
         });
 
-        $allowing = self::resolver($router, new EchoContainer([
+        $allowing = self::resolver($routes, new EchoContainer([
             ConfigurableGuard::class => new ConfigurableGuard(accepts: true),
         ]));
         static::assertSame('locked', self::handlerOf($allowing, new ServerRequest('GET', '/locked')));
 
-        $blocking = self::resolver($router, new EchoContainer([
+        $blocking = self::resolver($routes, new EchoContainer([
             ConfigurableGuard::class => new ConfigurableGuard(accepts: false),
         ]));
         self::assertNotFound($blocking, new ServerRequest('GET', '/locked'));
@@ -346,5 +361,26 @@ final class HandlerResolverTest extends TestCase
         );
 
         self::assertNotFound($resolver, new ServerRequest('GET', '/x'));
+    }
+
+    public function testTheSameGuardClassMayBeUsedTwiceWithDifferentInstances(): void
+    {
+        $routes = new Routes();
+        $routes
+            ->get('/users/{id}/posts/{postId}', new PlainHandler())
+            ->guard(new NumericGuard('id'))
+            ->guard(new NumericGuard('postId'));
+
+        $resolver = new HandlerResolver(
+            new Router($routes->compiled()),
+            new Psr17Factory(),
+            registry: $routes->registry(),
+        );
+
+        $response = self::respond($resolver, new ServerRequest('GET', '/users/42/posts/7'));
+        static::assertSame(204, $response->getStatusCode());
+
+        // The second guard rejects: "posts/new" isn't numeric.
+        self::assertNotFound($resolver, new ServerRequest('GET', '/users/42/posts/new'));
     }
 }

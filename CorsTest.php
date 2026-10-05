@@ -7,20 +7,18 @@ namespace SilenZ\Segmatch\Tests\Http;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
-use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
-use Psr\Http\Server\RequestHandlerInterface;
 use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\Tests\Http\Fixtures\CorsMiddleware;
 use SilenZ\Segmatch\Tests\Http\Fixtures\FeatureRouteFilter;
 use SilenZ\Segmatch\Tests\Http\Fixtures\PlainHandler;
 
 /**
- * CORS wrapping `$routes->handler($request, ...)->handle($request)` from outside, the only way left
- * to run for every outcome now that `Http\HandlerResolver` has no `addMiddleware()`. It reads the
- * allowed methods from the response's `Allow` header instead of the `MethodNotAllowed` request
- * attribute, which only exists inside the resolver's own stack (see `Fixtures\CorsMiddleware`).
+ * CORS declared as middleware on the root `Http\Routes`, so it wraps every outcome of
+ * `$routes->handler($request, ...)->handle($request)`, not just matched routes. It reads the allowed
+ * methods from the response's `Allow` header instead of the `MethodNotAllowed` request attribute,
+ * which only exists inside the resolver's own stack (see `Fixtures\CorsMiddleware`).
  */
 final class CorsTest extends TestCase
 {
@@ -29,27 +27,14 @@ final class CorsTest extends TestCase
     private static function respond(ServerRequestInterface $request): ResponseInterface
     {
         $routes = new Routes();
+        $routes->middleware(new CorsMiddleware([self::ORIGIN], headers: ['Content-Type'], maxAge: 300));
         $routes->get('/users', PlainHandler::class);
         $routes->post('/users', PlainHandler::class);
         $routes->put('/users', PlainHandler::class)->filter(new FeatureRouteFilter('bulk-edit'));
         $routes->get('/reports', PlainHandler::class);
         $routes->map(['OPTIONS'], '/reports', PlainHandler::class);
 
-        $inner = new class($routes, new Psr17Factory()) implements RequestHandlerInterface {
-            public function __construct(
-                private readonly Routes $routes,
-                private readonly ResponseFactoryInterface $responseFactory,
-            ) {}
-
-            public function handle(ServerRequestInterface $request): ResponseInterface
-            {
-                return $this->routes->handler($request, $this->responseFactory)->handle($request);
-            }
-        };
-
-        $cors = new CorsMiddleware([self::ORIGIN], headers: ['Content-Type'], maxAge: 300);
-
-        return $cors->process($request, $inner);
+        return $routes->handler($request, new Psr17Factory())->handle($request);
     }
 
     private static function preflight(string $path, string $origin = self::ORIGIN): ServerRequest

@@ -10,6 +10,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use SilenZ\Segmatch\Cache\RouteCache;
+use SilenZ\Segmatch\CallableRouteTable;
 use SilenZ\Segmatch\Exception\UrlGenerationException;
 use SilenZ\Segmatch\Http\HandlerResolver;
 use SilenZ\Segmatch\Http\Routes;
@@ -25,7 +26,7 @@ use const JSON_THROW_ON_ERROR;
 
 final class UrlGeneratorTest extends TestCase
 {
-    private static function router(?RouteCache $cache = null): Router
+    private static function router(?RouteCache $cache = null, ?string $cacheKey = null): Router
     {
         $routes = new Routes();
         $routes->get('/', 'home')->name('home');
@@ -39,7 +40,7 @@ final class UrlGeneratorTest extends TestCase
         $routes->get('/files/{path+}', 'files')->name('files');
         $routes->get('/{page*}', 'frontend')->name('frontend');
 
-        return new Router($routes->compiled(), $cache);
+        return new Router($routes->table($cacheKey), $cache);
     }
 
     /**
@@ -113,9 +114,12 @@ final class UrlGeneratorTest extends TestCase
                 $this->entries[$key] = $compiled;
             }
         };
-        self::router($cache)->matcher();
+        self::router($cache, 'routes')->matcher();
 
-        $cached = new Router(static fn(): never => throw new RuntimeException('Routes were declared.'), $cache);
+        $cached = new Router(
+            new CallableRouteTable(static fn(): never => throw new RuntimeException('Routes were declared.'), 'routes'),
+            $cache,
+        );
 
         static::assertSame('/api/users/42', new UrlGenerator($cached)->url('users.show', ['id' => 42]));
     }

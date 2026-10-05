@@ -12,7 +12,7 @@ use SilenZ\Segmatch\Http\HandlerResolver;
 use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\Router;
 use SilenZ\Segmatch\Tests\Http\Fixtures\CorsMiddleware;
-use SilenZ\Segmatch\Tests\Http\Fixtures\FeatureFilter;
+use SilenZ\Segmatch\Tests\Http\Fixtures\FeatureRouteFilter;
 use SilenZ\Segmatch\Tests\Http\Fixtures\PlainHandler;
 
 /**
@@ -28,12 +28,12 @@ final class CorsTest extends TestCase
         $routes = new Routes();
         $routes->get('/users', PlainHandler::class);
         $routes->post('/users', PlainHandler::class);
-        $routes->put('/users', PlainHandler::class)->filter(new FeatureFilter('bulk-edit'));
+        $routes->put('/users', PlainHandler::class)->filter(new FeatureRouteFilter('bulk-edit'));
         $routes->get('/reports', PlainHandler::class);
         $routes->map(['OPTIONS'], '/reports', PlainHandler::class);
 
         $resolver = new HandlerResolver(
-            new Router($routes->compiled()),
+            new Router($routes->table()),
             new Psr17Factory(),
             registry: $routes->registry(),
         );

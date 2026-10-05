@@ -11,18 +11,19 @@ use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use SilenZ\Segmatch\CallableRouteTable;
 use SilenZ\Segmatch\Http\Found;
 use SilenZ\Segmatch\Http\HandlerResolver;
 use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\RouteDefinition;
 use SilenZ\Segmatch\Router;
-use SilenZ\Segmatch\Tests\Http\Fixtures\ConfigurableFilter;
+use SilenZ\Segmatch\Tests\Http\Fixtures\ConfigurableRouteFilter;
 use SilenZ\Segmatch\Tests\Http\Fixtures\EchoContainer;
 use SilenZ\Segmatch\Tests\Http\Fixtures\EchoHandler;
-use SilenZ\Segmatch\Tests\Http\Fixtures\FeatureFilter;
-use SilenZ\Segmatch\Tests\Http\Fixtures\NumericFilter;
+use SilenZ\Segmatch\Tests\Http\Fixtures\FeatureRouteFilter;
+use SilenZ\Segmatch\Tests\Http\Fixtures\NumericRouteFilter;
 use SilenZ\Segmatch\Tests\Http\Fixtures\PlainHandler;
-use SilenZ\Segmatch\Tests\Http\Fixtures\RequestMethodFilter;
+use SilenZ\Segmatch\Tests\Http\Fixtures\RequestMethodRouteFilter;
 use SilenZ\Segmatch\Tests\Http\Fixtures\TagMiddleware;
 
 use function json_decode;
@@ -50,7 +51,7 @@ final class HandlerResolverTest extends TestCase
         }
 
         return new HandlerResolver(
-            new Router($routes->compiled()),
+            new Router($routes->table()),
             new Psr17Factory(),
             $container ?? new EchoContainer(),
             $notFoundHandler,
@@ -122,7 +123,7 @@ final class HandlerResolverTest extends TestCase
                 $api = $r->group('/api')->middleware('api')->tag('json');
                 $api->get('/users/{id}', 'show')->name('users.show')->middleware('auth')->tag('public');
                 $api->put('/users/{id}', 'update');
-                $api->get('/beta', 'beta')->filter(new FeatureFilter('beta'));
+                $api->get('/beta', 'beta')->filter(new FeatureRouteFilter('beta'));
 
                 $r->get('/ping', 'ping');
                 $r->map(['HEAD'], '/ping', 'ping-head');
@@ -174,7 +175,7 @@ final class HandlerResolverTest extends TestCase
     public function testHeadRequestsAreNeverRewrittenToGet(): void
     {
         $resolver = self::resolver(self::router(static function (Routes $r): void {
-            $r->get('/head-only', 'head-only')->filter(new RequestMethodFilter('HEAD'));
+            $r->get('/head-only', 'head-only')->filter(new RequestMethodRouteFilter('HEAD'));
         }));
 
         $response = self::respond($resolver, new ServerRequest('HEAD', '/head-only'));
@@ -241,9 +242,9 @@ final class HandlerResolverTest extends TestCase
 
     public function testRoutesWithoutMethodsOrFiltersAlwaysApply(): void
     {
-        $resolver = self::resolver(new Router(static fn(): array => [new RouteDefinition('/raw', [
+        $resolver = self::resolver(new Router(new CallableRouteTable(static fn(): array => [new RouteDefinition('/raw', [
             'handler' => 'raw',
-        ])]));
+        ])])));
 
         static::assertSame('raw', self::handlerOf($resolver, new ServerRequest('DELETE', '/raw')));
     }
@@ -254,9 +255,9 @@ final class HandlerResolverTest extends TestCase
             $r->get('/users', 'list');
             $r->post('/users', 'create');
             $r->post('/users/new', 'create-form');
-            $r->get('/users/{id}', 'show')->filter(new NumericFilter('id'));
+            $r->get('/users/{id}', 'show')->filter(new NumericRouteFilter('id'));
             $r->get('/users/{slug}', 'by-slug');
-            $r->map(['PUT', 'PATCH'], '/users/{id}', 'update')->filter(new NumericFilter('id'));
+            $r->map(['PUT', 'PATCH'], '/users/{id}', 'update')->filter(new NumericRouteFilter('id'));
             $r->get('/{path+}', 'frontend');
         }));
     }
@@ -306,7 +307,7 @@ final class HandlerResolverTest extends TestCase
     public function testRouteRejectedForAnotherReasonDoesNotCountAsAllowed(): void
     {
         $resolver = self::resolver(self::router(static function (Routes $r): void {
-            $r->get('/beta', 'beta')->filter(new FeatureFilter('beta'));
+            $r->get('/beta', 'beta')->filter(new FeatureRouteFilter('beta'));
         }));
 
         self::assertNotFound($resolver, new ServerRequest('POST', '/beta'));
@@ -315,16 +316,16 @@ final class HandlerResolverTest extends TestCase
     public function testFiltersAreResolvedFromTheContainer(): void
     {
         $routes = self::router(static function (Routes $r): void {
-            $r->get('/locked', 'locked')->filter(ConfigurableFilter::class);
+            $r->get('/locked', 'locked')->filter(ConfigurableRouteFilter::class);
         });
 
         $allowing = self::resolver($routes, new EchoContainer([
-            ConfigurableFilter::class => new ConfigurableFilter(accepts: true),
+            ConfigurableRouteFilter::class => new ConfigurableRouteFilter(accepts: true),
         ]));
         static::assertSame('locked', self::handlerOf($allowing, new ServerRequest('GET', '/locked')));
 
         $blocking = self::resolver($routes, new EchoContainer([
-            ConfigurableFilter::class => new ConfigurableFilter(accepts: false),
+            ConfigurableRouteFilter::class => new ConfigurableRouteFilter(accepts: false),
         ]));
         self::assertNotFound($blocking, new ServerRequest('GET', '/locked'));
     }
@@ -335,10 +336,10 @@ final class HandlerResolverTest extends TestCase
         $routes
             ->get('/x', new PlainHandler())
             ->middleware(new TagMiddleware('instance'))
-            ->filter(new ConfigurableFilter(accepts: true));
+            ->filter(new ConfigurableRouteFilter(accepts: true));
 
         $resolver = new HandlerResolver(
-            new Router($routes->compiled()),
+            new Router($routes->table()),
             new Psr17Factory(),
             registry: $routes->registry(),
         );
@@ -352,10 +353,10 @@ final class HandlerResolverTest extends TestCase
     public function testFilterInstanceRejectsJustLikeAClassWould(): void
     {
         $routes = new Routes();
-        $routes->get('/x', new PlainHandler())->filter(new ConfigurableFilter(accepts: false));
+        $routes->get('/x', new PlainHandler())->filter(new ConfigurableRouteFilter(accepts: false));
 
         $resolver = new HandlerResolver(
-            new Router($routes->compiled()),
+            new Router($routes->table()),
             new Psr17Factory(),
             registry: $routes->registry(),
         );
@@ -368,11 +369,11 @@ final class HandlerResolverTest extends TestCase
         $routes = new Routes();
         $routes
             ->get('/users/{id}/posts/{postId}', new PlainHandler())
-            ->filter(new NumericFilter('id'))
-            ->filter(new NumericFilter('postId'));
+            ->filter(new NumericRouteFilter('id'))
+            ->filter(new NumericRouteFilter('postId'));
 
         $resolver = new HandlerResolver(
-            new Router($routes->compiled()),
+            new Router($routes->table()),
             new Psr17Factory(),
             registry: $routes->registry(),
         );

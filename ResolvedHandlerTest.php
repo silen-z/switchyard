@@ -18,8 +18,8 @@ use SilenZ\Segmatch\Http\HandlerResolver;
 use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\Router;
 use SilenZ\Segmatch\Tests\Http\Fixtures\ArrayContainer;
-use SilenZ\Segmatch\Tests\Http\Fixtures\FeatureFilter;
-use SilenZ\Segmatch\Tests\Http\Fixtures\NumericFilter;
+use SilenZ\Segmatch\Tests\Http\Fixtures\FeatureRouteFilter;
+use SilenZ\Segmatch\Tests\Http\Fixtures\NumericRouteFilter;
 use SilenZ\Segmatch\Tests\Http\Fixtures\PlainHandler;
 use SilenZ\Segmatch\Tests\Http\Fixtures\RouteInfoMiddleware;
 use SilenZ\Segmatch\Tests\Http\Fixtures\ShowHandler;
@@ -41,7 +41,7 @@ final class ResolvedHandlerTest extends TestCase
         $routes = new Routes();
         $define($routes);
 
-        return new Router($routes->compiled());
+        return new Router($routes->table());
     }
 
     private static function resolver(?RequestHandlerInterface $notFoundHandler = null): HandlerResolver
@@ -50,16 +50,16 @@ final class ResolvedHandlerTest extends TestCase
         $routes->get('/ping', PlainHandler::class);
         $routes->get('/users', PlainHandler::class);
         $routes->post('/users', PlainHandler::class);
-        $routes->get('/users/{id}', PlainHandler::class)->filter(new NumericFilter('id'));
+        $routes->get('/users/{id}', PlainHandler::class)->filter(new NumericRouteFilter('id'));
         $routes->get('/users/{slug}', PlainHandler::class);
-        $routes->map(['PUT', 'PATCH'], '/users/{id}', PlainHandler::class)->filter(new NumericFilter('id'));
-        $routes->get('/beta', PlainHandler::class)->filter(new FeatureFilter('beta'));
+        $routes->map(['PUT', 'PATCH'], '/users/{id}', PlainHandler::class)->filter(new NumericRouteFilter('id'));
+        $routes->get('/beta', PlainHandler::class)->filter(new FeatureRouteFilter('beta'));
         $routes->any('/webhooks/{provider}', PlainHandler::class);
         $routes->get('/cors', PlainHandler::class);
         $routes->map(['OPTIONS'], '/cors', PlainHandler::class);
 
         return new HandlerResolver(
-            new Router($routes->compiled()),
+            new Router($routes->table()),
             responseFactory: self::responseFactory(),
             notFoundHandler: $notFoundHandler,
             registry: $routes->registry(),

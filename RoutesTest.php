@@ -8,13 +8,14 @@ use ArrayObject;
 use Closure;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use SilenZ\Segmatch\CallableRouteTable;
 use SilenZ\Segmatch\Exception\InvalidRouteException;
 use SilenZ\Segmatch\Http\MethodNotAllowed;
 use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\RouteDefinition;
 use SilenZ\Segmatch\RouteMatch;
 use SilenZ\Segmatch\Router;
-use SilenZ\Segmatch\Tests\Http\Fixtures\FeatureFilter;
+use SilenZ\Segmatch\Tests\Http\Fixtures\FeatureRouteFilter;
 use stdClass;
 
 use function preg_quote;
@@ -29,7 +30,7 @@ final class RoutesTest extends TestCase
         $routes = new Routes();
         $define($routes);
 
-        return new Router($routes->compiled());
+        return new Router($routes->table());
     }
 
     /**
@@ -185,7 +186,7 @@ final class RoutesTest extends TestCase
     public function testFiltersAreStoredInTheMetadataAlongsideMethods(): void
     {
         $router = self::router(static function (Routes $r): void {
-            $r->get('/beta', 'beta')->filter(FeatureFilter::class);
+            $r->get('/beta', 'beta')->filter(FeatureRouteFilter::class);
         });
 
         static::assertSame(
@@ -193,7 +194,7 @@ final class RoutesTest extends TestCase
                 'handler' => 'beta',
                 'middleware' => [],
                 'methods' => ['GET'],
-                'filters' => [FeatureFilter::class],
+                'filters' => [FeatureRouteFilter::class],
             ],
             self::find($router, 'GET', '/beta'),
         );
@@ -204,7 +205,7 @@ final class RoutesTest extends TestCase
         $routes = new Routes();
         $handler = new stdClass();
         $middleware = new stdClass();
-        $filter = new FeatureFilter('beta');
+        $filter = new FeatureRouteFilter('beta');
         $routes->get('/x', $handler)->middleware($middleware)->filter($filter);
 
         /** @var array<string, mixed> $metadata */
@@ -229,14 +230,14 @@ final class RoutesTest extends TestCase
     public function testAClassNameStaysLiteralEvenWithOtherInstancesAround(): void
     {
         $routes = new Routes();
-        $routes->get('/x', 'show')->middleware('api')->filter(FeatureFilter::class);
+        $routes->get('/x', 'show')->middleware('api')->filter(FeatureRouteFilter::class);
 
         /** @var array<string, mixed> $metadata */
         $metadata = $routes->definitions()[0]->metadata;
 
         static::assertSame('show', $metadata['handler']);
         static::assertSame(['api'], $metadata['middleware']);
-        static::assertSame([FeatureFilter::class], $metadata['filters']);
+        static::assertSame([FeatureRouteFilter::class], $metadata['filters']);
     }
 
     public function testRoutesKeepDeclarationOrderAcrossGroups(): void
@@ -269,7 +270,7 @@ final class RoutesTest extends TestCase
         };
 
         static::assertSame('yes', self::find(self::router($definitions), 'GET', '/invokable')['handler'] ?? null);
-        $result = new Router($raw)->match('/raw');
+        $result = new Router(new CallableRouteTable($raw))->match('/raw');
         static::assertInstanceOf(RouteMatch::class, $result);
         static::assertSame('raw', $result->route);
     }

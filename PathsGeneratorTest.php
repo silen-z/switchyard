@@ -13,11 +13,22 @@ use function array_keys;
 
 final class PathsGeneratorTest extends TestCase
 {
+    /**
+     * @param callable(Routes): void $define
+     */
+    private static function router(callable $define): Router
+    {
+        $routes = new Routes();
+        $define($routes);
+
+        return new Router($routes->compiled());
+    }
+
     public function testStaticPathWithAPlaceholderResponse(): void
     {
-        $router = new Router(Routes::define(static function (Routes $r): void {
+        $router = self::router(static function (Routes $r): void {
             $r->get('/ping', 'ping');
-        }));
+        });
 
         static::assertSame(
             ['paths' => ['/ping' => ['get' => ['responses' => ['200' => ['description' => 'OK']]]]]],
@@ -27,9 +38,9 @@ final class PathsGeneratorTest extends TestCase
 
     public function testPathParametersComeFromTheRouteSegments(): void
     {
-        $router = new Router(Routes::define(static function (Routes $r): void {
+        $router = self::router(static function (Routes $r): void {
             $r->get('/users/{id}', 'show');
-        }));
+        });
 
         $paths = PathsGenerator::generate($router->definitions())['paths'];
 
@@ -41,9 +52,9 @@ final class PathsGeneratorTest extends TestCase
 
     public function testCatchAllZeroOrMoreIsNotRequired(): void
     {
-        $router = new Router(Routes::define(static function (Routes $r): void {
+        $router = self::router(static function (Routes $r): void {
             $r->get('/assets/{path*}', 'assets');
-        }));
+        });
 
         $paths = PathsGenerator::generate($router->definitions())['paths'];
 
@@ -55,9 +66,9 @@ final class PathsGeneratorTest extends TestCase
 
     public function testCatchAllOneOrMoreIsRequired(): void
     {
-        $router = new Router(Routes::define(static function (Routes $r): void {
+        $router = self::router(static function (Routes $r): void {
             $r->get('/files/{path+}', 'files');
-        }));
+        });
 
         $paths = PathsGenerator::generate($router->definitions())['paths'];
 
@@ -66,9 +77,9 @@ final class PathsGeneratorTest extends TestCase
 
     public function testNameBecomesTheOperationId(): void
     {
-        $router = new Router(Routes::define(static function (Routes $r): void {
+        $router = self::router(static function (Routes $r): void {
             $r->get('/users/{id}', 'show')->name('users.show');
-        }));
+        });
 
         $paths = PathsGenerator::generate($router->definitions())['paths'];
 
@@ -77,9 +88,9 @@ final class PathsGeneratorTest extends TestCase
 
     public function testUnnamedRouteHasNoOperationId(): void
     {
-        $router = new Router(Routes::define(static function (Routes $r): void {
+        $router = self::router(static function (Routes $r): void {
             $r->get('/ping', 'ping');
-        }));
+        });
 
         $paths = PathsGenerator::generate($router->definitions())['paths'];
 
@@ -88,9 +99,9 @@ final class PathsGeneratorTest extends TestCase
 
     public function testTagsAreCarriedOver(): void
     {
-        $router = new Router(Routes::define(static function (Routes $r): void {
+        $router = self::router(static function (Routes $r): void {
             $r->get('/users', 'list')->tag('public', 'users');
-        }));
+        });
 
         $paths = PathsGenerator::generate($router->definitions())['paths'];
 
@@ -99,10 +110,10 @@ final class PathsGeneratorTest extends TestCase
 
     public function testRoutesSharingAPathMergeIntoOnePathItem(): void
     {
-        $router = new Router(Routes::define(static function (Routes $r): void {
+        $router = self::router(static function (Routes $r): void {
             $r->get('/users', 'list');
             $r->post('/users', 'create');
-        }));
+        });
 
         $path = PathsGenerator::generate($router->definitions())['paths']['/users'];
 
@@ -111,9 +122,9 @@ final class PathsGeneratorTest extends TestCase
 
     public function testMapListsEachOfItsMethods(): void
     {
-        $router = new Router(Routes::define(static function (Routes $r): void {
+        $router = self::router(static function (Routes $r): void {
             $r->map(['PUT', 'PATCH'], '/users/{id}', 'update');
-        }));
+        });
 
         $path = PathsGenerator::generate($router->definitions())['paths']['/users/{id}'];
 
@@ -122,9 +133,9 @@ final class PathsGeneratorTest extends TestCase
 
     public function testAnyRouteListsEveryMethod(): void
     {
-        $router = new Router(Routes::define(static function (Routes $r): void {
+        $router = self::router(static function (Routes $r): void {
             $r->any('/webhooks/{provider}', 'webhook');
-        }));
+        });
 
         $path = PathsGenerator::generate($router->definitions())['paths']['/webhooks/{provider}'];
 
@@ -133,20 +144,18 @@ final class PathsGeneratorTest extends TestCase
 
     public function testTrailingSlashIsPreservedInThePath(): void
     {
-        $router = new Router(Routes::define(static function (Routes $r): void {
+        $router = self::router(static function (Routes $r): void {
             $r->get('/users/', 'trailing');
-        }));
+        });
 
         static::assertArrayHasKey('/users/', PathsGenerator::generate($router->definitions())['paths']);
     }
 
     public function testGroupPrefixesAreIncludedInThePath(): void
     {
-        $router = new Router(Routes::define(static function (Routes $r): void {
-            $r->group('/api')->define(static function (Routes $r): void {
-                $r->get('/users/{id}', 'show');
-            });
-        }));
+        $router = self::router(static function (Routes $r): void {
+            $r->group('/api')->get('/users/{id}', 'show');
+        });
 
         $paths = PathsGenerator::generate($router->definitions())['paths'];
 

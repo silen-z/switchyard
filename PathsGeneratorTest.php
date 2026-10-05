@@ -21,7 +21,7 @@ final class PathsGeneratorTest extends TestCase
         $routes = new Routes();
         $define($routes);
 
-        return new Router($routes->compiled());
+        return new Router($routes->table());
     }
 
     public function testStaticPathWithAPlaceholderResponse(): void

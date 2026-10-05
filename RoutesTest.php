@@ -337,6 +337,22 @@ final class RoutesTest extends TestCase
             static fn(Routes $r) => $r->get('/a', 'a')->filter(stdClass::class),
             'uses filter "stdClass", which does not implement',
         ];
+        yield 'integer handler' => [
+            static fn(Routes $r) => $r->get('/a', 7),
+            'Route "/a" handler cannot be an integer (7)',
+        ];
+        yield 'integer route middleware' => [
+            static fn(Routes $r) => $r->get('/a', 'a')->middleware(['auth', 3]),
+            'Route "/a" middleware cannot be an integer (3)',
+        ];
+        yield 'integer group middleware' => [
+            static fn(Routes $r) => $r->group('/api')->middleware(0),
+            'Group "/api" middleware cannot be an integer (0)',
+        ];
+        yield 'integer root middleware' => [
+            static fn(Routes $r) => $r->middleware(1),
+            'Routes without a prefix middleware cannot be an integer (1)',
+        ];
     }
 
     /**

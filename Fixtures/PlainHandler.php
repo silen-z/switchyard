@@ -10,8 +10,8 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
 /**
- * A handler with no constructor dependencies, so it can be resolved with a plain `new` when no
- * container is given.
+ * A handler with no constructor dependencies, so a container can resolve it by class name without
+ * having to know anything about it.
  */
 final class PlainHandler implements RequestHandlerInterface
 {

@@ -16,6 +16,7 @@ use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\Http\RoutesHandlerBuilder;
 use SilenZ\Segmatch\Http\UrlGenerator;
 use SilenZ\Segmatch\Router;
+use SilenZ\Segmatch\Tests\Http\Fixtures\ArrayRouteCache;
 use SilenZ\Segmatch\Tests\Http\Fixtures\EchoContainer;
 use stdClass;
 
@@ -105,20 +106,7 @@ final class UrlGeneratorTest extends TestCase
 
     public function testWorksFromTheCache(): void
     {
-        $cache = new class implements RouteCache {
-            /** @var array<string, array<array-key, mixed>> */
-            public array $entries = [];
-
-            public function get(string $key): ?array
-            {
-                return $this->entries[$key] ?? null;
-            }
-
-            public function set(string $key, array $compiled): void
-            {
-                $this->entries[$key] = $compiled;
-            }
-        };
+        $cache = new ArrayRouteCache();
         self::router($cache, 'routes')->matcher();
 
         $cached = new Router(

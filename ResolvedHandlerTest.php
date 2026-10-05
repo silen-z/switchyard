@@ -39,7 +39,7 @@ final class ResolvedHandlerTest extends TestCase
         return $builder;
     }
 
-    private static function resolver(): RoutesHandlerBuilder
+    private static function apiBuilder(): RoutesHandlerBuilder
     {
         return self::builder(static function (Routes $routes): void {
             $routes->get('/ping', PlainHandler::class);
@@ -56,11 +56,11 @@ final class ResolvedHandlerTest extends TestCase
     }
 
     private static function respond(
-        RoutesHandlerBuilder $resolver,
+        RoutesHandlerBuilder $builder,
         ServerRequestInterface $request,
         ?RequestHandlerInterface $notFoundHandler = null,
     ): ResponseInterface {
-        return $resolver->handler($request, $notFoundHandler)->handle($request);
+        return $builder->handler($request, $notFoundHandler)->handle($request);
     }
 
     /**
@@ -74,11 +74,11 @@ final class ResolvedHandlerTest extends TestCase
     }
 
     #[DataProvider('requests')]
-    public function testResolveReturnsAPsr15RequestHandler(string $method, string $path): void
+    public function testHandlerReturnsAPsr15RequestHandler(string $method, string $path): void
     {
         static::assertInstanceOf(
             RequestHandlerInterface::class,
-            self::resolver()->handler(new ServerRequest($method, $path)),
+            self::apiBuilder()->handler(new ServerRequest($method, $path)),
         );
     }
 
@@ -89,11 +89,11 @@ final class ResolvedHandlerTest extends TestCase
             'first' => new TagMiddleware('first'),
             'second' => new TagMiddleware('second'),
         ]);
-        $resolver = self::builder(static function (Routes $r): void {
+        $builder = self::builder(static function (Routes $r): void {
             $r->get('/users/{id}', 'show')->middleware(['first', 'second']);
         }, $container);
 
-        $response = self::respond($resolver, new ServerRequest('GET', '/users/42'));
+        $response = self::respond($builder, new ServerRequest('GET', '/users/42'));
 
         static::assertSame(200, $response->getStatusCode());
         // The "id" route parameter reached the handler through the Found attribute.
@@ -114,14 +114,14 @@ final class ResolvedHandlerTest extends TestCase
                 return new Response(204);
             }
         };
-        $resolver = self::builder(
+        $builder = self::builder(
             static function (Routes $r): void {
                 $r->get('/users/{id}', 'show');
             },
             new ArrayContainer(['show' => $handler]),
         );
 
-        self::respond($resolver, new ServerRequest('GET', '/users/42'));
+        self::respond($builder, new ServerRequest('GET', '/users/42'));
 
         // @mago-expect analysis:mixed-assignment
         $found = $handler->request?->getAttribute(Found::class);
@@ -132,7 +132,7 @@ final class ResolvedHandlerTest extends TestCase
 
     public function testRouteMiddlewareSeesTheWholeMatch(): void
     {
-        $resolver = self::builder(static function (Routes $r): void {
+        $builder = self::builder(static function (Routes $r): void {
             $r
                 ->group('/api')
                 ->tag('json')
@@ -142,7 +142,7 @@ final class ResolvedHandlerTest extends TestCase
                 ->middleware(RouteInfoMiddleware::class);
         }, new EchoContainer());
 
-        $response = self::respond($resolver, new ServerRequest('GET', '/api/users/42'));
+        $response = self::respond($builder, new ServerRequest('GET', '/api/users/42'));
 
         static::assertSame('users.show', $response->getHeaderLine('X-Route-Name'));
         static::assertSame('json,public', $response->getHeaderLine('X-Route-Tags'));
@@ -150,21 +150,21 @@ final class ResolvedHandlerTest extends TestCase
 
     public function testHandlerWithoutDependenciesDoesNotNeedAContainer(): void
     {
-        $response = self::respond(self::resolver(), new ServerRequest('GET', '/ping'));
+        $response = self::respond(self::apiBuilder(), new ServerRequest('GET', '/ping'));
 
         static::assertSame(204, $response->getStatusCode());
     }
 
     public function testNotFoundBuildsA404Response(): void
     {
-        $response = self::respond(self::resolver(), new ServerRequest('GET', '/nope'));
+        $response = self::respond(self::apiBuilder(), new ServerRequest('GET', '/nope'));
 
         static::assertSame(404, $response->getStatusCode());
     }
 
     public function testMethodNotAllowedBuildsA405ResponseWithTheAllowHeader(): void
     {
-        $response = self::respond(self::resolver(), new ServerRequest('POST', '/ping'));
+        $response = self::respond(self::apiBuilder(), new ServerRequest('POST', '/ping'));
 
         static::assertSame(405, $response->getStatusCode());
         static::assertSame('GET, HEAD', $response->getHeaderLine('Allow'));
@@ -178,7 +178,7 @@ final class ResolvedHandlerTest extends TestCase
         yield 'GET implies HEAD' => [new ServerRequest('OPTIONS', '/ping'), 'GET, HEAD'];
         yield 'several routes' => [new ServerRequest('OPTIONS', '/users'), 'GET, POST, HEAD'];
         yield 'filter accepts' => [new ServerRequest('OPTIONS', '/users/7'), 'GET, PUT, PATCH, HEAD'];
-        // NumericFilter rejects "john", so only the slug route counts.
+        // NumericRouteFilter rejects "john", so only the slug route counts.
         yield 'filter rejects some' => [new ServerRequest('OPTIONS', '/users/john'), 'GET, HEAD'];
         yield 'feature on' => [
             new ServerRequest('OPTIONS', '/beta')->withAttribute('features', ['beta' => true]),
@@ -189,7 +189,7 @@ final class ResolvedHandlerTest extends TestCase
     #[DataProvider('optionsRequests')]
     public function testOptionsAnswers200WithTheAllowHeader(ServerRequest $request, string $allow): void
     {
-        $response = self::respond(self::resolver(), $request);
+        $response = self::respond(self::apiBuilder(), $request);
 
         static::assertSame(200, $response->getStatusCode());
         static::assertSame($allow, $response->getHeaderLine('Allow'));
@@ -199,11 +199,11 @@ final class ResolvedHandlerTest extends TestCase
     {
         static::assertSame(
             404,
-            self::respond(self::resolver(), new ServerRequest('OPTIONS', '/beta'))->getStatusCode(),
+            self::respond(self::apiBuilder(), new ServerRequest('OPTIONS', '/beta'))->getStatusCode(),
         );
         static::assertSame(
             404,
-            self::respond(self::resolver(), new ServerRequest('OPTIONS', '/nope'))->getStatusCode(),
+            self::respond(self::apiBuilder(), new ServerRequest('OPTIONS', '/nope'))->getStatusCode(),
         );
     }
 
@@ -211,7 +211,7 @@ final class ResolvedHandlerTest extends TestCase
     {
         // any() routes accept every method, OPTIONS included; so does an explicit OPTIONS route.
         foreach (['/webhooks/github', '/cors'] as $path) {
-            $response = self::respond(self::resolver(), new ServerRequest('OPTIONS', $path));
+            $response = self::respond(self::apiBuilder(), new ServerRequest('OPTIONS', $path));
 
             static::assertSame(204, $response->getStatusCode(), $path);
             static::assertFalse($response->hasHeader('Allow'), $path);
@@ -220,23 +220,23 @@ final class ResolvedHandlerTest extends TestCase
 
     public function testOwnNotFoundHandlerReplacesTheDefault(): void
     {
-        $resolver = self::resolver();
+        $builder = self::apiBuilder();
         $notFoundHandler = new StatusHandler(410);
 
         static::assertSame(
             410,
-            self::respond($resolver, new ServerRequest('GET', '/nope'), $notFoundHandler)->getStatusCode(),
+            self::respond($builder, new ServerRequest('GET', '/nope'), $notFoundHandler)->getStatusCode(),
         );
 
         // The 405 and OPTIONS answers stay the defaults, and matched routes are unaffected.
-        $methodNotAllowed = self::respond($resolver, new ServerRequest('POST', '/ping'));
+        $methodNotAllowed = self::respond($builder, new ServerRequest('POST', '/ping'));
         static::assertSame(405, $methodNotAllowed->getStatusCode());
         static::assertSame('GET, HEAD', $methodNotAllowed->getHeaderLine('Allow'));
 
-        $options = self::respond($resolver, new ServerRequest('OPTIONS', '/ping'));
+        $options = self::respond($builder, new ServerRequest('OPTIONS', '/ping'));
         static::assertSame(200, $options->getStatusCode());
         static::assertSame('GET, HEAD', $options->getHeaderLine('Allow'));
 
-        static::assertSame(204, self::respond($resolver, new ServerRequest('GET', '/ping'))->getStatusCode());
+        static::assertSame(204, self::respond($builder, new ServerRequest('GET', '/ping'))->getStatusCode());
     }
 }

@@ -11,9 +11,9 @@ use SilenZ\Segmatch\RouteMatch;
  * A condition a route attaches to itself, checked while matching.
  *
  * A route usually references a filter by class name, so it survives the route cache; {@see
- * HandlerResolver} resolves one instance per filter class from the container given to it (or builds a
- * plain `new $filter()` without one), which wires up whatever dependencies that class always needs,
- * the same way for every route that uses it. A route may instead be given a ready instance directly
+ * RoutesHandlerBuilder} resolves one instance per filter class from the container, which wires up
+ * whatever dependencies that class always needs, the same way for every route that uses it. A route
+ * may instead be given a ready instance directly
  * ({@see Route::filter()}), which skips the container and bakes its own configuration into its
  * constructor instead — the only way to vary one filter's behavior per route, since a class name gives
  * the container no way to tell routes apart. Either way the instance is kept in the route's

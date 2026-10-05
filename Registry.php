@@ -13,8 +13,8 @@ use function is_scalar;
 /**
  * Lets a handler, middleware entry or filter be a real instance or closure instead of only a class
  * name: a route's own metadata must stay plain data to survive the route cache ({@see Route}), so
- * anything that isn't already {@see wrap()}s it into here and gives back the id {@see
- * Instances::of()} resolves it from at request time instead.
+ * anything that isn't already plain data is wrapped by {@see wrap()} and gives back an id {@see
+ * get()} resolves it from at request time instead.
  *
  * One `Registry` is shared by a {@see Routes} tree (the root and every `group()` nested under it,
  * {@see Route}s included), and rebuilt fresh every time the tree is declared — unlike the route cache,
@@ -44,7 +44,7 @@ final class Registry
     }
 
     /**
-     * @internal shared by {@see Instances::of()}
+     * @internal shared with {@see RoutesHandlerBuilder::instantiate()}
      */
     public function get(int $id): mixed
     {

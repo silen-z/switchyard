@@ -127,16 +127,16 @@ final class Route
      * Adds a condition of the application's own, checked in the order filters were added, after the
      * method check. May be called more than once, including with the same filter class: each instance
      * is checked independently, which is how to vary one filter's behavior within a single route, e.g.
-     * `filter(new NumericFilter('id'))->filter(new NumericFilter('parentId'))`.
+     * `filter(new NumericRouteFilter('id'))->filter(new NumericRouteFilter('postId'))`.
      *
      * Any configuration a filter needs is a constructor argument of its own, e.g.
-     * `filter(new FeatureFilter('beta'))`, not a separate parameter here: a filter either takes no
-     * configuration, or is built already configured, by a container resolving a class name or by you
+     * `filter(new FeatureRouteFilter('beta'))`, not a separate parameter here: a filter either takes no
+     * configuration, or is built already configured, by the container resolving a class name or by you
      * giving an instance directly. An instance is wrapped into the route's {@see Registry}, a class
-     * name resolved by {@see RoutesHandlerBuilder} from the container given to it (or built with a plain
-     * `new $filter()` without one), transparently either way.
+     * name resolved from the container by {@see RoutesHandlerBuilder}, transparently either way.
      *
-     * @param string|RouteFilter $filter a class name implementing {@see Filter}, or an instance of one
+     * @param string|RouteFilter $filter a class name implementing {@see RouteFilter}, or an instance
+     *                                    of one
      */
     public function filter(string|RouteFilter $filter): self
     {
@@ -165,11 +165,13 @@ final class Route
      *         'path'       => '/api/users/{id}',    // only when named, for URL generation
      *         'tags'       => ['public'],           // only when tagged; groups' tags first, no duplicates
      *         'methods'    => ['GET'],              // only for routes with methods (not any())
-     *         'filters'    => [FeatureFilter::class], // only when there are any, checked in this order
+     *         'filters'    => [FeatureRouteFilter::class], // only when there are any, checked in this order
      *     ]
      *
      * `handler` and each `middleware`/`filters` entry is a class name, a container identifier, or a
      * {@see Registry} id standing in for a real instance or closure.
+     *
+     * @internal
      *
      * @param string $prefix the enclosing groups' prefix
      * @param list<mixed> $groupMiddleware the enclosing groups' middleware
@@ -178,8 +180,6 @@ final class Route
      *                                     and added to for this one
      *
      * @throws InvalidRouteException
-     *@internal
-     *
      */
     public function definition(string $prefix, array $groupMiddleware, array $groupTags, array &$names): RouteDefinition
     {

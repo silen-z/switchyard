@@ -31,7 +31,7 @@ use function strtoupper;
  *     $routes->get('/', HomeController::class);
  *     $routes->group('/api')->middleware('api')->get('/users/{id}', [UserController::class, 'show'])->name('users.show');
  *
- *     $response = $routes->resolve($request, $responseFactory)->handle($request);
+ *     $response = $routes->handler($request, $responseFactory)->handle($request);
  *
  * Declaring runs immediately, like any other PHP code; there is nothing to defer. A `group()` is
  * itself a `Routes`, scoped by an optional path prefix, with its own middleware and tags inherited by
@@ -233,7 +233,7 @@ final class Routes
      * @param ?string $cacheKey identifies these routes in the cache; null (the default) never caches
      *                          them, same as `table()`
      */
-    public function resolve(
+    public function handler(
         ServerRequestInterface $request,
         ResponseFactoryInterface $responseFactory,
         ?ContainerInterface $container = null,
@@ -294,46 +294,7 @@ final class Routes
                 continue;
             }
 
-            $routes[] = self::buildDefinition($item, $prefix, $middleware, $tags, $names);
+            $routes[] = $item->definition($prefix, $middleware, $tags, $names);
         }
-    }
-
-    /**
-     * @param list<mixed> $middleware
-     * @param list<string> $tags
-     * @param array<string, string> $names
-     *
-     * @throws InvalidRouteException
-     */
-    private static function buildDefinition(
-        Route $route,
-        string $prefix,
-        array $middleware,
-        array $tags,
-        array &$names,
-    ): RouteDefinition {
-        $path = $route->path();
-        // Inside a group with a prefix, "" declares a route on the prefix itself.
-        if (!($path === '' && $prefix !== '') && !str_starts_with($path, '/')) {
-            throw new InvalidRouteException(sprintf('Route path "%s" must start with "/".', $path));
-        }
-
-        $fullPath = $prefix . $path;
-
-        $name = $route->routeName();
-        if ($name !== null) {
-            if (($names[$name] ?? null) !== null) {
-                throw new InvalidRouteException(sprintf(
-                    'Route name "%s" is used by both "%s" and "%s".',
-                    $name,
-                    $names[$name],
-                    $fullPath,
-                ));
-            }
-
-            $names[$name] = $fullPath;
-        }
-
-        return new RouteDefinition($fullPath, $route->metadata($fullPath, $middleware, $tags));
     }
 }

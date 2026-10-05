@@ -28,7 +28,7 @@ use function strtoupper;
  * `$router` must be built from the same `$routes` (`new Router($routes->table(...))`): `$routes` is
  * declared fresh every request, but `$router` may answer from its own cache, built by a past
  * declaration — passing both from the same `$routes` is what keeps a handler, middleware entry or
- * filter given as a real instance resolvable (see `$routes` below). {@see Routes::resolve()} builds
+ * filter given as a real instance resolvable (see `$routes` below). {@see Routes::handler()} builds
  * both together from one `Routes`, so the common case of one tree answering its own requests can't
  * get this wrong.
  *

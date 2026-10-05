@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace SilenZ\Segmatch\Http;
 
 use SilenZ\Segmatch\Exception\InvalidRouteException;
+use SilenZ\Segmatch\RouteDefinition;
 
 use function array_unique;
 use function array_values;
@@ -12,6 +13,7 @@ use function is_array;
 use function is_string;
 use function is_subclass_of;
 use function sprintf;
+use function str_starts_with;
 
 /**
  * One route declaration: HTTP methods, a path relative to the enclosing groups, and a handler.
@@ -153,23 +155,8 @@ final class Route
     }
 
     /**
-     * @internal
-     */
-    public function path(): string
-    {
-        return $this->path;
-    }
-
-    /**
-     * @internal
-     */
-    public function routeName(): ?string
-    {
-        return $this->name;
-    }
-
-    /**
-     * The metadata stored for the route:
+     * Resolves this route into a core route definition: the full path (this route's own, under the
+     * enclosing groups' prefix) and the metadata {@see HandlerResolver} reads while matching:
      *
      *     [
      *         'handler'    => [UserController::class, 'show'],
@@ -186,14 +173,36 @@ final class Route
      *
      * @internal
      *
-     * @param string $fullPath the route's path including the groups' prefixes
-     * @param list<mixed> $groupMiddleware
-     * @param list<string> $groupTags
+     * @param string $prefix the enclosing groups' prefix
+     * @param list<mixed> $groupMiddleware the enclosing groups' middleware
+     * @param list<string> $groupTags the enclosing groups' tags
+     * @param array<string, string> $names route name => path of the routes registered so far, checked
+     *                                     and added to for this one
      *
-     * @return array{handler: mixed, middleware: list<mixed>, name?: string, path?: string, tags?: non-empty-list<string>, methods?: non-empty-list<string>, filters?: non-empty-list<mixed>}
+     * @throws InvalidRouteException
      */
-    public function metadata(string $fullPath, array $groupMiddleware, array $groupTags): array
+    public function definition(string $prefix, array $groupMiddleware, array $groupTags, array &$names): RouteDefinition
     {
+        // Inside a group with a prefix, "" declares a route on the prefix itself.
+        if (!($this->path === '' && $prefix !== '') && !str_starts_with($this->path, '/')) {
+            throw new InvalidRouteException(sprintf('Route path "%s" must start with "/".', $this->path));
+        }
+
+        $fullPath = $prefix . $this->path;
+
+        if ($this->name !== null) {
+            if (($names[$this->name] ?? null) !== null) {
+                throw new InvalidRouteException(sprintf(
+                    'Route name "%s" is used by both "%s" and "%s".',
+                    $this->name,
+                    $names[$this->name],
+                    $fullPath,
+                ));
+            }
+
+            $names[$this->name] = $fullPath;
+        }
+
         $metadata = [
             'handler' => $this->handler,
             'middleware' => [...$groupMiddleware, ...$this->middleware],
@@ -217,6 +226,6 @@ final class Route
             $metadata['filters'] = $this->filters;
         }
 
-        return $metadata;
+        return new RouteDefinition($fullPath, $metadata);
     }
 }

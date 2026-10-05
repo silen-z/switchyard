@@ -42,6 +42,17 @@ final class HandlerResolverTest extends TestCase
         return new HandlerResolver($router, new Psr17Factory(), $container ?? new EchoContainer(), $notFoundHandler);
     }
 
+    /**
+     * @param callable(Routes): void $define
+     */
+    private static function router(callable $define): Router
+    {
+        $routes = new Routes();
+        $define($routes);
+
+        return new Router($routes->compiled());
+    }
+
     private static function respond(HandlerResolver $resolver, ServerRequestInterface $request): ResponseInterface
     {
         return $resolver->resolve($request)->handle($request);
@@ -91,21 +102,17 @@ final class HandlerResolverTest extends TestCase
     private static function apiResolver(?RequestHandlerInterface $notFoundHandler = null): HandlerResolver
     {
         return self::resolver(
-            new Router(Routes::define(static function (Routes $r): void {
-                $r
-                    ->group('/api')
-                    ->middleware('api')
-                    ->tag('json')
-                    ->define(static function (Routes $r): void {
-                        $r->get('/users/{id}', 'show')->name('users.show')->middleware('auth')->tag('public');
-                        $r->put('/users/{id}', 'update');
-                        $r->get('/beta', 'beta')->guard(FeatureGuard::class, 'beta');
-                    });
+            self::router(static function (Routes $r): void {
+                $api = $r->group('/api')->middleware('api')->tag('json');
+                $api->get('/users/{id}', 'show')->name('users.show')->middleware('auth')->tag('public');
+                $api->put('/users/{id}', 'update');
+                $api->get('/beta', 'beta')->guard(FeatureGuard::class, 'beta');
+
                 $r->get('/ping', 'ping');
                 $r->map(['HEAD'], '/ping', 'ping-head');
                 $r->post('/login', 'login');
                 $r->any('/webhooks/{provider}', 'webhook');
-            })),
+            }),
             new EchoContainer(['api' => new TagMiddleware('api'), 'auth' => new TagMiddleware('auth')]),
             $notFoundHandler,
         );
@@ -150,9 +157,9 @@ final class HandlerResolverTest extends TestCase
 
     public function testHeadRequestsAreNeverRewrittenToGet(): void
     {
-        $resolver = self::resolver(new Router(Routes::define(static function (Routes $r): void {
+        $resolver = self::resolver(self::router(static function (Routes $r): void {
             $r->get('/head-only', 'head-only')->guard(RequestMethodGuard::class, 'HEAD');
-        })));
+        }));
 
         $response = self::respond($resolver, new ServerRequest('HEAD', '/head-only'));
 
@@ -227,7 +234,7 @@ final class HandlerResolverTest extends TestCase
 
     private static function routingResolver(): HandlerResolver
     {
-        return self::resolver(new Router(Routes::define(static function (Routes $r): void {
+        return self::resolver(self::router(static function (Routes $r): void {
             $r->get('/users', 'list');
             $r->post('/users', 'create');
             $r->post('/users/new', 'create-form');
@@ -235,7 +242,7 @@ final class HandlerResolverTest extends TestCase
             $r->get('/users/{slug}', 'by-slug');
             $r->map(['PUT', 'PATCH'], '/users/{id}', 'update')->guard(NumericGuard::class, 'id');
             $r->get('/{path+}', 'frontend');
-        })));
+        }));
     }
 
     public function testFallsThroughToARouteThatAcceptsTheMethod(): void
@@ -282,18 +289,18 @@ final class HandlerResolverTest extends TestCase
 
     public function testRouteRejectedForAnotherReasonDoesNotCountAsAllowed(): void
     {
-        $resolver = self::resolver(new Router(Routes::define(static function (Routes $r): void {
+        $resolver = self::resolver(self::router(static function (Routes $r): void {
             $r->get('/beta', 'beta')->guard(FeatureGuard::class, 'beta');
-        })));
+        }));
 
         self::assertNotFound($resolver, new ServerRequest('POST', '/beta'));
     }
 
     public function testGuardsAreResolvedFromTheContainer(): void
     {
-        $router = new Router(Routes::define(static function (Routes $r): void {
+        $router = self::router(static function (Routes $r): void {
             $r->get('/locked', 'locked')->guard(ConfigurableGuard::class);
-        }));
+        });
 
         $allowing = self::resolver($router, new EchoContainer([
             ConfigurableGuard::class => new ConfigurableGuard(accepts: true),

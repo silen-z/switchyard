@@ -11,7 +11,6 @@ use PHPUnit\Framework\TestCase;
 use SilenZ\Segmatch\Exception\InvalidRouteException;
 use SilenZ\Segmatch\Http\MethodNotAllowed;
 use SilenZ\Segmatch\Http\Routes;
-use SilenZ\Segmatch\NoMatch;
 use SilenZ\Segmatch\RouteDefinition;
 use SilenZ\Segmatch\RouteMatch;
 use SilenZ\Segmatch\Router;
@@ -27,7 +26,10 @@ final class RoutesTest extends TestCase
      */
     private static function router(callable $define): Router
     {
-        return new Router(Routes::define($define));
+        $routes = new Routes();
+        $define($routes);
+
+        return new Router($routes->compiled());
     }
 
     /**
@@ -69,10 +71,7 @@ final class RoutesTest extends TestCase
         static::assertSame('update', self::find($router, 'PATCH', '/users/1')['handler'] ?? null);
         static::assertSame('delete', self::find($router, 'DELETE', '/users/1')['handler'] ?? null);
         static::assertSame('options', self::find($router, 'OPTIONS', '/users')['handler'] ?? null);
-        static::assertSame(
-            ['GET', 'HEAD'],
-            self::find($router, 'HEAD', '/health')['methods'] ?? null,
-        );
+        static::assertSame(['GET', 'HEAD'], self::find($router, 'HEAD', '/health')['methods'] ?? null);
         static::assertSame(
             ['handler' => 'webhook', 'middleware' => []],
             self::find($router, 'PURGE', '/webhooks/github'),
@@ -82,29 +81,12 @@ final class RoutesTest extends TestCase
     public function testGroupsPrefixPathsAndInheritMiddlewareOutermostFirst(): void
     {
         $router = self::router(static function (Routes $r): void {
-            $r
-                ->group('/api')
-                ->middleware('api')
-                ->define(static function (Routes $r): void {
-                    $r
-                        ->group()
-                        ->middleware(['guest'])
-                        ->define(static function (Routes $r): void {
-                            $r->post('/login', 'login');
-                        });
-                    $r
-                        ->group()
-                        ->middleware('auth')
-                        ->define(static function (Routes $r): void {
-                            $r->get('/users/{id}', 'user');
-                            $r
-                                ->group('/admin')
-                                ->middleware('admin')
-                                ->define(static function (Routes $r): void {
-                                    $r->get('/stats', 'stats')->middleware(['audit', 'log']);
-                                });
-                        });
-                });
+            $api = $r->group('/api')->middleware('api');
+            $api->group()->middleware(['guest'])->post('/login', 'login');
+
+            $auth = $api->group()->middleware('auth');
+            $auth->get('/users/{id}', 'user');
+            $auth->group('/admin')->middleware('admin')->get('/stats', 'stats')->middleware(['audit', 'log']);
         });
 
         static::assertSame(['api', 'guest'], self::find($router, 'POST', '/api/login')['middleware'] ?? null);
@@ -119,9 +101,9 @@ final class RoutesTest extends TestCase
     {
         $router = self::router(static function (Routes $r): void {
             $group = $r->group('/api');
-            $group->define(static fn(Routes $r) => $r->get('/a', 'a'));
+            $group->get('/a', 'a');
             $group->middleware('late');
-            $group->define(static fn(Routes $r) => $r->get('/b', 'b'));
+            $group->get('/b', 'b');
         });
 
         static::assertSame(['late'], self::find($router, 'GET', '/api/a')['middleware'] ?? null);
@@ -131,10 +113,9 @@ final class RoutesTest extends TestCase
     public function testRouteOnTheGroupPrefixItself(): void
     {
         $router = self::router(static function (Routes $r): void {
-            $r->group('/api')->define(static function (Routes $r): void {
-                $r->get('', 'root');
-                $r->get('/', 'root-slash');
-            });
+            $group = $r->group('/api');
+            $group->get('', 'root');
+            $group->get('/', 'root-slash');
         });
 
         static::assertSame('root', self::find($router, 'GET', '/api')['handler'] ?? null);
@@ -144,14 +125,8 @@ final class RoutesTest extends TestCase
     public function testSiblingGroupsWithTheSamePrefixKeepTheirOwnMiddleware(): void
     {
         $router = self::router(static function (Routes $r): void {
-            $r
-                ->group('/api')
-                ->middleware('public')
-                ->define(static fn(Routes $r) => $r->get('/status', 'status'));
-            $r
-                ->group('/api')
-                ->middleware('auth')
-                ->define(static fn(Routes $r) => $r->get('/me', 'me'));
+            $r->group('/api')->middleware('public')->get('/status', 'status');
+            $r->group('/api')->middleware('auth')->get('/me', 'me');
         });
 
         static::assertSame(['public'], self::find($router, 'GET', '/api/status')['middleware'] ?? null);
@@ -174,18 +149,9 @@ final class RoutesTest extends TestCase
     public function testGroupTagsAreInheritedOutermostFirst(): void
     {
         $router = self::router(static function (Routes $r): void {
-            $r
-                ->group('/api')
-                ->tag('api')
-                ->define(static function (Routes $r): void {
-                    $r
-                        ->group()
-                        ->tag('public')
-                        ->define(static function (Routes $r): void {
-                            $r->post('/login', 'login')->tag('rate-limited', 'api');
-                        });
-                    $r->get('/me', 'me');
-                });
+            $api = $r->group('/api')->tag('api');
+            $api->group()->tag('public')->post('/login', 'login')->tag('rate-limited', 'api');
+            $api->get('/me', 'me');
         });
 
         static::assertSame(
@@ -198,9 +164,7 @@ final class RoutesTest extends TestCase
     public function testNameIsStoredInTheMetadata(): void
     {
         $router = self::router(static function (Routes $r): void {
-            $r->group('/users')->define(static function (Routes $r): void {
-                $r->get('/{id}', 'show')->name('users.show');
-            });
+            $r->group('/users')->get('/{id}', 'show')->name('users.show');
         });
 
         static::assertSame(
@@ -236,7 +200,7 @@ final class RoutesTest extends TestCase
     {
         $router = self::router(static function (Routes $r): void {
             $r->get('/users', 'first');
-            $r->group()->define(static fn(Routes $r) => $r->get('/users', 'second'));
+            $r->group()->get('/users', 'second');
         });
 
         $result = $router->match('/users');
@@ -267,17 +231,16 @@ final class RoutesTest extends TestCase
         static::assertSame('raw', $result->route);
     }
 
-    public function testRoutesAreOnlyDeclaredOnFirstUse(): void
+    public function testDeclaringRoutesRunsImmediately(): void
     {
         $calls = new ArrayObject();
-        $router = self::router(static function (Routes $r) use ($calls): void {
+        self::router(static function (Routes $r) use ($calls): void {
             $calls->append(true);
             $r->get('/a', 'a');
         });
 
-        static::assertCount(0, $calls);
-        $router->match('/a');
-        static::assertInstanceOf(NoMatch::class, $router->match('/b'));
+        // No match() needed: building Routes already ran the definition, unlike compiling, which
+        // Router still only does once its matcher is first used (see RouterTest for that).
         static::assertCount(1, $calls);
     }
 
@@ -295,7 +258,7 @@ final class RoutesTest extends TestCase
             'Group prefix "/api/" must start with "/" and must not end with "/"',
         ];
         yield 'empty path outside a prefixed group' => [
-            static fn(Routes $r) => $r->group()->define(static fn(Routes $r) => $r->get('', 'x')),
+            static fn(Routes $r) => $r->group()->get('', 'x'),
             'Route path "" must start with "/"',
         ];
         yield 'invalid method' => [
@@ -309,7 +272,7 @@ final class RoutesTest extends TestCase
         yield 'duplicate name' => [
             static function (Routes $r): void {
                 $r->get('/a', 'a')->name('home');
-                $r->group('/b')->define(static fn(Routes $r) => $r->get('', 'b')->name('home'));
+                $r->group('/b')->get('', 'b')->name('home');
             },
             'Route name "home" is used by both "/a" and "/b"',
         ];

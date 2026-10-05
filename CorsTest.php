@@ -25,16 +25,14 @@ final class CorsTest extends TestCase
 
     private static function respond(ServerRequest $request): ResponseInterface
     {
-        $resolver = new HandlerResolver(
-            new Router(Routes::define(static function (Routes $r): void {
-                $r->get('/users', PlainHandler::class);
-                $r->post('/users', PlainHandler::class);
-                $r->put('/users', PlainHandler::class)->guard(FeatureGuard::class, 'bulk-edit');
-                $r->get('/reports', PlainHandler::class);
-                $r->map(['OPTIONS'], '/reports', PlainHandler::class);
-            })),
-            new Psr17Factory(),
-        );
+        $routes = new Routes();
+        $routes->get('/users', PlainHandler::class);
+        $routes->post('/users', PlainHandler::class);
+        $routes->put('/users', PlainHandler::class)->guard(FeatureGuard::class, 'bulk-edit');
+        $routes->get('/reports', PlainHandler::class);
+        $routes->map(['OPTIONS'], '/reports', PlainHandler::class);
+
+        $resolver = new HandlerResolver(new Router($routes->compiled()), new Psr17Factory());
         $resolver->addMiddleware(new CorsMiddleware([self::ORIGIN], headers: ['Content-Type'], maxAge: 300));
 
         return $resolver->resolve($request)->handle($request);

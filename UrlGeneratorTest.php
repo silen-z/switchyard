@@ -27,17 +27,19 @@ final class UrlGeneratorTest extends TestCase
 {
     private static function router(?RouteCache $cache = null): Router
     {
-        return new Router(Routes::define(static function (Routes $r): void {
-            $r->get('/', 'home')->name('home');
-            $r->group('/api')->define(static function (Routes $r): void {
-                $r->get('/users/{id}', 'show')->name('users.show');
-                $r->get('/users/{id}/posts/{post}', 'post')->name('users.post');
-                $r->get('/users', 'list');
-            });
-            $r->get('/assets/{path*}', 'assets')->name('assets');
-            $r->get('/files/{path+}', 'files')->name('files');
-            $r->get('/{page*}', 'frontend')->name('frontend');
-        }), $cache);
+        $routes = new Routes();
+        $routes->get('/', 'home')->name('home');
+
+        $api = $routes->group('/api');
+        $api->get('/users/{id}', 'show')->name('users.show');
+        $api->get('/users/{id}/posts/{post}', 'post')->name('users.post');
+        $api->get('/users', 'list');
+
+        $routes->get('/assets/{path*}', 'assets')->name('assets');
+        $routes->get('/files/{path+}', 'files')->name('files');
+        $routes->get('/{page*}', 'frontend')->name('frontend');
+
+        return new Router($routes->compiled(), $cache);
     }
 
     /**

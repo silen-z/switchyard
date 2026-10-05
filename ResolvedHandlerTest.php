@@ -33,10 +33,21 @@ final class ResolvedHandlerTest extends TestCase
         return new Psr17Factory();
     }
 
+    /**
+     * @param callable(Routes): void $define
+     */
+    private static function router(callable $define): Router
+    {
+        $routes = new Routes();
+        $define($routes);
+
+        return new Router($routes->compiled());
+    }
+
     private static function resolver(?RequestHandlerInterface $notFoundHandler = null): HandlerResolver
     {
         return new HandlerResolver(
-            new Router(Routes::define(static function (Routes $r): void {
+            self::router(static function (Routes $r): void {
                 $r->get('/ping', PlainHandler::class);
                 $r->get('/users', PlainHandler::class);
                 $r->post('/users', PlainHandler::class);
@@ -47,7 +58,7 @@ final class ResolvedHandlerTest extends TestCase
                 $r->any('/webhooks/{provider}', PlainHandler::class);
                 $r->get('/cors', PlainHandler::class);
                 $r->map(['OPTIONS'], '/cors', PlainHandler::class);
-            })),
+            }),
             responseFactory: self::responseFactory(),
             notFoundHandler: $notFoundHandler,
         );
@@ -80,9 +91,9 @@ final class ResolvedHandlerTest extends TestCase
     public function testRunsTheRoutesMiddlewareThenItsHandler(): void
     {
         $responseFactory = self::responseFactory();
-        $router = new Router(Routes::define(static function (Routes $r): void {
+        $router = self::router(static function (Routes $r): void {
             $r->get('/users/{id}', 'show')->middleware(['first', 'second']);
-        }));
+        });
         $container = new ArrayContainer([
             'show' => new ShowHandler($responseFactory),
             'first' => new TagMiddleware('first'),
@@ -112,9 +123,9 @@ final class ResolvedHandlerTest extends TestCase
             }
         };
         $resolver = new HandlerResolver(
-            new Router(Routes::define(static function (Routes $r): void {
+            self::router(static function (Routes $r): void {
                 $r->get('/users/{id}', 'show');
-            })),
+            }),
             self::responseFactory(),
             new ArrayContainer(['show' => $handler]),
         );
@@ -130,21 +141,15 @@ final class ResolvedHandlerTest extends TestCase
 
     public function testRouteMiddlewareSeesTheWholeMatch(): void
     {
-        $resolver = new HandlerResolver(
-            new Router(Routes::define(static function (Routes $r): void {
-                $r
-                    ->group('/api')
-                    ->tag('json')
-                    ->define(static function (Routes $r): void {
-                        $r
-                            ->get('/users/{id}', PlainHandler::class)
-                            ->name('users.show')
-                            ->tag('public')
-                            ->middleware(RouteInfoMiddleware::class);
-                    });
-            })),
-            self::responseFactory(),
-        );
+        $resolver = new HandlerResolver(self::router(static function (Routes $r): void {
+            $r
+                ->group('/api')
+                ->tag('json')
+                ->get('/users/{id}', PlainHandler::class)
+                ->name('users.show')
+                ->tag('public')
+                ->middleware(RouteInfoMiddleware::class);
+        }), self::responseFactory());
 
         $response = self::respond($resolver, new ServerRequest('GET', '/api/users/42'));
 
@@ -225,9 +230,9 @@ final class ResolvedHandlerTest extends TestCase
     public function testApplicationMiddlewareWrapsEveryOutcome(): void
     {
         $resolver = new HandlerResolver(
-            new Router(Routes::define(static function (Routes $r): void {
+            self::router(static function (Routes $r): void {
                 $r->get('/users/{id}', PlainHandler::class)->name('users.show')->middleware('route');
-            })),
+            }),
             self::responseFactory(),
             new ArrayContainer([
                 PlainHandler::class => new PlainHandler(),

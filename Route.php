@@ -10,6 +10,7 @@ use function array_key_exists;
 use function array_unique;
 use function array_values;
 use function is_array;
+use function is_string;
 use function is_subclass_of;
 use function sprintf;
 
@@ -23,14 +24,18 @@ use function sprintf;
  *         ->tag('public');
  *
  * The route's HTTP methods are stored with it directly; any guards added with `guard()` are stored
- * alongside them, by class name. {@see HandlerResolver} checks the methods and resolves and runs the
- * guards while matching.
+ * alongside them, by class name or {@see Registry} id. {@see HandlerResolver} checks the methods and
+ * resolves and runs the guards while matching.
  *
  * The handler, middleware and guard configuration end up in the route cache, so they must be plain
- * data (strings, arrays, enums, ...), not closures or objects.
+ * data (strings, arrays, enums, ...), not closures or objects — a handler, a `middleware()` entry or a
+ * `guard()` given as a real instance or closure is wrapped into the route's {@see Registry} instead,
+ * transparently; only guard *configuration* must still be plain data.
  */
 final class Route
 {
+    private readonly mixed $handler;
+
     private ?string $name = null;
 
     /** @var list<mixed> */
@@ -39,8 +44,11 @@ final class Route
     /** @var list<string> */
     private array $tags = [];
 
-    /** @var array<class-string<Guard>, mixed> */
+    /** @var array<int|class-string<Guard>, mixed> */
     private array $guards = [];
+
+    /** @var array<class-string<Guard>, true> guard classes already added, by class regardless of how */
+    private array $guardClasses = [];
 
     /**
      * @param ?non-empty-list<string> $methods upper-case HTTP methods, null for any method
@@ -48,8 +56,11 @@ final class Route
     public function __construct(
         private readonly ?array $methods,
         private readonly string $path,
-        private readonly mixed $handler,
-    ) {}
+        mixed $handler,
+        private readonly Registry $registry,
+    ) {
+        $this->handler = $this->registry->wrap($handler);
+    }
 
     /**
      * Names the route. Names are unique across all routes.
@@ -66,16 +77,20 @@ final class Route
     }
 
     /**
-     * Adds middleware that runs after the middleware of the enclosing groups.
+     * Adds middleware that runs after the middleware of the enclosing groups. A class name or
+     * container identifier is resolved as usual; a real instance or closure is wrapped into the
+     * route's {@see Registry} instead, transparently.
      *
      * @param mixed $middleware one middleware, or a list of them
      */
     public function middleware(mixed $middleware): self
     {
-        $this->middleware = [
-            ...$this->middleware,
-            ...(is_array($middleware) ? array_values($middleware) : [$middleware]),
-        ];
+        $entries = is_array($middleware) ? array_values($middleware) : [$middleware];
+        // Middleware is arbitrary user data, so its entries are mixed by definition.
+        // @mago-expect analysis:mixed-assignment
+        foreach ($entries as $entry) {
+            $this->middleware[] = $this->registry->wrap($entry);
+        }
 
         return $this;
     }
@@ -112,15 +127,21 @@ final class Route
 
     /**
      * Adds a condition of the application's own, checked in the order guards were added, after the
-     * method check. The configuration must be plain data; the guard itself is resolved by
-     * {@see HandlerResolver} from the container given to it (or built with a plain `new $guard()`
-     * without one).
+     * method check. The configuration must be plain data. The guard itself is either a class name,
+     * resolved by {@see HandlerResolver} from the container given to it (or built with a plain
+     * `new $guard()` without one), or a ready {@see Guard} instance, wrapped into the route's
+     * {@see Registry} instead, transparently.
      *
-     * @param string $guard name of a class implementing {@see Guard}
+     * An instance usually has no need for `$config`: it can take its configuration as constructor
+     * arguments instead, e.g. `guard(new FeatureGuard('beta'))` rather than
+     * `guard(FeatureGuard::class, 'beta')`. `$config` still earns its keep for the class-name form,
+     * where one guard class is shared across routes that each need it configured differently.
+     *
+     * @param string|Guard $guard a class name implementing {@see Guard}, or an instance of one
      */
-    public function guard(string $guard, mixed $config = null): self
+    public function guard(string|Guard $guard, mixed $config = null): self
     {
-        if (!is_subclass_of($guard, Guard::class)) {
+        if (is_string($guard) && !is_subclass_of($guard, Guard::class)) {
             throw new InvalidRouteException(sprintf(
                 'Route "%s" uses guard "%s", which does not implement %s.',
                 $this->path,
@@ -129,11 +150,17 @@ final class Route
             ));
         }
 
-        if (array_key_exists($guard, $this->guards)) {
-            throw new InvalidRouteException(sprintf('Route "%s" uses guard "%s" twice.', $this->path, $guard));
+        $class = is_string($guard) ? $guard : $guard::class;
+
+        if (array_key_exists($class, $this->guardClasses)) {
+            throw new InvalidRouteException(sprintf('Route "%s" uses guard "%s" twice.', $this->path, $class));
         }
 
-        $this->guards[$guard] = $config;
+        $this->guardClasses[$class] = true;
+
+        /** @var int|class-string<Guard> $identifier */
+        $identifier = $this->registry->wrap($guard);
+        $this->guards[$identifier] = $config;
 
         return $this;
     }
@@ -165,9 +192,13 @@ final class Route
      *         'tags'       => ['public'],          // only when tagged; groups' tags first, no duplicates
      *         'methods'    => ['GET'],             // only for routes with methods (not any())
      *         'guards'     => [                    // only when there are any, checked in this order
-     *             FeatureGuard::class => 'beta',
+     *             FeatureGuard::class => 'beta',    // a guard given by class name keeps it as the key
+     *             3 => null,                        // one given as an instance is a Registry id instead
      *         ],
      *     ]
+     *
+     * `handler` and each `middleware`/`guards` key is a class name, a container identifier, or a
+     * {@see Registry} id standing in for a real instance or closure.
      *
      * @internal
      *
@@ -175,7 +206,7 @@ final class Route
      * @param list<mixed> $groupMiddleware
      * @param list<string> $groupTags
      *
-     * @return array{handler: mixed, middleware: list<mixed>, name?: string, path?: string, tags?: non-empty-list<string>, methods?: non-empty-list<string>, guards?: non-empty-array<class-string<Guard>, mixed>}
+     * @return array{handler: mixed, middleware: list<mixed>, name?: string, path?: string, tags?: non-empty-list<string>, methods?: non-empty-list<string>, guards?: non-empty-array<int|class-string<Guard>, mixed>}
      */
     public function metadata(string $fullPath, array $groupMiddleware, array $groupTags): array
     {

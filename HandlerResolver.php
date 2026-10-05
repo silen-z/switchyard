@@ -16,14 +16,13 @@ use SilenZ\Segmatch\Router;
 use function array_keys;
 use function array_unshift;
 use function is_array;
-use function is_string;
 use function ltrim;
 use function strtoupper;
 
 /**
  * Builds the PSR-15 handler that answers an HTTP request, from routes declared with {@see Routes}:
  *
- *     $resolver = new HandlerResolver($router, $responseFactory, $container);
+ *     $resolver = new HandlerResolver($router, $responseFactory, $container, registry: $routes->registry());
  *     $response = $resolver->resolve($request)->handle($request);
  *
  * For a matched route, {@see resolve()} gives one {@link https://relayphp.com/ Relay} stack of the
@@ -45,8 +44,12 @@ use function strtoupper;
  * decorate the response or answer itself.
  *
  * Matching checks a route's own HTTP methods ({@see MethodNotAllowed}, container-free) and runs its
- * {@see Guard}s, each resolved by {@see instantiate()} the same way as middleware and handlers. The
- * container is only ever known here, not by {@see MethodNotAllowed} or {@see Guard} itself.
+ * {@see Guard}s, each resolved by {@see Instances} the same way as middleware and handlers. The
+ * container is only ever known here, not by {@see MethodNotAllowed} or {@see Guard} itself. A
+ * handler, middleware entry or guard declared as a real instance or closure rather than a class name
+ * reaches here as a {@see Registry} id instead; {@see Instances} resolves it from the registry given
+ * to this constructor, which must be the one the routes were declared with this request
+ * ({@see Routes::registry()}), not a cached one.
  *
  * HEAD requests match GET routes unless a route for HEAD itself applies. Whoever answers a HEAD
  * request, the response loses its body ({@see HeadMiddleware}).
@@ -58,20 +61,27 @@ final class HandlerResolver
     /** @var list<string|MiddlewareInterface> */
     private array $middleware = [];
 
+    private readonly Instances $instances;
+
     /**
      * @param ResponseFactoryInterface $responseFactory builds the default 404, and the 405 and
      *                                                  OPTIONS responses, and the empty body of HEAD
      *                                                  responses
      * @param ?RequestHandlerInterface $notFoundHandler answers requests that no route applies to,
      *                                                  instead of {@see NotFoundHandler}
+     * @param ?Registry $registry resolves a handler, middleware entry or guard declared as a real
+     *                            instance or closure; {@see Routes::registry()} of the same, current
+     *                            declaration the routes came from
      */
     public function __construct(
         private readonly Router $router,
         private readonly ResponseFactoryInterface $responseFactory,
-        private readonly ?ContainerInterface $container = null,
+        ?ContainerInterface $container = null,
         ?RequestHandlerInterface $notFoundHandler = null,
+        ?Registry $registry = null,
     ) {
         $this->notFoundHandler = $notFoundHandler ?? new NotFoundHandler($responseFactory);
+        $this->instances = new Instances($container, $registry ?? new Registry());
     }
 
     /**
@@ -92,7 +102,7 @@ final class HandlerResolver
     /**
      * The handler that answers the request. For a matched route, that's the route's own middleware
      * and then its handler, as one PSR-15 stack ({@see \Relay\Relay}). The handler and each
-     * middleware entry are resolved by {@see instantiate()} and must come out as a
+     * middleware entry are resolved by {@see Instances} and must come out as a
      * `Psr\Http\Server\MiddlewareInterface` (middleware) or `Psr\Http\Server\RequestHandlerInterface`
      * (the handler).
      *
@@ -117,7 +127,7 @@ final class HandlerResolver
             array_unshift($queue, new HeadMiddleware($this->responseFactory));
         }
 
-        return new Relay($queue, $this->instantiate(...));
+        return new Relay($queue, $this->instances->of(...));
     }
 
     /**
@@ -195,21 +205,6 @@ final class HandlerResolver
     }
 
     /**
-     * Resolves a guard, middleware or handler identifier to an instance: from the container given
-     * to this constructor, or a plain `new $entry()` without one. The container is only ever known
-     * here, never by {@see Guard} or the PSR-15 middleware and handlers {@see resolve()} builds.
-     * Relay passes every stack entry through here, so anything already resolved is returned as is.
-     */
-    private function instantiate(mixed $entry): mixed
-    {
-        if (!is_string($entry)) {
-            return $entry;
-        }
-
-        return $this->container?->get($entry) ?? new $entry();
-    }
-
-    /**
      * Resolves and runs a route's own guards, in the order they were added. A route without any
      * always applies.
      *
@@ -221,13 +216,13 @@ final class HandlerResolver
             return true;
         }
 
-        /** @var array<class-string<Guard>, mixed> $guards */
+        /** @var array<int|class-string<Guard>, mixed> $guards */
         $guards = $route['guards'];
 
         // @mago-expect analysis:mixed-assignment
         foreach ($guards as $guard => $config) {
             /** @var Guard $instance */
-            $instance = $this->instantiate($guard);
+            $instance = $this->instances->of($guard);
             if (!$instance->accepts($config, $request, $params)) {
                 return false;
             }

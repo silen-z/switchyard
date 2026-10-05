@@ -24,6 +24,7 @@ use function strtoupper;
  *     $routes->group('/api')->middleware('api')->get('/users/{id}', [UserController::class, 'show'])->name('users.show');
  *
  *     $router = new Router($routes->compiled());
+ *     $resolver = new HandlerResolver($router, $responseFactory, registry: $routes->registry());
  *
  * Declaring runs immediately, like any other PHP code; there is nothing to defer. A `group()` is
  * itself a `Routes`, scoped by an optional path prefix, with its own middleware and tags inherited by
@@ -31,9 +32,18 @@ use function strtoupper;
  * {@see \SilenZ\Segmatch\Router} takes: it only walks this tree into full paths and resolved metadata
  * when the router's cache has no entry, so declaring routes is cheap and unconditional, but turning
  * them into the compiled matching structure stays as lazy and cacheable as before.
+ *
+ * A handler, middleware entry or guard may be a real instance or closure, not just a class name or
+ * container identifier: anything that isn't already cacheable plain data is transparently wrapped into
+ * this tree's {@see Registry} instead, shared by the root and every nested group. Unlike the compiled
+ * routes, the `Registry` is never cached — it's rebuilt fresh every time this tree is declared, so
+ * {@see registry()} must be given to {@see HandlerResolver} alongside a `Router` built from the same
+ * tree, every request.
  */
 final class Routes
 {
+    private readonly Registry $registry;
+
     /** @var list<Route|self> */
     private array $items = [];
 
@@ -49,6 +59,7 @@ final class Routes
      */
     public function __construct(
         private readonly string $prefix = '',
+        ?Registry $registry = null,
     ) {
         if ($prefix !== '' && (!str_starts_with($prefix, '/') || str_ends_with($prefix, '/'))) {
             throw new InvalidRouteException(sprintf(
@@ -56,6 +67,8 @@ final class Routes
                 $prefix,
             ));
         }
+
+        $this->registry = $registry ?? new Registry();
     }
 
     public function get(string $path, mixed $handler): Route
@@ -93,7 +106,7 @@ final class Routes
      */
     public function any(string $path, mixed $handler): Route
     {
-        $route = new Route(null, $path, $handler);
+        $route = new Route(null, $path, $handler, $this->registry);
         $this->items[] = $route;
 
         return $route;
@@ -120,7 +133,7 @@ final class Routes
             throw new InvalidRouteException(sprintf('Route "%s" needs at least one HTTP method.', $path));
         }
 
-        $route = new Route(array_values(array_unique($normalized)), $path, $handler);
+        $route = new Route(array_values(array_unique($normalized)), $path, $handler, $this->registry);
         $this->items[] = $route;
 
         return $route;
@@ -129,11 +142,11 @@ final class Routes
     /**
      * A group of routes with an optional path prefix, e.g. `$r->group('/admin')->middleware('auth')->get(...)`.
      * May be called more than once with the same prefix; each call adds a separate group, so sibling
-     * groups never share middleware or tags.
+     * groups never share middleware or tags. Shares this tree's {@see Registry}.
      */
     public function group(string $prefix = ''): self
     {
-        $group = new self($prefix);
+        $group = new self($prefix, $this->registry);
         $this->items[] = $group;
 
         return $group;
@@ -141,16 +154,19 @@ final class Routes
 
     /**
      * Adds middleware for every route declared on this scope, including nested groups, after the
-     * middleware of any enclosing group.
+     * middleware of any enclosing group. A class name or container identifier is resolved as usual; a
+     * real instance or closure is wrapped into the tree's {@see Registry} instead, transparently.
      *
      * @param mixed $middleware one middleware, or a list of them
      */
     public function middleware(mixed $middleware): self
     {
-        $this->middleware = [
-            ...$this->middleware,
-            ...(is_array($middleware) ? array_values($middleware) : [$middleware]),
-        ];
+        $entries = is_array($middleware) ? array_values($middleware) : [$middleware];
+        // Middleware is arbitrary user data, so its entries are mixed by definition.
+        // @mago-expect analysis:mixed-assignment
+        foreach ($entries as $entry) {
+            $this->middleware[] = $this->registry->wrap($entry);
+        }
 
         return $this;
     }
@@ -195,6 +211,17 @@ final class Routes
     public function definitions(): array
     {
         return $this->compiled()();
+    }
+
+    /**
+     * This tree's {@see Registry}, shared by the root and every nested group: give it to
+     * {@see HandlerResolver} so it can resolve the ids standing in for real instances or closures in
+     * the metadata {@see compiled()} produces. Rebuilt fresh every time this tree is declared, unlike
+     * the compiled routes — so it must come from this same, current declaration, not a cached one.
+     */
+    public function registry(): Registry
+    {
+        return $this->registry;
     }
 
     /**

@@ -21,6 +21,7 @@ use SilenZ\Segmatch\Tests\Http\Fixtures\EchoContainer;
 use SilenZ\Segmatch\Tests\Http\Fixtures\EchoHandler;
 use SilenZ\Segmatch\Tests\Http\Fixtures\FeatureGuard;
 use SilenZ\Segmatch\Tests\Http\Fixtures\NumericGuard;
+use SilenZ\Segmatch\Tests\Http\Fixtures\PlainHandler;
 use SilenZ\Segmatch\Tests\Http\Fixtures\RequestMethodGuard;
 use SilenZ\Segmatch\Tests\Http\Fixtures\TagMiddleware;
 
@@ -311,5 +312,39 @@ final class HandlerResolverTest extends TestCase
             ConfigurableGuard::class => new ConfigurableGuard(accepts: false),
         ]));
         self::assertNotFound($blocking, new ServerRequest('GET', '/locked'));
+    }
+
+    public function testHandlerMiddlewareAndGuardMayBeRealInstances(): void
+    {
+        $routes = new Routes();
+        $routes
+            ->get('/x', new PlainHandler())
+            ->middleware(new TagMiddleware('instance'))
+            ->guard(new ConfigurableGuard(accepts: true));
+
+        $resolver = new HandlerResolver(
+            new Router($routes->compiled()),
+            new Psr17Factory(),
+            registry: $routes->registry(),
+        );
+
+        $response = self::respond($resolver, new ServerRequest('GET', '/x'));
+
+        static::assertSame(204, $response->getStatusCode());
+        static::assertSame('instance', $response->getHeaderLine('X-Trail'));
+    }
+
+    public function testGuardInstanceRejectsJustLikeAClassWould(): void
+    {
+        $routes = new Routes();
+        $routes->get('/x', new PlainHandler())->guard(new ConfigurableGuard(accepts: false));
+
+        $resolver = new HandlerResolver(
+            new Router($routes->compiled()),
+            new Psr17Factory(),
+            registry: $routes->registry(),
+        );
+
+        self::assertNotFound($resolver, new ServerRequest('GET', '/x'));
     }
 }

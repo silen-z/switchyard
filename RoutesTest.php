@@ -17,6 +17,8 @@ use SilenZ\Segmatch\Router;
 use SilenZ\Segmatch\Tests\Http\Fixtures\FeatureGuard;
 use stdClass;
 
+use function array_keys;
+use function array_values;
 use function preg_quote;
 
 final class RoutesTest extends TestCase
@@ -196,6 +198,51 @@ final class RoutesTest extends TestCase
         );
     }
 
+    public function testAHandlerMiddlewareOrGuardInstanceBecomesARegistryId(): void
+    {
+        $routes = new Routes();
+        $handler = new stdClass();
+        $middleware = new stdClass();
+        $guard = new FeatureGuard();
+        $routes->get('/x', $handler)->middleware($middleware)->guard($guard, 'beta');
+
+        /** @var array<string, mixed> $metadata */
+        $metadata = $routes->definitions()[0]->metadata;
+        /** @var list<mixed> $middlewareIds */
+        $middlewareIds = $metadata['middleware'];
+        /** @var array<array-key, mixed> $guards */
+        $guards = $metadata['guards'];
+
+        static::assertIsInt($metadata['handler']);
+        static::assertSame($handler, $routes->registry()->get($metadata['handler']));
+
+        static::assertCount(1, $middlewareIds);
+        static::assertIsInt($middlewareIds[0]);
+        static::assertSame($middleware, $routes->registry()->get($middlewareIds[0]));
+
+        static::assertCount(1, $guards);
+        [$guardId] = array_keys($guards);
+        static::assertIsInt($guardId);
+        static::assertSame($guard, $routes->registry()->get($guardId));
+        static::assertSame('beta', $guards[$guardId]);
+    }
+
+    public function testAClassNameStaysLiteralEvenWithOtherInstancesAround(): void
+    {
+        $routes = new Routes();
+        $routes->get('/x', 'show')->middleware('api')->guard(FeatureGuard::class, 'beta');
+
+        /** @var array<string, mixed> $metadata */
+        $metadata = $routes->definitions()[0]->metadata;
+        /** @var array<array-key, mixed> $guards */
+        $guards = $metadata['guards'];
+
+        static::assertSame('show', $metadata['handler']);
+        static::assertSame(['api'], $metadata['middleware']);
+        static::assertSame(['beta'], array_values($guards));
+        static::assertSame([FeatureGuard::class], array_keys($guards));
+    }
+
     public function testRoutesKeepDeclarationOrderAcrossGroups(): void
     {
         $router = self::router(static function (Routes $r): void {
@@ -287,10 +334,6 @@ final class RoutesTest extends TestCase
         yield 'empty group tag' => [
             static fn(Routes $r) => $r->group('/api')->tag(''),
             'Group "/api" cannot have an empty tag',
-        ];
-        yield 'closure as handler' => [
-            static fn(Routes $r) => $r->get('/x', static fn() => null),
-            'Metadata of route "/x" contains a value of type Closure',
         ];
         yield 'guard class that does not implement Guard' => [
             static fn(Routes $r) => $r->get('/a', 'a')->guard(stdClass::class),

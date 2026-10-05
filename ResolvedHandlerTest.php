@@ -229,45 +229,6 @@ final class ResolvedHandlerTest extends TestCase
         }
     }
 
-    public function testApplicationMiddlewareWrapsEveryOutcome(): void
-    {
-        $resolver = new HandlerResolver(
-            self::router(static function (Routes $r): void {
-                $r->get('/users/{id}', PlainHandler::class)->name('users.show')->middleware('route');
-            }),
-            self::responseFactory(),
-            new ArrayContainer([
-                PlainHandler::class => new PlainHandler(),
-                'route' => new TagMiddleware('route'),
-                'outer' => new TagMiddleware('outer'),
-            ]),
-        );
-        // By identifier, resolved from the container, and as an instance; the first added is outermost.
-        $resolver->addMiddleware('outer');
-        $resolver->addMiddleware(new TagMiddleware('inner'), new RouteInfoMiddleware());
-
-        // A matched route: outside the route's own middleware, and seeing its Found.
-        $found = self::respond($resolver, new ServerRequest('GET', '/users/42'));
-        static::assertSame(204, $found->getStatusCode());
-        static::assertSame('route,inner,outer', $found->getHeaderLine('X-Trail'));
-        static::assertSame('users.show', $found->getHeaderLine('X-Route-Name'));
-
-        // 405 and OPTIONS: seeing the allowed methods.
-        foreach (['POST' => 405, 'OPTIONS' => 200] as $method => $status) {
-            $response = self::respond($resolver, new ServerRequest($method, '/users/42'));
-            static::assertSame($status, $response->getStatusCode(), $method);
-            static::assertSame('inner,outer', $response->getHeaderLine('X-Trail'), $method);
-            static::assertSame('GET,HEAD', $response->getHeaderLine('X-Route-Allowed'), $method);
-        }
-
-        // 404: no routing result to see, but it still runs.
-        $notFound = self::respond($resolver, new ServerRequest('GET', '/nope'));
-        static::assertSame(404, $notFound->getStatusCode());
-        static::assertSame('inner,outer', $notFound->getHeaderLine('X-Trail'));
-        static::assertFalse($notFound->hasHeader('X-Route-Name'));
-        static::assertFalse($notFound->hasHeader('X-Route-Allowed'));
-    }
-
     public function testOwnNotFoundHandlerReplacesTheDefault(): void
     {
         $resolver = self::resolver(notFoundHandler: new StatusHandler(410));

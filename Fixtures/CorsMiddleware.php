@@ -8,16 +8,18 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-use SilenZ\Segmatch\Http\MethodNotAllowed;
 
 use function implode;
 use function in_array;
 use function strtoupper;
 
 /**
- * A basic CORS middleware, added with `HandlerResolver::addMiddleware()`, to show the mechanism an
- * application would use: it runs for every outcome, and on the resolver's default OPTIONS answer it
- * sees the allowed methods as the `MethodNotAllowed::class` request attribute, filters included.
+ * A basic CORS middleware, wrapping `$routes->handler($request, ...)->handle($request)` from
+ * outside — the only way left to run for every outcome, since `Http\HandlerResolver` no longer has
+ * an `addMiddleware()` to hook into. It reads the allowed methods from the response's `Allow`
+ * header, built by `Http\AllowedMethodsHandler` in exactly the format `Access-Control-Allow-Methods`
+ * wants, rather than the `MethodNotAllowed::class` request attribute: that attribute only exists
+ * inside `HandlerResolver`'s own Relay stack, invisible to anything wrapping it from outside.
  *
  * Requests without an `Origin`, or from an origin not listed, pass through untouched. A preflight
  * (OPTIONS with `Access-Control-Request-Method`, that no route took) gets the default 200 decorated
@@ -45,19 +47,17 @@ final readonly class CorsMiddleware implements MiddlewareInterface
 
         $response = $response->withHeader('Access-Control-Allow-Origin', $origin)->withAddedHeader('Vary', 'Origin');
 
-        // @mago-expect analysis:mixed-assignment
-        $allowed = $request->getAttribute(MethodNotAllowed::class);
         if (
             strtoupper($request->getMethod()) !== 'OPTIONS'
             || !$request->hasHeader('Access-Control-Request-Method')
-            || !$allowed instanceof MethodNotAllowed
+            || !$response->hasHeader('Allow')
         ) {
             // Not a preflight, or one a route answers itself.
             return $response;
         }
 
         return $response
-            ->withHeader('Access-Control-Allow-Methods', implode(', ', $allowed->allowed))
+            ->withHeader('Access-Control-Allow-Methods', $response->getHeaderLine('Allow'))
             ->withHeader('Access-Control-Allow-Headers', implode(', ', $this->headers))
             ->withHeader('Access-Control-Max-Age', (string) $this->maxAge);
     }

@@ -23,7 +23,7 @@ use function is_array;
  * The tree comes from a closure, called at most once and only when the definitions or the metadata
  * are actually needed — on a cache miss — so both are read from the same tree.
  *
- * @internal built by {@see Routes::table()}
+ * @internal built by {@see Routes::table()}, or {@see lazy()} for {@see RoutesHandlerBuilder::lazyRoutes()}
  */
 final class RoutesTable extends RouteTable
 {
@@ -36,6 +36,23 @@ final class RoutesTable extends RouteTable
         private readonly Closure $tree,
         private readonly ?string $cacheKey,
     ) {}
+
+    /**
+     * A table for routes declared lazily: `$define` declares them on a fresh tree with a
+     * {@see Registry::strict()} registry, and only runs when the definitions or the metadata are
+     * needed, i.e. on a cache miss.
+     *
+     * @param Closure(Routes): void $define
+     */
+    public static function lazy(Closure $define, ?string $cacheKey): self
+    {
+        return new self(static function () use ($define): Routes {
+            $routes = new Routes(Registry::strict());
+            $define($routes);
+
+            return $routes;
+        }, $cacheKey);
+    }
 
     public function cacheKey(): ?string
     {

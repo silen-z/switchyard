@@ -95,7 +95,7 @@ final class Registry
     }
 
     /**
-     * @internal shared with {@see RoutesHandlerBuilder::instantiate()}
+     * @internal shared with {@see Dispatcher}
      */
     public function get(int $id): mixed
     {

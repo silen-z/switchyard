@@ -22,6 +22,8 @@ final class FeatureRouteFilter implements RouteFilter
 
     public function accepts(RouteMatch $match, ServerRequestInterface $request): bool
     {
+        // PSR-7 attributes are mixed by definition; the is_array() check below narrows it.
+        // @mago-expect analysis:mixed-assignment
         $features = $request->getAttribute('features');
 
         return is_array($features) && ($features[$this->feature] ?? false) === true;

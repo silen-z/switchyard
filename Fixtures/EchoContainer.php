@@ -12,7 +12,6 @@ use SilenZ\Segmatch\Http\NotFoundHandler;
 
 use function array_key_exists;
 use function class_exists;
-use function in_array;
 
 /**
  * Resolves the given services, then any class by name, and every other identifier — the plain
@@ -39,16 +38,13 @@ final class EchoContainer implements ContainerInterface
             return $this->services[$id];
         }
 
-        if (in_array(
-            $id,
-            [NotFoundHandler::class, AllowedMethodsHandler::class, HeadMiddleware::class],
-            strict: true,
-        )) {
-            return new $id($this->psr17);
-        }
-
-        // @mago-expect analysis:unknown-class-instantiation
-        return class_exists($id) ? new $id() : new EchoHandler($id);
+        return match ($id) {
+            NotFoundHandler::class => new NotFoundHandler($this->psr17),
+            AllowedMethodsHandler::class => new AllowedMethodsHandler($this->psr17),
+            HeadMiddleware::class => new HeadMiddleware($this->psr17),
+            // @mago-expect analysis:unknown-class-instantiation
+            default => class_exists($id) ? new $id() : new EchoHandler($id),
+        };
     }
 
     public function has(string $id): bool

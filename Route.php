@@ -93,7 +93,7 @@ final class Route
     }
 
     /**
-     * @internal shared with {@see Group::tag()}
+     * @internal shared with {@see Routes::tag()}
      *
      * @param array<array-key, string> $tags
      *

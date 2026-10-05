@@ -9,50 +9,53 @@ use SilenZ\Segmatch\RouteDefinition;
 
 use function array_unique;
 use function array_values;
+use function is_array;
 use function preg_match;
 use function sprintf;
+use function str_ends_with;
 use function str_starts_with;
 use function strtoupper;
 
 /**
  * HTTP route declarations: routes with methods and handlers, and groups of them.
  *
- *     $router = new Router(Routes::define(static function (Routes $r): void {
- *         $r->get('/', HomeController::class);
- *         $r->group('/api')->middleware('api')->define(static function (Routes $r): void {
- *             $r->get('/users/{id}', [UserController::class, 'show'])->name('users.show');
- *         });
- *     }));
+ *     $routes = new Routes();
+ *     $routes->get('/', HomeController::class);
+ *     $routes->group('/api')->middleware('api')->get('/users/{id}', [UserController::class, 'show'])->name('users.show');
  *
- * Declarations are only recorded while defining; they are resolved into full paths and metadata for
- * core {@see RouteDefinition}s once everything has been declared. Routes keep their declaration order,
- * which decides between routes sharing a path.
+ *     $router = new Router($routes->compiled());
+ *
+ * Declaring runs immediately, like any other PHP code; there is nothing to defer. A `group()` is
+ * itself a `Routes`, scoped by an optional path prefix, with its own middleware and tags inherited by
+ * everything declared on it (including further nested groups). {@see compiled()} gives the callable
+ * {@see \SilenZ\Segmatch\Router} takes: it only walks this tree into full paths and resolved metadata
+ * when the router's cache has no entry, so declaring routes is cheap and unconditional, but turning
+ * them into the compiled matching structure stays as lazy and cacheable as before.
  */
 final class Routes
 {
-    /** @var list<Route|Group> */
+    /** @var list<Route|self> */
     private array $items = [];
 
+    /** @var list<mixed> */
+    private array $middleware = [];
+
+    /** @var list<string> */
+    private array $tags = [];
+
     /**
-     * Turns a route definition into the route callable {@see \SilenZ\Segmatch\Router} takes. The
-     * definition may be a closure or an invokable class; like any route callable, it only runs when
-     * the router's cache has no entry.
-     *
-     * @param callable(Routes): void $definition
-     * @return callable(): array<RouteDefinition>
+     * @param string $prefix "" for no prefix (the root has none), otherwise starting with "/" and not
+     *                       ending with "/"
      */
-    public static function define(callable $definition): callable
-    {
-        return static function () use ($definition): array {
-            $routes = new self();
-            $definition($routes);
-
-            $definitions = [];
-            $names = [];
-            $routes->register($definitions, '', [], [], $names);
-
-            return $definitions;
-        };
+    public function __construct(
+        private readonly string $prefix = '',
+    ) {
+        if ($prefix !== '' && (!str_starts_with($prefix, '/') || str_ends_with($prefix, '/'))) {
+            throw new InvalidRouteException(sprintf(
+                'Group prefix "%s" must start with "/" and must not end with "/"; use "" for no prefix.',
+                $prefix,
+            ));
+        }
     }
 
     public function get(string $path, mixed $handler): Route
@@ -124,39 +127,98 @@ final class Routes
     }
 
     /**
-     * A group of routes with an optional path prefix, e.g. `$r->group('/admin')->middleware('auth')->define(...)`.
+     * A group of routes with an optional path prefix, e.g. `$r->group('/admin')->middleware('auth')->get(...)`.
+     * May be called more than once with the same prefix; each call adds a separate group, so sibling
+     * groups never share middleware or tags.
      */
-    public function group(string $prefix = ''): Group
+    public function group(string $prefix = ''): self
     {
-        $group = new Group($prefix);
+        $group = new self($prefix);
         $this->items[] = $group;
 
         return $group;
     }
 
     /**
-     * Resolves the collected routes into core route definitions, groups recursively.
+     * Adds middleware for every route declared on this scope, including nested groups, after the
+     * middleware of any enclosing group.
+     *
+     * @param mixed $middleware one middleware, or a list of them
+     */
+    public function middleware(mixed $middleware): self
+    {
+        $this->middleware = [
+            ...$this->middleware,
+            ...(is_array($middleware) ? array_values($middleware) : [$middleware]),
+        ];
+
+        return $this;
+    }
+
+    /**
+     * Tags every route declared on this scope, including nested groups, in addition to the tags of
+     * enclosing groups and the routes' own.
+     */
+    public function tag(string ...$tags): self
+    {
+        $owner = $this->prefix === '' ? 'Routes without a prefix' : sprintf('Group "%s"', $this->prefix);
+        $this->tags = [...$this->tags, ...Route::validTags($owner, $tags)];
+
+        return $this;
+    }
+
+    /**
+     * The callable {@see \SilenZ\Segmatch\Router} takes: resolves this scope's declared routes,
+     * groups recursively, into core route definitions. Only called when the router's cache has no
+     * entry for the key.
+     *
+     * @return callable(): list<RouteDefinition>
+     */
+    public function compiled(): callable
+    {
+        return function (): array {
+            $definitions = [];
+            $names = [];
+            $this->register($definitions, '', [], [], $names);
+
+            return $definitions;
+        };
+    }
+
+    /**
+     * The routes as declared: full paths and metadata, for tooling that needs the declarations
+     * themselves, e.g. an index of routes by name, or generating documentation, not for matching
+     * requests.
+     *
+     * @return list<RouteDefinition>
+     */
+    public function definitions(): array
+    {
+        return $this->compiled()();
+    }
+
+    /**
+     * Resolves the declared routes into core route definitions, groups recursively.
      *
      * @internal
      *
      * @param list<RouteDefinition> $routes the resolved routes, appended to
-     * @param list<mixed> $middleware middleware of the enclosing groups
-     * @param list<string> $tags tags of the enclosing groups
+     * @param string $prefix the enclosing groups' prefix
+     * @param list<mixed> $middleware the enclosing groups' middleware
+     * @param list<string> $tags the enclosing groups' tags
      * @param array<string, string> $names route name => path of the routes registered so far
      *
      * @throws InvalidRouteException
      */
     public function register(array &$routes, string $prefix, array $middleware, array $tags, array &$names): void
     {
+        $prefix .= $this->prefix;
+        $middleware = [...$middleware, ...$this->middleware];
+        $tags = [...$tags, ...$this->tags];
+
         foreach ($this->items as $item) {
-            if ($item instanceof Group) {
-                $item->collect()->register(
-                    $routes,
-                    $prefix . $item->prefix(),
-                    [...$middleware, ...$item->groupMiddleware()],
-                    [...$tags, ...$item->groupTags()],
-                    $names,
-                );
+            if ($item instanceof self) {
+                $item->register($routes, $prefix, $middleware, $tags, $names);
                 continue;
             }
 
@@ -168,7 +230,6 @@ final class Routes
      * @param list<mixed> $middleware
      * @param list<string> $tags
      * @param array<string, string> $names
-     *
      *
      * @throws InvalidRouteException
      */

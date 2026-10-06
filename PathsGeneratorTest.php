@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace SilenZ\Segmatch\Tests\OpenApi;
 
 use PHPUnit\Framework\TestCase;
-use SilenZ\Segmatch\Http\Registry;
 use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\OpenApi\PathsGenerator;
 use SilenZ\Segmatch\Router;
@@ -19,7 +18,7 @@ final class PathsGeneratorTest extends TestCase
      */
     private static function router(callable $define): Router
     {
-        $routes = new Routes(new Registry());
+        $routes = new Routes();
         $define($routes);
 
         return new Router($routes->table());

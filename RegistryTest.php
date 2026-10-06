@@ -4,14 +4,11 @@ declare(strict_types=1);
 
 namespace SilenZ\Segmatch\Tests\Http;
 
-use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SilenZ\Segmatch\Exception\InvalidRouteException;
 use SilenZ\Segmatch\Http\Registry;
 use SilenZ\Segmatch\Tests\Fixtures\Method;
 use stdClass;
-
-use function preg_quote;
 
 final class RegistryTest extends TestCase
 {
@@ -72,36 +69,6 @@ final class RegistryTest extends TestCase
         static::assertSame($first, $registry->get($firstId));
         static::assertSame($second, $registry->get($secondId));
         static::assertNotSame($firstId, $secondId);
-    }
-
-    public function testAStrictRegistryLetsPlainValuesThroughUnchanged(): void
-    {
-        $registry = Registry::strict();
-
-        static::assertSame('show', $registry->wrap('show', 'test'));
-        static::assertSame([Method::Get, 'a', 1], $registry->wrap([Method::Get, 'a', 1], 'test'));
-    }
-
-    /**
-     * @return iterable<string, array{mixed, string}>
-     */
-    public static function nonPlainValues(): iterable
-    {
-        yield 'object' => [new stdClass(), 'not stdClass'];
-        yield 'closure' => [static fn(): null => null, 'not Closure'];
-        yield 'array with an object' => [['show', new stdClass()], 'not array'];
-        yield 'integer' => [42, 'cannot be an integer (42)'];
-    }
-
-    #[DataProvider('nonPlainValues')]
-    public function testAStrictRegistryRejectsAnythingItWouldHaveToWrap(mixed $value, string $message): void
-    {
-        $this->expectException(InvalidRouteException::class);
-        $this->expectExceptionMessageMatches(
-            '/^Route "\/a" handler (must be .*)?' . preg_quote($message, delimiter: '/') . '/',
-        );
-
-        Registry::strict()->wrap($value, 'Route "/a" handler');
     }
 
     public function testClosuresAreWrapped(): void

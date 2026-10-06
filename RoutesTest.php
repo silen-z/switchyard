@@ -244,7 +244,7 @@ final class RoutesTest extends TestCase
 
     public function testAFilterAndAHandlerPairAreKeptAsPlainData(): void
     {
-        $routes = new Routes(Registry::strict());
+        $routes = new Routes();
         $routes->get('/x', [UserController::class, 'show'])->filter('feature.beta');
 
         /** @var array<string, mixed> $metadata */

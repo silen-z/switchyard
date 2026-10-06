@@ -16,6 +16,7 @@ use Psr\Http\Server\RequestHandlerInterface;
 use SilenZ\Segmatch\Http\Found;
 use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\Http\RoutesHandlerBuilder;
+use SilenZ\Segmatch\Router;
 use SilenZ\Segmatch\Tests\Http\Fixtures\ArrayContainer;
 use SilenZ\Segmatch\Tests\Http\Fixtures\EchoContainer;
 use SilenZ\Segmatch\Tests\Http\Fixtures\FeatureRouteFilter;
@@ -33,10 +34,10 @@ final class ResolvedHandlerTest extends TestCase
      */
     private static function builder(callable $define, ContainerInterface $container): RoutesHandlerBuilder
     {
-        $builder = new RoutesHandlerBuilder($container);
-        $define($builder->routes());
+        $routes = new Routes();
+        $define($routes);
 
-        return $builder;
+        return new RoutesHandlerBuilder($container, $routes->registry(), new Router($routes->table()));
     }
 
     private static function apiBuilder(): RoutesHandlerBuilder
@@ -60,7 +61,7 @@ final class ResolvedHandlerTest extends TestCase
         ServerRequestInterface $request,
         ?RequestHandlerInterface $notFoundHandler = null,
     ): ResponseInterface {
-        return $builder->handler($request, $notFoundHandler)->handle($request);
+        return $builder->build($request, $notFoundHandler)->handle($request);
     }
 
     /**
@@ -78,7 +79,7 @@ final class ResolvedHandlerTest extends TestCase
     {
         static::assertInstanceOf(
             RequestHandlerInterface::class,
-            self::apiBuilder()->handler(new ServerRequest($method, $path)),
+            self::apiBuilder()->build(new ServerRequest($method, $path)),
         );
     }
 

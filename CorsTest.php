@@ -8,7 +8,9 @@ use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\Http\RoutesHandlerBuilder;
+use SilenZ\Segmatch\Router;
 use SilenZ\Segmatch\Tests\Http\Fixtures\CorsMiddleware;
 use SilenZ\Segmatch\Tests\Http\Fixtures\EchoContainer;
 use SilenZ\Segmatch\Tests\Http\Fixtures\FeatureRouteFilter;
@@ -26,8 +28,7 @@ final class CorsTest extends TestCase
 
     private static function respond(ServerRequestInterface $request): ResponseInterface
     {
-        $builder = new RoutesHandlerBuilder(new EchoContainer());
-        $routes = $builder->routes();
+        $routes = new Routes();
         $routes->middleware(new CorsMiddleware([self::ORIGIN], headers: ['Content-Type'], maxAge: 300));
         $routes->get('/users', PlainHandler::class);
         $routes->post('/users', PlainHandler::class);
@@ -35,7 +36,9 @@ final class CorsTest extends TestCase
         $routes->get('/reports', PlainHandler::class);
         $routes->map(['OPTIONS'], '/reports', PlainHandler::class);
 
-        return $builder->handler($request)->handle($request);
+        $builder = new RoutesHandlerBuilder(new EchoContainer(), $routes->registry(), new Router($routes->table()));
+
+        return $builder->build($request)->handle($request);
     }
 
     private static function preflight(string $path, string $origin = self::ORIGIN): ServerRequest

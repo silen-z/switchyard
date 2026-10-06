@@ -13,7 +13,7 @@ use Psr\Http\Server\RequestHandlerInterface;
 use SilenZ\Segmatch\Http\Found;
 use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\Http\RoutesHandlerBuilder;
-use SilenZ\Segmatch\RouteMatch;
+use SilenZ\Segmatch\Router;
 use SilenZ\Segmatch\Tests\Http\Fixtures\ArrayRouteCache;
 use SilenZ\Segmatch\Tests\Http\Fixtures\ConfigurableRouteFilter;
 use SilenZ\Segmatch\Tests\Http\Fixtures\EchoContainer;
@@ -39,10 +39,10 @@ final class RoutesHandlerBuilderTest extends TestCase
      */
     private static function builder(callable $define, ?ContainerInterface $container = null): RoutesHandlerBuilder
     {
-        $builder = new RoutesHandlerBuilder($container ?? new EchoContainer());
-        $define($builder->routes());
+        $routes = new Routes();
+        $define($routes);
 
-        return $builder;
+        return new RoutesHandlerBuilder($container ?? new EchoContainer(), $routes->registry(), new Router($routes->table()));
     }
 
     private static function respond(
@@ -50,7 +50,7 @@ final class RoutesHandlerBuilderTest extends TestCase
         ServerRequestInterface $request,
         ?RequestHandlerInterface $notFoundHandler = null,
     ): ResponseInterface {
-        return $builder->handler($request, $notFoundHandler)->handle($request);
+        return $builder->build($request, $notFoundHandler)->handle($request);
     }
 
     /**
@@ -364,82 +364,25 @@ final class RoutesHandlerBuilderTest extends TestCase
         self::assertNotFound($second, new ServerRequest('GET', '/x'));
     }
 
-    public function testRoutesGivesTheSameTreeEveryTime(): void
-    {
-        $builder = new RoutesHandlerBuilder(new EchoContainer());
-
-        static::assertSame($builder->routes(), $builder->routes());
-    }
-
-    public function testRouterAnswersFromTheBuildersOwnRoutes(): void
-    {
-        $builder = self::builder(static fn(Routes $r) => $r->get('/x', 'x')->name('x'));
-
-        $match = $builder->router()->match('/x');
-
-        static::assertInstanceOf(RouteMatch::class, $match);
-        static::assertSame('x', $match->route['name'] ?? null);
-    }
-
-    public function testRouterIsBuiltOnceAndUsedByEveryRequest(): void
-    {
-        $builder = self::builder(static fn(Routes $r) => $r->get('/x', 'x'));
-        $router = $builder->router();
-
-        self::respond($builder, new ServerRequest('GET', '/x'));
-
-        static::assertSame($router, $builder->router());
-    }
-
-    public function testTheCacheIsOnlyWrittenWhenACacheAndKeyAreBothGiven(): void
-    {
-        $cache = new ArrayRouteCache();
-        $define = static fn(Routes $r) => $r->get('/x', 'x');
-
-        // No key: compiled on every request, whatever the cache is.
-        self::builder($define)->router($cache)->match('/x');
-        static::assertSame([], $cache->keys());
-
-        // A cache and a key: the compiled routes are stored under the key.
-        self::builder($define)->router($cache, 'routes')->match('/x');
-        static::assertSame(['routes'], $cache->keys());
-    }
-
-    public function testCachedRoutesAreReusedWithoutDeclaringAnything(): void
+    public function testRegistryIdsAreRebuiltForEachDeclarationEvenOnAWarmCache(): void
     {
         $cache = new ArrayRouteCache();
 
-        // The first builder compiles the routes and caches them...
-        self::builder(static fn(Routes $r) => $r->get('/x', 'x'))
-            ->router($cache, 'routes')
-            ->match('/x');
+        // Cold: the handler instance is wrapped into this declaration's registry as an id, which is
+        // what ends up in the compiled routes.
+        $cold = new Routes();
+        $cold->get('/x', new PlainHandler());
+        (new RoutesHandlerBuilder(new EchoContainer(), $cold->registry(), new Router($cold->table('routes'), $cache)))
+            ->build(new ServerRequest('GET', '/x'));
 
-        // ...and a second one, declaring nothing at all, answers from that cache.
-        $cached = self::builder(static function (Routes $r): void {});
-        $cached->router($cache, 'routes');
+        // Warm: a fresh declaration, with its own fresh instance at the same id, answers from the
+        // cached routes and resolves its own instance for that id — as long as its own registry is
+        // paired with a router built from the same declaration.
+        $warm = new Routes();
+        $warm->get('/x', new PlainHandler());
+        $builder = new RoutesHandlerBuilder(new EchoContainer(), $warm->registry(), new Router($warm->table('routes'), $cache));
 
-        $match = $cached->router()->match('/x');
-
-        static::assertInstanceOf(RouteMatch::class, $match);
-        static::assertSame('x', $match->route['handler'] ?? null);
-    }
-
-    public function testRegistryIdsAreRebuiltForEachBuilderEvenOnAWarmCache(): void
-    {
-        $cache = new ArrayRouteCache();
-
-        // Cold: the handler instance is wrapped into this builder's registry as an id, which is what
-        // ends up in the compiled routes.
-        self::builder(static fn(Routes $r) => $r->get('/x', new PlainHandler()))
-            ->router($cache, 'routes')
-            ->match('/x');
-
-        // Warm: a fresh builder, with its own fresh instance at the same id, answers from the cached
-        // routes and resolves its own instance for that id.
-        $warm = self::builder(static fn(Routes $r) => $r->get('/x', new PlainHandler()));
-        $warm->router($cache, 'routes');
-
-        $response = self::respond($warm, new ServerRequest('GET', '/x'));
+        $response = $builder->build(new ServerRequest('GET', '/x'))->handle(new ServerRequest('GET', '/x'));
 
         static::assertSame(204, $response->getStatusCode());
     }

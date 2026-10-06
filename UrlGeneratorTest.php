@@ -81,8 +81,10 @@ final class UrlGeneratorTest extends TestCase
     public function testGeneratedUrlsMatchTheirRoute(): void
     {
         $urls = new UrlGenerator(self::router());
-        $builder = new RoutesHandlerBuilder(new EchoContainer());
-        self::declare($builder->routes());
+
+        $routes = new Routes();
+        self::declare($routes);
+        $builder = new RoutesHandlerBuilder(new EchoContainer(), $routes->registry(), new Router($routes->table()));
 
         foreach ([
             ['users.show', ['id' => 'a/b c?']],
@@ -93,7 +95,7 @@ final class UrlGeneratorTest extends TestCase
             // EchoHandler answers with the route's Found as JSON.
             // @mago-expect analysis:mixed-assignment
             $found = json_decode(
-                (string) $builder->handler($request)->handle($request)->getBody(),
+                (string) $builder->build($request)->handle($request)->getBody(),
                 associative: true,
                 flags: JSON_THROW_ON_ERROR,
             );

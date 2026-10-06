@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace SilenZ\Segmatch\Http;
 
 use SilenZ\Segmatch\Exception\InvalidRouteException;
+use SilenZ\Segmatch\InstanceRegistry;
 use SilenZ\Segmatch\RouteDefinition;
 use SilenZ\Segmatch\RouteTable;
 
@@ -29,14 +30,15 @@ use function strtoupper;
  *         $routes->group('/api')->middleware('api')->get('/users/{id}', [UserController::class, 'show']);
  *     }, 'routes-' . APP_VERSION), cache: new FileCache($dir));
  *
- *     $builder = new RoutesHandlerBuilder($container, new Registry(), $router);
+ *     $builder = new HandlerBuilder($container, $router);
  *     $response = $builder->build($request)->handle($request);
  *
  * The price of declaring lazily: every handler, middleware entry and filter must be a class name or
  * container identifier — an instance or closure would only exist on the request that built the cache,
  * so `$define` throws {@see InvalidRouteException} the moment it declares one. In exchange, nothing
- * this tree declares is ever wrapped for later lookup, so an all-lazy router needs no {@see Registry}
- * of its own — a fresh, empty one, as above.
+ * this tree declares is ever wrapped for later lookup, so there's never anything to resolve out of
+ * `$router->registry()` — the empty {@see InstanceRegistry} {@see RouteTable} defaults to is all an
+ * all-lazy router ever needs.
  *
  * Otherwise this is {@see Routes}, shaped the same way: verb helpers, `group()`, `->middleware()` and
  * `->tag()` accumulate only once the tree is resolved into definitions.
@@ -173,7 +175,7 @@ final class LazyRoutes
      * Adds middleware for every route declared on this scope, including nested groups, after the
      * middleware of any enclosing group.
      *
-     * Declared on the root {@see RoutesHandlerBuilder} answers from, it also wraps the not-found and
+     * Declared on the root {@see HandlerBuilder} answers from, it also wraps the not-found and
      * method-not-allowed/OPTIONS responses — see {@see Routes::middleware()}.
      *
      * @param string|list<string> $middleware one middleware, or a list of them, each a class name or

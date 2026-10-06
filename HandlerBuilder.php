@@ -26,15 +26,15 @@ use function strtoupper;
  *     $routes->get('/', HomeController::class);
  *
  *     $router = new Router($routes->table());
- *     $builder = new RoutesHandlerBuilder($container, $routes->registry(), $router);
+ *     $builder = new HandlerBuilder($container, $router);
  *
  *     $response = $builder->build($request)->handle($request);
  *
- * `$registry` must be the one the same declaration built `$router` with — {@see Routes} gives both
- * together, as above. Routes declared with {@see LazyRoutes} need none of their own; pass a fresh
- * `new Registry()` for an all-lazy router.
+ * A handler, middleware entry or filter declared as a real instance or closure is looked up in
+ * `$router->registry()` — {@see \SilenZ\Segmatch\RouteTable} carries it paired with the table it was
+ * built from, so there's no separate registry argument here to get out of step with `$router`.
  */
-final class RoutesHandlerBuilder
+final class HandlerBuilder
 {
     private readonly Resolver $resolver;
 
@@ -46,18 +46,14 @@ final class RoutesHandlerBuilder
      *                                       AllowedMethodsHandler}, and a stream factory for {@see
      *                                       HeadMiddleware}. A container that autowires constructor
      *                                       arguments needs no registration of its own
-     * @param Registry $registry the registry of the same declaration that built `$router`; a handler,
-     *                           middleware entry or filter given as a real instance or closure is
-     *                           looked up here instead of resolved from the container
      * @param Router $router already built, and ideally shared across requests — see
      *                       {@see \SilenZ\Segmatch\Router} for how it caches its own compiled routes
      */
     public function __construct(
         ContainerInterface $container,
-        Registry $registry,
         private readonly Router $router,
     ) {
-        $this->resolver = new Resolver($registry, $container);
+        $this->resolver = new Resolver($router->registry(), $container);
     }
 
     /**

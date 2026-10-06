@@ -10,7 +10,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
 /**
- * {@see RoutesHandlerBuilder}'s default answer when no route applies to the request: an empty 404.
+ * {@see HandlerBuilder}'s default answer when no route applies to the request: an empty 404.
  */
 final readonly class NotFoundHandler implements RequestHandlerInterface
 {

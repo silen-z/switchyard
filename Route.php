@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace SilenZ\Segmatch\Http;
 
 use SilenZ\Segmatch\Exception\InvalidRouteException;
+use SilenZ\Segmatch\InstanceRegistry;
 use SilenZ\Segmatch\RouteDefinition;
 
 use function array_unique;
@@ -25,7 +26,7 @@ use function str_starts_with;
  *         ->middleware('audit')
  *         ->tag('public');
  *
- * {@see RoutesHandlerBuilder} checks the route's own HTTP methods and resolves and runs its filters,
+ * {@see HandlerBuilder} checks the route's own HTTP methods and resolves and runs its filters,
  * in the order `filter()` added them, while matching.
  */
 final class Route
@@ -50,7 +51,7 @@ final class Route
         private readonly ?array $methods,
         private readonly string $path,
         mixed $handler,
-        private readonly Registry $registry,
+        private readonly InstanceRegistry $registry,
     ) {
         $owner = sprintf('Route "%s" handler', $path);
         MethodHandler::check($handler, $owner);
@@ -74,7 +75,7 @@ final class Route
     /**
      * Adds middleware that runs after the middleware of the enclosing groups. A class name or
      * container identifier is resolved as usual; a real instance or closure is wrapped into the
-     * route's {@see Registry} instead, transparently.
+     * route's {@see InstanceRegistry} instead, transparently.
      *
      * @param mixed $middleware one middleware, or a list of them
      */
@@ -130,8 +131,8 @@ final class Route
      * `filter(new FeatureRouteFilter('beta'))`, not a separate parameter here: a filter either takes no
      * configuration, or is built already configured, by the container resolving a class name or
      * identifier, or by you giving an instance directly. An instance is wrapped into the route's
-     * {@see Registry}, a class name or identifier resolved from the container by
-     * {@see RoutesHandlerBuilder}, transparently either way. A container identifier per configuration,
+     * {@see InstanceRegistry}, a class name or identifier resolved from the container by
+     * {@see HandlerBuilder}, transparently either way. A container identifier per configuration,
      * e.g. `filter('feature.beta')`, is how routes declared lazily, which can't take instances, vary a
      * filter per route.
      *
@@ -160,7 +161,7 @@ final class Route
 
     /**
      * Resolves this route into a core route definition: the full path (this route's own, under the
-     * enclosing groups' prefix) and the metadata {@see RoutesHandlerBuilder} reads while matching:
+     * enclosing groups' prefix) and the metadata {@see HandlerBuilder} reads while matching:
      *
      *     [
      *         'handler'    => [UserController::class, 'show'],
@@ -172,8 +173,8 @@ final class Route
      *         'filters'    => [FeatureRouteFilter::class], // only when there are any, checked in this order
      *     ]
      *
-     * `handler` and each `middleware`/`filters` entry is a class name, a container identifier, or a
-     * {@see Registry} id standing in for a real instance or closure.
+     * `handler` and each `middleware`/`filters` entry is a class name, a container identifier, or an
+     * {@see InstanceRegistry} id standing in for a real instance or closure.
      *
      * @internal
      *

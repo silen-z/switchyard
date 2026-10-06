@@ -5,21 +5,22 @@ declare(strict_types=1);
 namespace SilenZ\Segmatch\Http;
 
 use Psr\Http\Message\ServerRequestInterface;
+use SilenZ\Segmatch\InstanceRegistry;
 use SilenZ\Segmatch\RouteMatch;
 
 /**
  * A condition a route attaches to itself, checked while matching.
  *
  * A route usually references a filter by class name, so it survives the route cache; {@see
- * RoutesHandlerBuilder} resolves one instance per filter class from the container, which wires up
+ * HandlerBuilder} resolves one instance per filter class from the container, which wires up
  * whatever dependencies that class always needs, the same way for every route that uses it. A route
  * may instead be given a ready instance directly
  * ({@see Route::filter()}), which skips the container and bakes its own configuration into its
  * constructor instead — the only way to vary one filter's behavior per route, since a class name gives
  * the container no way to tell routes apart. Either way the instance is kept in the route's
- * {@see Registry}, transparently.
+ * {@see InstanceRegistry}, transparently.
  *
- * Either way, {@see RoutesHandlerBuilder} calls {@see accepts()} for every candidate route of a request. A
+ * Either way, {@see HandlerBuilder} calls {@see accepts()} for every candidate route of a request. A
  * filter that returns false makes the route behave as if it didn't exist, and matching moves on.
  *
  * Filters decide whether a route applies to the request (host, content type, a feature switch), never

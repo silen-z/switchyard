@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace SilenZ\Segmatch\Http;
 
 use SilenZ\Segmatch\Exception\InvalidRouteException;
+use SilenZ\Segmatch\InstanceRegistry;
 use SilenZ\Segmatch\RouteDefinition;
 
 use function array_unique;
@@ -21,7 +22,7 @@ use function str_starts_with;
  * One route declaration for {@see LazyRoutes}: the same shape as {@see Route}, refined fluently the
  * same way, but for a tree that's only ever declared when the route cache has no entry. An instance or
  * closure given while declaring would not exist on the requests later answered from that cache, so
- * there is no {@see Registry} here to wrap one into — a handler, middleware entry or filter must
+ * there is no {@see InstanceRegistry} here to wrap one into — a handler, middleware entry or filter must
  * already be a class name or container identifier instead, checked immediately by {@see plain()}
  * rather than at request time.
  *

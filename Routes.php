@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace SilenZ\Segmatch\Http;
 
-use Closure;
 use SilenZ\Segmatch\Exception\InvalidRouteException;
+use SilenZ\Segmatch\InstanceRegistry;
 use SilenZ\Segmatch\RouteDefinition;
 use SilenZ\Segmatch\Router;
 use SilenZ\Segmatch\RouteTable;
@@ -27,7 +27,7 @@ use function strtoupper;
  *     $routes->group('/api')->middleware('api')->get('/users/{id}', [UserController::class, 'show'])->name('users.show');
  *
  *     $router = new Router($routes->table('routes-' . APP_VERSION), cache: new FileCache($dir));
- *     $builder = new RoutesHandlerBuilder($container, $routes->registry(), $router);
+ *     $builder = new HandlerBuilder($container, $router);
  *
  * Declaring runs immediately, like any other PHP code; there is nothing to defer. A `group()` is
  * itself a `Routes`, scoped by an optional path prefix, with its own middleware and tags inherited by
@@ -35,9 +35,10 @@ use function strtoupper;
  *
  * A handler, middleware entry or filter may be a real instance or closure, not just a class name or
  * container identifier: anything that isn't already cacheable plain data is transparently wrapped into
- * this tree's {@see Registry} instead, shared by the root and every nested group — see {@see
- * registry()}. {@see LazyRoutes} declares lazily instead, when even declaring on every request costs
- * too much; its handler, middleware and filters may only be a class name or container identifier.
+ * this tree's {@see InstanceRegistry} instead, shared by the root and every nested group and carried
+ * automatically into {@see table()}'s result. {@see LazyRoutes} declares lazily instead, when even
+ * declaring on every request costs too much; its handler, middleware and filters may only be a class
+ * name or container identifier.
  */
 final class Routes
 {
@@ -55,7 +56,7 @@ final class Routes
      *                       ending with "/"
      */
     public function __construct(
-        private readonly Registry $registry = new Registry(),
+        private readonly InstanceRegistry $registry = new InstanceRegistry(),
         private readonly string $prefix = '',
     ) {
         if ($prefix !== '' && (!str_starts_with($prefix, '/') || str_ends_with($prefix, '/'))) {
@@ -137,7 +138,7 @@ final class Routes
     /**
      * A group of routes with an optional path prefix, e.g. `$r->group('/admin')->middleware('auth')->get(...)`.
      * May be called more than once with the same prefix; each call adds a separate group, so sibling
-     * groups never share middleware or tags. Shares this tree's {@see Registry}.
+     * groups never share middleware or tags. Shares this tree's {@see InstanceRegistry}.
      */
     public function group(string $prefix = ''): self
     {
@@ -150,14 +151,14 @@ final class Routes
     /**
      * Adds middleware for every route declared on this scope, including nested groups, after the
      * middleware of any enclosing group. A class name or container identifier is resolved as usual; a
-     * real instance or closure is wrapped into the tree's {@see Registry} instead, transparently.
+     * real instance or closure is wrapped into the tree's {@see InstanceRegistry} instead, transparently.
      *
      * Declared on a group, this only ever runs for a request a route inside it actually matches — there
      * is no "wrong method" or "no route" response to decorate for a path the group doesn't own. Declared
-     * on the root instead — the tree whose {@see table()} built the `Router` a `RoutesHandlerBuilder`
+     * on the root instead — the tree whose {@see table()} built the `Router` a `HandlerBuilder`
      * answers from — it also wraps the not-found and method-not-allowed/OPTIONS responses: the one way
-     * to run middleware for every outcome, matched or not, since `RoutesHandlerBuilder` takes no
-     * middleware of its own.
+     * to run middleware for every outcome, matched or not, since `HandlerBuilder` takes no middleware
+     * of its own.
      *
      * @param mixed $middleware one middleware, or a list of them
      */
@@ -193,18 +194,21 @@ final class Routes
      *
      * The table's metadata ({@see RouteTable::metadata()}) is this scope's own middleware,
      * `['middleware' => [...]]`, which {@see definitions()} bakes into no route; read it back with
-     * {@see middlewareOf()}.
+     * {@see middlewareOf()}. {@see registry()} travels with the table too, so a `Router` built from
+     * it is always paired with the same declaration's registry.
      */
     public function table(?string $cacheKey = null): RouteTable
     {
-        return self::tableOf(fn(): self => $this, $cacheKey);
+        return new RouteTable($this->definitions(...), $cacheKey, fn(): array => [
+            'middleware' => $this->middleware,
+        ], $this->registry);
     }
 
     /**
      * The root's middleware out of a table's metadata as {@see table()} gave it, e.g. read back with
      * {@see \SilenZ\Segmatch\Router::tableMetadata()}; none for anything else.
      *
-     * @internal for {@see RoutesHandlerBuilder}
+     * @internal for {@see HandlerBuilder}
      *
      * @return list<mixed>
      */
@@ -242,13 +246,11 @@ final class Routes
     }
 
     /**
-     * This tree's {@see Registry}, shared by the root and every nested group: the one a {@see
-     * RoutesHandlerBuilder} resolves a real instance or closure's id from. Rebuilt fresh every time
-     * this tree is declared, unlike the compiled routes, so it only ever matches this same, current
-     * declaration — pass it to `RoutesHandlerBuilder` alongside the `Router` built from this same
-     * tree's {@see table()}, never a different declaration's.
+     * This tree's {@see InstanceRegistry}, shared by the root and every nested group — carried
+     * automatically into {@see table()}'s result, so mainly useful directly for inspecting what a
+     * declaration wrapped, e.g. in a test.
      */
-    public function registry(): Registry
+    public function registry(): InstanceRegistry
     {
         return $this->registry;
     }
@@ -280,26 +282,6 @@ final class Routes
 
             $routes[] = $item->definition($prefix, $middleware, $tags, $names);
         }
-    }
-
-    /**
-     * A table whose definitions are a tree's routes and whose metadata is the root's own middleware,
-     * which wraps every outcome rather than being baked into a route. `$tree` is called at most once,
-     * and only when either is needed — on a cache miss — so both come from the same tree.
-     *
-     * @param Closure(): self $tree
-     */
-    private static function tableOf(Closure $tree, ?string $cacheKey): RouteTable
-    {
-        /** @var ?self $routes set by $once, through the reference it captures */
-        $routes = null;
-        $once = static function () use ($tree, &$routes): self {
-            return $routes ??= $tree();
-        };
-
-        return new RouteTable(static fn(): array => $once()->definitions(), $cacheKey, static fn(): array => [
-            'middleware' => $once()->middleware,
-        ]);
     }
 
     /**

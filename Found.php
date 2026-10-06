@@ -10,7 +10,7 @@ use function is_array;
 use function is_string;
 
 /**
- * The route that applies to the request, as {@see RoutesHandlerBuilder::build()} hands it to the
+ * The route that applies to the request, as {@see HandlerBuilder::build()} hands it to the
  * route's own middleware and handler under the `Found::class` request attribute.
  */
 final readonly class Found

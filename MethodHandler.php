@@ -8,6 +8,7 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use SilenZ\Segmatch\Exception\InvalidRouteException;
+use SilenZ\Segmatch\InstanceRegistry;
 use UnexpectedValueException;
 
 use function array_is_list;
@@ -28,7 +29,7 @@ use function sprintf;
  * then `$target->method($request)` answers it. The route's parameters are on the request, as
  * `$request->getAttribute(Found::class)->params`, like for any other handler.
  *
- * @internal built by {@see RoutesHandlerBuilder} for an array handler
+ * @internal built by {@see HandlerBuilder} for an array handler
  */
 final readonly class MethodHandler implements RequestHandlerInterface
 {
@@ -40,12 +41,12 @@ final readonly class MethodHandler implements RequestHandlerInterface
 
     /**
      * A route's handler entry as the Relay queue should get it: a `[target, 'method']` pair — given
-     * as is, or as a {@see Registry} id standing in for one holding an instance — as a `MethodHandler`,
-     * anything else unchanged for Relay to resolve.
+     * as is, or as an {@see InstanceRegistry} id standing in for one holding an instance — as a
+     * `MethodHandler`, anything else unchanged for Relay to resolve.
      */
     public static function wrap(Resolver $resolver, mixed $handler): mixed
     {
-        // A Registry id is resolved right away, which is cheap: it's an array lookup, not the container.
+        // An InstanceRegistry id is resolved right away, which is cheap: an array lookup, not the container.
         // @mago-expect analysis:mixed-assignment
         $pair = is_int($handler) ? $resolver->entry($handler) : $handler;
 

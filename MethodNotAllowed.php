@@ -9,7 +9,7 @@ use function is_array;
 use function strtoupper;
 
 /**
- * Routes exist for the request's path, but not for its method. {@see RoutesHandlerBuilder::build()}
+ * Routes exist for the request's path, but not for its method. {@see HandlerBuilder::build()}
  * hands this to the method-not-allowed and OPTIONS handlers under the `MethodNotAllowed::class`
  * request attribute.
  */

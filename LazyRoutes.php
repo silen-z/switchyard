@@ -1,0 +1,310 @@
+<?php
+
+declare(strict_types=1);
+
+namespace SilenZ\Segmatch\Http;
+
+use SilenZ\Segmatch\Exception\InvalidRouteException;
+use SilenZ\Segmatch\RouteDefinition;
+use SilenZ\Segmatch\RouteTable;
+
+use function array_unique;
+use function array_values;
+use function get_debug_type;
+use function is_array;
+use function is_string;
+use function preg_match;
+use function sprintf;
+use function str_ends_with;
+use function str_starts_with;
+use function strtoupper;
+
+/**
+ * HTTP route declarations, for a tree that's only ever declared lazily: `$define` gets a fresh tree
+ * and only runs when the route cache has no entry, so a request answered from the cache declares
+ * nothing at all.
+ *
+ *     $router = new Router(LazyRoutes::table(static function (LazyRoutes $routes): void {
+ *         $routes->get('/', HomeController::class);
+ *         $routes->group('/api')->middleware('api')->get('/users/{id}', [UserController::class, 'show']);
+ *     }, 'routes-' . APP_VERSION), cache: new FileCache($dir));
+ *
+ *     $builder = new RoutesHandlerBuilder($container, new Registry(), $router);
+ *     $response = $builder->build($request)->handle($request);
+ *
+ * The price of declaring lazily: every handler, middleware entry and filter must be a class name or
+ * container identifier — an instance or closure would only exist on the request that built the cache,
+ * so `$define` throws {@see InvalidRouteException} the moment it declares one. In exchange, nothing
+ * this tree declares is ever wrapped for later lookup, so there is no {@see Registry} to build or pass
+ * around; {@see RoutesHandlerBuilder} still takes one, for routes a different, eager declaration may
+ * have contributed to the same request's metadata, but an all-lazy app never needs it to hold anything.
+ *
+ * Otherwise this is {@see Routes}, shaped the same way: verb helpers, `group()`, `->middleware()` and
+ * `->tag()` accumulate only once the tree is resolved into definitions, and the root's own middleware
+ * wraps every outcome, not just matched routes (see {@see Routes}).
+ */
+final class LazyRoutes
+{
+    /** @var list<LazyRoute|self> */
+    private array $items = [];
+
+    /** @var list<string> */
+    private array $middleware = [];
+
+    /** @var list<string> */
+    private array $tags = [];
+
+    /**
+     * @param string $prefix "" for no prefix (the root has none), otherwise starting with "/" and not
+     *                       ending with "/"
+     */
+    public function __construct(
+        private readonly string $prefix = '',
+    ) {
+        if ($prefix !== '' && (!str_starts_with($prefix, '/') || str_ends_with($prefix, '/'))) {
+            throw new InvalidRouteException(sprintf(
+                'Group prefix "%s" must start with "/" and must not end with "/"; use "" for no prefix.',
+                $prefix,
+            ));
+        }
+    }
+
+    /**
+     * @param string|array{0: string, 1: string} $handler
+     */
+    public function get(string $path, mixed $handler): LazyRoute
+    {
+        return $this->map(['GET'], $path, $handler);
+    }
+
+    /**
+     * @param string|array{0: string, 1: string} $handler
+     */
+    public function post(string $path, mixed $handler): LazyRoute
+    {
+        return $this->map(['POST'], $path, $handler);
+    }
+
+    /**
+     * @param string|array{0: string, 1: string} $handler
+     */
+    public function put(string $path, mixed $handler): LazyRoute
+    {
+        return $this->map(['PUT'], $path, $handler);
+    }
+
+    /**
+     * @param string|array{0: string, 1: string} $handler
+     */
+    public function patch(string $path, mixed $handler): LazyRoute
+    {
+        return $this->map(['PATCH'], $path, $handler);
+    }
+
+    /**
+     * @param string|array{0: string, 1: string} $handler
+     */
+    public function delete(string $path, mixed $handler): LazyRoute
+    {
+        return $this->map(['DELETE'], $path, $handler);
+    }
+
+    /**
+     * @param string|array{0: string, 1: string} $handler
+     */
+    public function options(string $path, mixed $handler): LazyRoute
+    {
+        return $this->map(['OPTIONS'], $path, $handler);
+    }
+
+    /**
+     * A route for every HTTP method (it gets no 'methods' metadata, so it's never method-checked).
+     *
+     * @param string|array{0: string, 1: string} $handler
+     */
+    public function any(string $path, mixed $handler): LazyRoute
+    {
+        $route = new LazyRoute(null, $path, $handler);
+        $this->items[] = $route;
+
+        return $route;
+    }
+
+    /**
+     * A route for the given HTTP methods (case-insensitive).
+     *
+     * @param list<string> $methods
+     * @param string|array{0: string, 1: string} $handler
+     */
+    public function map(array $methods, string $path, mixed $handler): LazyRoute
+    {
+        $normalized = [];
+        foreach ($methods as $method) {
+            $upper = strtoupper($method);
+            if (preg_match('/^[A-Z]+$/', $upper) !== 1) {
+                throw new InvalidRouteException(sprintf('Route "%s" has an invalid HTTP method "%s".', $path, $method));
+            }
+
+            $normalized[] = $upper;
+        }
+
+        if ($normalized === []) {
+            throw new InvalidRouteException(sprintf('Route "%s" needs at least one HTTP method.', $path));
+        }
+
+        $route = new LazyRoute(array_values(array_unique($normalized)), $path, $handler);
+        $this->items[] = $route;
+
+        return $route;
+    }
+
+    /**
+     * A group of routes with an optional path prefix, e.g. `$r->group('/admin')->middleware('auth')->get(...)`.
+     * May be called more than once with the same prefix; each call adds a separate group, so sibling
+     * groups never share middleware or tags.
+     */
+    public function group(string $prefix = ''): self
+    {
+        $group = new self($prefix);
+        $this->items[] = $group;
+
+        return $group;
+    }
+
+    /**
+     * Adds middleware for every route declared on this scope, including nested groups, after the
+     * middleware of any enclosing group.
+     *
+     * Declared on the root {@see RoutesHandlerBuilder} answers from, it also wraps the not-found and
+     * method-not-allowed/OPTIONS responses — see {@see Routes::middleware()}.
+     *
+     * @param string|list<string> $middleware one middleware, or a list of them, each a class name or
+     *                                        container identifier
+     */
+    public function middleware(mixed $middleware): self
+    {
+        $entries = is_array($middleware) ? array_values($middleware) : [$middleware];
+        $owner = sprintf('%s middleware', $this->owner());
+        foreach ($entries as $entry) {
+            $this->middleware[] = self::plainString($entry, $owner);
+        }
+
+        return $this;
+    }
+
+    /**
+     * Tags every route declared on this scope, including nested groups, in addition to the tags of
+     * enclosing groups and the routes' own.
+     */
+    public function tag(string ...$tags): self
+    {
+        $this->tags = [...$this->tags, ...Route::validTags($this->owner(), $tags)];
+
+        return $this;
+    }
+
+    /**
+     * A {@see RouteTable} for a tree built by `$define`, cached under `$cacheKey` — `null` (the
+     * default) never caches it. `$define` is only called once, and only when the table's definitions
+     * or metadata are actually needed, i.e. on a cache miss, so a request answered from the cache
+     * declares nothing at all.
+     *
+     * @param callable(self): void $define
+     */
+    public static function table(callable $define, ?string $cacheKey = null): RouteTable
+    {
+        /** @var ?self $routes set by $once, through the reference it captures */
+        $routes = null;
+        $once = static function () use ($define, &$routes): self {
+            if ($routes === null) {
+                $routes = new self();
+                $define($routes);
+            }
+
+            return $routes;
+        };
+
+        return new RouteTable(static fn(): array => $once()->definitions(), $cacheKey, static fn(): array => [
+            'middleware' => $once()->middleware,
+        ]);
+    }
+
+    /**
+     * The routes as declared: full paths and metadata, for tooling that needs the declarations
+     * themselves, e.g. an index of routes by name, or generating documentation, not for matching
+     * requests.
+     *
+     * @return list<RouteDefinition>
+     */
+    public function definitions(): array
+    {
+        $definitions = [];
+        $names = [];
+
+        foreach ($this->items as $item) {
+            if ($item instanceof self) {
+                $item->register($definitions, $this->prefix, [], $this->tags, $names);
+                continue;
+            }
+
+            $definitions[] = $item->definition($this->prefix, [], $this->tags, $names);
+        }
+
+        return $definitions;
+    }
+
+    /**
+     * Resolves the declared routes into core route definitions, groups recursively.
+     *
+     * @internal
+     *
+     * @param list<RouteDefinition> $routes the resolved routes, appended to
+     * @param string $prefix the enclosing groups' prefix
+     * @param list<string> $middleware the enclosing groups' middleware
+     * @param list<string> $tags the enclosing groups' tags
+     * @param array<string, string> $names route name => path of the routes registered so far
+     *
+     * @throws InvalidRouteException
+     */
+    public function register(array &$routes, string $prefix, array $middleware, array $tags, array &$names): void
+    {
+        $prefix .= $this->prefix;
+        $middleware = [...$middleware, ...$this->middleware];
+        $tags = [...$tags, ...$this->tags];
+
+        foreach ($this->items as $item) {
+            if ($item instanceof self) {
+                $item->register($routes, $prefix, $middleware, $tags, $names);
+                continue;
+            }
+
+            $routes[] = $item->definition($prefix, $middleware, $tags, $names);
+        }
+    }
+
+    /**
+     * @throws InvalidRouteException when $value isn't a string
+     */
+    private static function plainString(mixed $value, string $owner): string
+    {
+        if (is_string($value)) {
+            return $value;
+        }
+
+        throw new InvalidRouteException(sprintf(
+            '%s must be a class name or a container identifier, not %s: lazily declared routes are only '
+            . 'declared when their cache is built, so an instance would not exist on the requests answered '
+            . 'from it. Register it in the container, or declare these routes eagerly.',
+            $owner,
+            get_debug_type($value),
+        ));
+    }
+
+    /**
+     * This scope as error messages name it.
+     */
+    private function owner(): string
+    {
+        return $this->prefix === '' ? 'Routes without a prefix' : sprintf('Group "%s"', $this->prefix);
+    }
+}

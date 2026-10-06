@@ -22,18 +22,18 @@ use function strtoupper;
 /**
  * HTTP route declarations: routes with methods and handlers, and groups of them.
  *
- *     $routes = new Routes(new Registry());
+ *     $routes = new Routes();
  *     $routes->get('/', HomeController::class);
  *     $routes->group('/api')->middleware('api')->get('/users/{id}', [UserController::class, 'show'])->name('users.show');
  *
  *     $router = new Router($routes->table('routes-' . APP_VERSION), cache: new FileCache($dir));
  *
- * Or, to have one tree answer its own requests, {@see RoutesHandlerBuilder} owns it:
+ * Or, to have one tree answer its own requests with {@see RoutesHandlerBuilder}, pass it both this
+ * tree's `Router` and its {@see registry()} — the registry of whichever `Routes` built that same
+ * `Router`, never a different declaration's:
  *
- *     $builder = new RoutesHandlerBuilder($container);
- *     $builder->routes()->get('/', HomeController::class);
- *
- *     $response = $builder->handler($request)->handle($request);
+ *     $builder = new RoutesHandlerBuilder($container, $routes->registry(), $router);
+ *     $response = $builder->build($request)->handle($request);
  *
  * Declaring runs immediately, like any other PHP code; there is nothing to defer. A `group()` is
  * itself a `Routes`, scoped by an optional path prefix, with its own middleware and tags inherited by
@@ -41,16 +41,16 @@ use function strtoupper;
  * {@see \SilenZ\Segmatch\RouteTable} `Router` takes: it only walks this tree into full paths and
  * resolved metadata when the router's cache has no entry, so declaring routes is cheap and
  * unconditional, but turning them into the compiled matching structure stays as lazy and cacheable as
- * before.
+ * before. {@see LazyRoutes} declares lazily instead, when even that cost is too much to pay on every
+ * request.
  *
  * A handler, middleware entry or filter may be a real instance or closure, not just a class name or
  * container identifier: anything that isn't already cacheable plain data is transparently wrapped into
  * this tree's {@see Registry} instead, shared by the root and every nested group. Unlike the compiled
- * routes, the `Registry` is never cached — it's rebuilt fresh every time this tree is declared, which
- * is why {@see RoutesHandlerBuilder} owns the tree it answers from: pairing a `Router` with a
- * different declaration's registry (e.g. one built earlier and reused) would resolve the wrong
- * instance, or none at all, for anything given to `->middleware()`, `->filter()` or a handler as a real
- * instance.
+ * routes, the `Registry` is never cached — it's rebuilt fresh every time this tree is declared, which is
+ * why pairing a `Router` with a different declaration's registry would resolve the wrong instance, or
+ * none at all, for anything given to `->middleware()`, `->filter()` or a handler as a real instance:
+ * always get both from the same `Routes` instance, as above.
  *
  * `->middleware()` on a group only ever runs for a request one of its own routes matches, since it's
  * baked into each of them. `->middleware()` on the root is different: it also wraps the not-found and
@@ -74,7 +74,7 @@ final class Routes
      *                       ending with "/"
      */
     public function __construct(
-        private readonly Registry $registry,
+        private readonly Registry $registry = new Registry(),
         private readonly string $prefix = '',
     ) {
         if ($prefix !== '' && (!str_starts_with($prefix, '/') || str_ends_with($prefix, '/'))) {
@@ -216,25 +216,6 @@ final class Routes
     public function table(?string $cacheKey = null): RouteTable
     {
         return self::tableOf(fn(): self => $this, $cacheKey);
-    }
-
-    /**
-     * A table for routes declared lazily: `$define` declares them on a fresh tree with a
-     * {@see Registry::strict()} registry, and only runs when the table's definitions or metadata are
-     * needed, i.e. on a cache miss.
-     *
-     * @internal for {@see RoutesHandlerBuilder::lazyRoutes()}
-     *
-     * @param Closure(self): void $define
-     */
-    public static function lazyTable(Closure $define, ?string $cacheKey): RouteTable
-    {
-        return self::tableOf(static function () use ($define): self {
-            $routes = new self(Registry::strict());
-            $define($routes);
-
-            return $routes;
-        }, $cacheKey);
     }
 
     /**

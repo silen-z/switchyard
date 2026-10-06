@@ -8,7 +8,6 @@ use SilenZ\Segmatch\Exception\InvalidRouteException;
 use UnitEnum;
 
 use function count;
-use function get_debug_type;
 use function is_array;
 use function is_int;
 use function is_scalar;
@@ -31,28 +30,14 @@ use function sprintf;
  * its own: {@see RoutesHandlerBuilder} could not tell it apart from an id. Integers nested inside an
  * array are plain data like any other.
  *
- * A {@see strict()} registry wraps nothing: it's for routes declared lazily, only when the route cache
- * has no entry, where an instance given while declaring would no longer exist on the requests answered
- * from the cache. It lets plain data through unchanged and rejects everything else, so a lazily
- * declared tree's metadata never carries an id.
+ * Routes declared lazily, with {@see LazyRoutes}, use no `Registry` at all: nothing they declare is
+ * ever wrapped, since an instance given while declaring would no longer exist on the requests answered
+ * from the cache — {@see LazyRoute} rejects one outright instead.
  */
 final class Registry
 {
     /** @var list<mixed> */
     private array $values = [];
-
-    private bool $strict = false;
-
-    /**
-     * A registry that only accepts plain data, for routes declared lazily.
-     */
-    public static function strict(): self
-    {
-        $registry = new self();
-        $registry->strict = true;
-
-        return $registry;
-    }
 
     /**
      * $value as-is if it's already cacheable route metadata (scalars, null, enums, or arrays of
@@ -60,33 +45,21 @@ final class Registry
      *
      * @param string $owner what $value is, for the error message, e.g. `Route "/users" handler`
      *
-     * @throws InvalidRouteException when $value is an integer, which would read as an id, or, for a
-     *                               {@see strict()} registry, isn't plain data
+     * @throws InvalidRouteException when $value is an integer, which would read as an id
      */
     public function wrap(mixed $value, string $owner): mixed
     {
         if (is_int($value)) {
             throw new InvalidRouteException(sprintf(
                 '%s cannot be an integer (%d): integers are reserved for the ids of wrapped instances. '
-                . 'Use a class name or a container identifier%s.',
+                . 'Use a class name, a container identifier, or an instance.',
                 $owner,
                 $value,
-                $this->strict ? '' : ', or an instance',
             ));
         }
 
         if (self::isPlain($value)) {
             return $value;
-        }
-
-        if ($this->strict) {
-            throw new InvalidRouteException(sprintf(
-                '%s must be a class name or a container identifier, not %s: lazily declared routes are '
-                . 'only declared when their cache is built, so an instance would not exist on the requests '
-                . 'answered from it. Register it in the container, or declare these routes eagerly.',
-                $owner,
-                get_debug_type($value),
-            ));
         }
 
         $this->values[] = $value;

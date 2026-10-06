@@ -35,13 +35,11 @@ use function strtoupper;
  * The price of declaring lazily: every handler, middleware entry and filter must be a class name or
  * container identifier — an instance or closure would only exist on the request that built the cache,
  * so `$define` throws {@see InvalidRouteException} the moment it declares one. In exchange, nothing
- * this tree declares is ever wrapped for later lookup, so there is no {@see Registry} to build or pass
- * around; {@see RoutesHandlerBuilder} still takes one, for routes a different, eager declaration may
- * have contributed to the same request's metadata, but an all-lazy app never needs it to hold anything.
+ * this tree declares is ever wrapped for later lookup, so an all-lazy router needs no {@see Registry}
+ * of its own — a fresh, empty one, as above.
  *
  * Otherwise this is {@see Routes}, shaped the same way: verb helpers, `group()`, `->middleware()` and
- * `->tag()` accumulate only once the tree is resolved into definitions, and the root's own middleware
- * wraps every outcome, not just matched routes (see {@see Routes}).
+ * `->tag()` accumulate only once the tree is resolved into definitions.
  */
 final class LazyRoutes
 {

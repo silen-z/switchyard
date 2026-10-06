@@ -17,8 +17,7 @@ use function sprintf;
  * a {@see Registry} id into the instance or closure it stands for, a class name or container
  * identifier into what the container resolves it to.
  *
- * `$registry` must be the one the routes were declared with, which is why only
- * {@see RoutesHandlerBuilder} builds one, from the tree it owns.
+ * `$registry` must be the one the routes were declared with — see {@see RoutesHandlerBuilder}.
  *
  * @internal
  */

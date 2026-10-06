@@ -25,14 +25,8 @@ use function str_starts_with;
  *         ->middleware('audit')
  *         ->tag('public');
  *
- * The route's HTTP methods are stored with it directly; any filters added with `filter()` are stored
- * alongside them, in the order they were added. {@see RoutesHandlerBuilder} checks the methods and
- * resolves and runs the filters while matching.
- *
- * The handler, middleware and filters end up in the route cache, so they must be plain data (strings,
- * arrays, enums, ...), not closures or objects — a handler, a `middleware()` entry or a `filter()`
- * given as a real instance or closure is wrapped into the route's {@see Registry} instead,
- * transparently.
+ * {@see RoutesHandlerBuilder} checks the route's own HTTP methods and resolves and runs its filters,
+ * in the order `filter()` added them, while matching.
  */
 final class Route
 {

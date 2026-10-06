@@ -10,7 +10,7 @@ use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
 /**
- * The first entry of the stacks {@see RoutesHandlerBuilder::handler()} builds: sets the routing result
+ * The first entry of the stacks {@see RoutesHandlerBuilder::build()} builds: sets the routing result
  * as a request attribute under its own class name, `Found::class` or `MethodNotAllowed::class`, for
  * the middleware and handler that follow.
  */

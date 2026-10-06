@@ -27,36 +27,17 @@ use function strtoupper;
  *     $routes->group('/api')->middleware('api')->get('/users/{id}', [UserController::class, 'show'])->name('users.show');
  *
  *     $router = new Router($routes->table('routes-' . APP_VERSION), cache: new FileCache($dir));
- *
- * Or, to have one tree answer its own requests with {@see RoutesHandlerBuilder}, pass it both this
- * tree's `Router` and its {@see registry()} — the registry of whichever `Routes` built that same
- * `Router`, never a different declaration's:
- *
  *     $builder = new RoutesHandlerBuilder($container, $routes->registry(), $router);
- *     $response = $builder->build($request)->handle($request);
  *
  * Declaring runs immediately, like any other PHP code; there is nothing to defer. A `group()` is
  * itself a `Routes`, scoped by an optional path prefix, with its own middleware and tags inherited by
- * everything declared on it (including further nested groups). {@see table()} gives the
- * {@see \SilenZ\Segmatch\RouteTable} `Router` takes: it only walks this tree into full paths and
- * resolved metadata when the router's cache has no entry, so declaring routes is cheap and
- * unconditional, but turning them into the compiled matching structure stays as lazy and cacheable as
- * before. {@see LazyRoutes} declares lazily instead, when even that cost is too much to pay on every
- * request.
+ * everything declared on it (including further nested groups).
  *
  * A handler, middleware entry or filter may be a real instance or closure, not just a class name or
  * container identifier: anything that isn't already cacheable plain data is transparently wrapped into
- * this tree's {@see Registry} instead, shared by the root and every nested group. Unlike the compiled
- * routes, the `Registry` is never cached — it's rebuilt fresh every time this tree is declared, which is
- * why pairing a `Router` with a different declaration's registry would resolve the wrong instance, or
- * none at all, for anything given to `->middleware()`, `->filter()` or a handler as a real instance:
- * always get both from the same `Routes` instance, as above.
- *
- * `->middleware()` on a group only ever runs for a request one of its own routes matches, since it's
- * baked into each of them. `->middleware()` on the root is different: it also wraps the not-found and
- * method-not-allowed/OPTIONS responses, so it's the way to run middleware — logging, CORS — for every
- * outcome, not just matched routes. It's baked into no route; {@see table()} keeps it as the table's
- * own metadata instead, cached with the routes.
+ * this tree's {@see Registry} instead, shared by the root and every nested group — see {@see
+ * registry()}. {@see LazyRoutes} declares lazily instead, when even declaring on every request costs
+ * too much; its handler, middleware and filters may only be a class name or container identifier.
  */
 final class Routes
 {
@@ -173,9 +154,10 @@ final class Routes
      *
      * Declared on a group, this only ever runs for a request a route inside it actually matches — there
      * is no "wrong method" or "no route" response to decorate for a path the group doesn't own. Declared
-     * on the root {@see RoutesHandlerBuilder::routes()} answers from, it also wraps the not-found and
-     * method-not-allowed/OPTIONS responses: the one way to run middleware for every outcome, matched or
-     * not, since {@see RoutesHandlerBuilder} takes no middleware of its own.
+     * on the root instead — the tree whose {@see table()} built the `Router` a `RoutesHandlerBuilder`
+     * answers from — it also wraps the not-found and method-not-allowed/OPTIONS responses: the one way
+     * to run middleware for every outcome, matched or not, since `RoutesHandlerBuilder` takes no
+     * middleware of its own.
      *
      * @param mixed $middleware one middleware, or a list of them
      */
@@ -260,10 +242,11 @@ final class Routes
     }
 
     /**
-     * This tree's {@see Registry}, shared by the root and every nested group: the one
-     * {@see RoutesHandlerBuilder} resolves the ids standing in for real instances or closures in this
-     * tree's metadata from. Rebuilt fresh every time this tree is declared, unlike the compiled routes —
-     * so it belongs to this same, current declaration, never a cached one's.
+     * This tree's {@see Registry}, shared by the root and every nested group: the one a {@see
+     * RoutesHandlerBuilder} resolves a real instance or closure's id from. Rebuilt fresh every time
+     * this tree is declared, unlike the compiled routes, so it only ever matches this same, current
+     * declaration — pass it to `RoutesHandlerBuilder` alongside the `Router` built from this same
+     * tree's {@see table()}, never a different declaration's.
      */
     public function registry(): Registry
     {

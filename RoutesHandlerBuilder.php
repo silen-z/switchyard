@@ -19,63 +19,36 @@ use function ltrim;
 use function strtoupper;
 
 /**
- * Answers HTTP requests from an already-built {@see \SilenZ\Segmatch\Router}: turns its match into a
- * PSR-15 handler.
+ * Answers HTTP requests by matching against an already-built {@see \SilenZ\Segmatch\Router} and
+ * turning the result into a PSR-15 handler:
  *
  *     $routes = new Routes();
  *     $routes->get('/', HomeController::class);
- *     $routes->group('/api')->middleware('api')->get('/users/{id}', [UserController::class, 'show']);
  *
- *     $router = new Router($routes->table('routes-' . APP_VERSION), $cache);
+ *     $router = new Router($routes->table());
  *     $builder = new RoutesHandlerBuilder($container, $routes->registry(), $router);
  *
  *     $response = $builder->build($request)->handle($request);
  *
- * `$registry` must be the {@see Registry} of whichever declaration built `$router` — {@see Routes}
- * gives both together, as above, so they can't drift apart. Routes declared with {@see LazyRoutes}
- * need no registry of their own, since nothing they declare is ever wrapped into one; pass a fresh
+ * `$registry` must be the one the same declaration built `$router` with — {@see Routes} gives both
+ * together, as above. Routes declared with {@see LazyRoutes} need none of their own; pass a fresh
  * `new Registry()` for an all-lazy router.
- *
- * `$container` resolves everything a stack entry is named as: the route's middleware and handler, its
- * {@see RouteFilter}s, and the three fallback handlers {@see build()} falls back to. It therefore has
- * to provide PSR-17 factories for {@see NotFoundHandler} and {@see AllowedMethodsHandler}, and a stream
- * factory for {@see HeadMiddleware}; a container that autowires constructor arguments needs no
- * registration of its own. A handler, middleware entry or filter given as a real instance or closure
- * needs none of that — it arrives as a `$registry` id and is looked up there, whatever the container
- * can or can't resolve.
- *
- * For a matched route, {@see build()} gives one {@link https://relayphp.com/ Relay} stack of the
- * route's own middleware and handler. Inside it, `$request->getAttribute(Found::class)` gives the
- * route's parameters, name and tags.
- *
- * Otherwise it gives one of three handlers:
- *
- * - no route for the path: {@see NotFoundHandler}, a 404, or the not-found handler given to
- *   {@see build()};
- * - routes for the path, but not for the method: {@see AllowedMethodsHandler}, a 405 with the
- *   `Allow` header;
- * - the same for an OPTIONS request: {@see AllowedMethodsHandler}, a 200 with the `Allow` header.
- *
- * The latter two give middleware the allowed methods as `$request->getAttribute(MethodNotAllowed::class)`.
- * None of these three has a route, so a route's own middleware never runs for them — but the root's own
- * middleware does, wrapping every outcome of {@see build()} alike (see {@see Routes::middleware()}).
- *
- * Matching checks a route's own HTTP methods ({@see MethodNotAllowed}, container-free) and runs its
- * {@see RouteFilter}s, each resolved from the container the same way as middleware and handlers. The
- * container is only ever known here, not by {@see MethodNotAllowed} or {@see RouteFilter} itself.
- *
- * HEAD requests match GET routes unless a route for HEAD itself applies. Whoever answers a HEAD
- * request, the response loses its body ({@see HeadMiddleware}).
  */
 final class RoutesHandlerBuilder
 {
     private readonly Resolver $resolver;
 
     /**
-     * @param ContainerInterface $container resolves the middleware, handlers and filters declared by
-     *                                       name, including this builder's own {@see NotFoundHandler},
-     *                                       {@see AllowedMethodsHandler} and {@see HeadMiddleware}
-     * @param Registry $registry the registry of the same declaration that built `$router`
+     * @param ContainerInterface $container resolves everything a stack entry is named as — the
+     *                                       route's middleware and handler, its {@see RouteFilter}s —
+     *                                       plus this builder's own fallbacks: a PSR-17 response
+     *                                       factory for {@see NotFoundHandler} and {@see
+     *                                       AllowedMethodsHandler}, and a stream factory for {@see
+     *                                       HeadMiddleware}. A container that autowires constructor
+     *                                       arguments needs no registration of its own
+     * @param Registry $registry the registry of the same declaration that built `$router`; a handler,
+     *                           middleware entry or filter given as a real instance or closure is
+     *                           looked up here instead of resolved from the container
      * @param Router $router already built, and ideally shared across requests — see
      *                       {@see \SilenZ\Segmatch\Router} for how it caches its own compiled routes
      */
@@ -88,20 +61,25 @@ final class RoutesHandlerBuilder
     }
 
     /**
-     * The handler that answers the request. For a matched route, that's the route's own middleware
-     * and then its handler, as one PSR-15 stack ({@see \Relay\Relay}). The handler and each middleware
-     * entry is a `Registry` id resolved from this builder's own registry, or a class name or
-     * container identifier resolved from the container, and must be a
-     * `Psr\Http\Server\MiddlewareInterface` (middleware) or `Psr\Http\Server\RequestHandlerInterface`
-     * (the handler).
+     * The PSR-15 handler for one request. For a matched route, that's its own middleware and handler
+     * as one {@link https://relayphp.com/ Relay} stack — a `[target, 'method']` handler becomes a
+     * {@see MethodHandler} — with the match on the request as `$request->getAttribute(Found::class)`.
      *
-     * Otherwise it's the not-found, method-not-allowed or OPTIONS handler. Allowed methods count only
-     * routes rejected solely because of their method; HEAD is included whenever GET is.
+     * Otherwise one of three fallbacks, depending on why nothing matched:
      *
-     * Either way, the root's own middleware wraps the result, outermost of all but {@see HeadMiddleware}.
+     * - no route for the path: {@see NotFoundHandler}, a 404, or `$notFoundHandler`;
+     * - routes for the path, not the method: {@see AllowedMethodsHandler}, a 405 with `Allow`;
+     * - the same for an OPTIONS request: {@see AllowedMethodsHandler}, a 200 with `Allow`.
+     *
+     * The latter two give `$request->getAttribute(MethodNotAllowed::class)`, counting only routes
+     * rejected solely for their method (HEAD included whenever GET is).
+     *
+     * Either way, the root's own middleware wraps the result, outermost of all but {@see
+     * HeadMiddleware} on a HEAD request — whoever answers, its response loses its body. HEAD also
+     * matches a GET route unless one declared for HEAD itself applies.
      *
      * @param ?RequestHandlerInterface $notFoundHandler answers requests no route applies to, instead
-     *                                                of the container's {@see NotFoundHandler}
+     *                                                   of the container's {@see NotFoundHandler}
      */
     public function build(
         ServerRequestInterface $request,
@@ -214,8 +192,10 @@ final class RoutesHandlerBuilder
     }
 
     /**
-     * Resolves and runs a route's own filters, in the order they were added. A route without any
-     * always applies.
+     * Resolves and runs a route's own {@see RouteFilter}s, in the order they were added, each
+     * resolved from the container the same way as middleware and handlers — the only place that
+     * knows about the container, unlike {@see MethodNotAllowed}'s own method check. A route without
+     * any filters always applies.
      */
     private function accepts(RouteMatch $match, ServerRequestInterface $request): bool
     {

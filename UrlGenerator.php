@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace SilenZ\Segmatch\Http;
 
 use SilenZ\Segmatch\Exception\UrlGenerationException;
-use SilenZ\Segmatch\Internal\PathParser;
 use SilenZ\Segmatch\Internal\Segment;
 use SilenZ\Segmatch\Internal\SegmentType;
+use SilenZ\Segmatch\RouteDefinition;
 use SilenZ\Segmatch\Router;
 use Stringable;
 
@@ -58,7 +58,7 @@ final class UrlGenerator
     public function url(string $name, array $params = []): string
     {
         $parts = [];
-        foreach ($this->segments[$name] ??= PathParser::parse($this->path($name)) as $segment) {
+        foreach ($this->segments[$name] ??= RouteDefinition::parse($this->path($name)) as $segment) {
             if ($segment->type === SegmentType::Static) {
                 $parts[] = $segment->value;
                 continue;

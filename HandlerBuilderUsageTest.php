@@ -8,12 +8,11 @@ use Nyholm\Psr7\Factory\Psr17Factory;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
 use SilenZ\Segmatch\Http\AllowedMethodsHandler;
+use SilenZ\Segmatch\Http\HandlerBuilder;
 use SilenZ\Segmatch\Http\HeadMiddleware;
 use SilenZ\Segmatch\Http\LazyRoutes;
 use SilenZ\Segmatch\Http\NotFoundHandler;
-use SilenZ\Segmatch\Http\Registry;
 use SilenZ\Segmatch\Http\Routes;
-use SilenZ\Segmatch\Http\RoutesHandlerBuilder;
 use SilenZ\Segmatch\Router;
 use SilenZ\Segmatch\Tests\Http\Fixtures\ArrayContainer;
 use SilenZ\Segmatch\Tests\Http\Fixtures\NumericRouteFilter;
@@ -31,10 +30,10 @@ use SilenZ\Segmatch\Tests\Http\Fixtures\UserController;
  * three fallback handlers. Lazy routes can't: every middleware, filter and handler target has to be a
  * class name or container identifier instead, so the same container also has to know "log", "auth",
  * {@see UserController} and the pre-configured {@see NumericRouteFilter} — and, since nothing it
- * declares is ever wrapped, `RoutesHandlerBuilder` gets a bare `new Registry()` instead of one tied to
- * a declaration.
+ * declares is ever wrapped, there's no registry setup to do for it either: `$router->registry()` is
+ * just the empty default every `RouteTable` carries.
  */
-final class RoutesHandlerBuilderUsageTest extends TestCase
+final class HandlerBuilderUsageTest extends TestCase
 {
     public function testEagerRoutesAnswerRequestsEndToEnd(): void
     {
@@ -53,7 +52,7 @@ final class RoutesHandlerBuilderUsageTest extends TestCase
         $admin = $routes->group('/admin')->middleware(new StatusMiddleware(401));
         $admin->get('/stats', new PlainHandler());
 
-        $builder = new RoutesHandlerBuilder($container, $routes->registry(), new Router($routes->table()));
+        $builder = new HandlerBuilder($container, new Router($routes->table()));
 
         $request = new ServerRequest('GET', '/users/42');
         $response = $builder->build($request)->handle($request);
@@ -105,7 +104,7 @@ final class RoutesHandlerBuilderUsageTest extends TestCase
             $admin = $routes->group('/admin')->middleware('auth');
             $admin->get('/stats', PlainHandler::class);
         });
-        $builder = new RoutesHandlerBuilder($container, new Registry(), new Router($table));
+        $builder = new HandlerBuilder($container, new Router($table));
 
         $request = new ServerRequest('GET', '/users/42');
         $response = $builder->build($request)->handle($request);

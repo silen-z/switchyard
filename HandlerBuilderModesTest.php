@@ -12,10 +12,9 @@ use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use SilenZ\Segmatch\Cache\RouteCache;
 use SilenZ\Segmatch\Exception\InvalidRouteException;
+use SilenZ\Segmatch\Http\HandlerBuilder;
 use SilenZ\Segmatch\Http\LazyRoutes;
-use SilenZ\Segmatch\Http\Registry;
 use SilenZ\Segmatch\Http\Routes;
-use SilenZ\Segmatch\Http\RoutesHandlerBuilder;
 use SilenZ\Segmatch\Router;
 use SilenZ\Segmatch\Tests\Http\Fixtures\ArrayContainer;
 use SilenZ\Segmatch\Tests\Http\Fixtures\ArrayRouteCache;
@@ -33,10 +32,10 @@ use function preg_quote;
  * The same routes declared eagerly with `Routes` and lazily with `LazyRoutes` answer the same, and
  * what sets the two apart: when the declaration runs, and what it may contain.
  */
-final class RoutesHandlerBuilderModesTest extends TestCase
+final class HandlerBuilderModesTest extends TestCase
 {
     /**
-     * Builds a `RoutesHandlerBuilder` from `$define`, declared eagerly on a `Routes` or lazily on a
+     * Builds a `HandlerBuilder` from `$define`, declared eagerly on a `Routes` or lazily on a
      * `LazyRoutes` depending on `$mode`, against a container that knows the "log", "api" and "auth"
      * middleware, a {@see NumericRouteFilter} for "id" under its class name and one for "postId" under
      * "numeric.postId", and "not-a-filter", so the routes can name everything, as lazy routes must.
@@ -48,7 +47,7 @@ final class RoutesHandlerBuilderModesTest extends TestCase
         callable $define,
         ?RouteCache $cache = null,
         ?string $cacheKey = null,
-    ): RoutesHandlerBuilder {
+    ): HandlerBuilder {
         $container = new EchoContainer([
             'log' => new TagMiddleware('log'),
             'api' => new TagMiddleware('api'),
@@ -60,14 +59,14 @@ final class RoutesHandlerBuilderModesTest extends TestCase
 
         if ($mode === 'lazy') {
             /** @var callable(LazyRoutes): void $define */
-            return new RoutesHandlerBuilder($container, new Registry(), new Router(LazyRoutes::table($define, $cacheKey), $cache));
+            return new HandlerBuilder($container, new Router(LazyRoutes::table($define, $cacheKey), $cache));
         }
 
         $routes = new Routes();
         /** @var callable(Routes): void $define */
         $define($routes);
 
-        return new RoutesHandlerBuilder($container, $routes->registry(), new Router($routes->table($cacheKey), $cache));
+        return new HandlerBuilder($container, new Router($routes->table($cacheKey), $cache));
     }
 
     private static function api(Routes|LazyRoutes $r): void
@@ -79,7 +78,7 @@ final class RoutesHandlerBuilderModesTest extends TestCase
         $r->get('/ping', 'ping');
     }
 
-    private static function respond(RoutesHandlerBuilder $builder, string $method, string $path): ResponseInterface
+    private static function respond(HandlerBuilder $builder, string $method, string $path): ResponseInterface
     {
         $request = new ServerRequest($method, $path);
 
@@ -182,7 +181,7 @@ final class RoutesHandlerBuilderModesTest extends TestCase
         $table = LazyRoutes::table(
             static fn(LazyRoutes $r) => $r->get('/x', ['unknown.controller', 'show'])->middleware('deny'),
         );
-        $builder = new RoutesHandlerBuilder($container, new Registry(), new Router($table));
+        $builder = new HandlerBuilder($container, new Router($table));
 
         static::assertSame(401, self::respond($builder, 'GET', '/x')->getStatusCode());
     }

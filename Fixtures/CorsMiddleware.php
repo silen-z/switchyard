@@ -19,7 +19,7 @@ use function strtoupper;
  * just matched routes — see `Http\Routes::middleware()`. It reads the allowed methods from the
  * response's `Allow` header, built by `Http\AllowedMethodsHandler` in exactly the format
  * `Access-Control-Allow-Methods` wants, rather than the `MethodNotAllowed::class` request attribute:
- * that attribute only exists inside `RoutesHandlerBuilder`'s own Relay stack, invisible to anything
+ * that attribute only exists inside `HandlerBuilder`'s own Relay stack, invisible to anything
  * wrapping it from outside.
  *
  * Requests without an `Origin`, or from an origin not listed, pass through untouched. A preflight

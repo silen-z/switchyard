@@ -10,9 +10,8 @@ use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use SilenZ\Segmatch\Cache\RouteCache;
 use SilenZ\Segmatch\Exception\UrlGenerationException;
-use SilenZ\Segmatch\Http\Registry;
+use SilenZ\Segmatch\Http\HandlerBuilder;
 use SilenZ\Segmatch\Http\Routes;
-use SilenZ\Segmatch\Http\RoutesHandlerBuilder;
 use SilenZ\Segmatch\Http\UrlGenerator;
 use SilenZ\Segmatch\Router;
 use SilenZ\Segmatch\RouteTable;
@@ -43,7 +42,7 @@ final class UrlGeneratorTest extends TestCase
 
     private static function router(?RouteCache $cache = null, ?string $cacheKey = null): Router
     {
-        $routes = new Routes(new Registry());
+        $routes = new Routes();
         self::declare($routes);
 
         return new Router($routes->table($cacheKey), $cache);
@@ -84,7 +83,7 @@ final class UrlGeneratorTest extends TestCase
 
         $routes = new Routes();
         self::declare($routes);
-        $builder = new RoutesHandlerBuilder(new EchoContainer(), $routes->registry(), new Router($routes->table()));
+        $builder = new HandlerBuilder(new EchoContainer(), new Router($routes->table()));
 
         foreach ([
             ['users.show', ['id' => 'a/b c?']],

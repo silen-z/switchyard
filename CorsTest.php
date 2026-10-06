@@ -9,7 +9,7 @@ use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use SilenZ\Segmatch\Http\Routes;
-use SilenZ\Segmatch\Http\RoutesHandlerBuilder;
+use SilenZ\Segmatch\Http\HandlerBuilder;
 use SilenZ\Segmatch\Router;
 use SilenZ\Segmatch\Tests\Http\Fixtures\CorsMiddleware;
 use SilenZ\Segmatch\Tests\Http\Fixtures\EchoContainer;
@@ -36,7 +36,7 @@ final class CorsTest extends TestCase
         $routes->get('/reports', PlainHandler::class);
         $routes->map(['OPTIONS'], '/reports', PlainHandler::class);
 
-        $builder = new RoutesHandlerBuilder(new EchoContainer(), $routes->registry(), new Router($routes->table()));
+        $builder = new HandlerBuilder(new EchoContainer(), new Router($routes->table()));
 
         return $builder->build($request)->handle($request);
     }

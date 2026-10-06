@@ -11,8 +11,8 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use SilenZ\Segmatch\Http\Found;
+use SilenZ\Segmatch\Http\HandlerBuilder;
 use SilenZ\Segmatch\Http\Routes;
-use SilenZ\Segmatch\Http\RoutesHandlerBuilder;
 use SilenZ\Segmatch\Router;
 use SilenZ\Segmatch\Tests\Http\Fixtures\ArrayRouteCache;
 use SilenZ\Segmatch\Tests\Http\Fixtures\ConfigurableRouteFilter;
@@ -32,21 +32,21 @@ use const JSON_THROW_ON_ERROR;
  * Which route a request reaches. Every route handler is an
  * {@see \SilenZ\Segmatch\Tests\Http\Fixtures\EchoHandler}, which answers with the `Found` it was given.
  */
-final class RoutesHandlerBuilderTest extends TestCase
+final class HandlerBuilderTest extends TestCase
 {
     /**
      * @param callable(Routes): void $define
      */
-    private static function builder(callable $define, ?ContainerInterface $container = null): RoutesHandlerBuilder
+    private static function builder(callable $define, ?ContainerInterface $container = null): HandlerBuilder
     {
         $routes = new Routes();
         $define($routes);
 
-        return new RoutesHandlerBuilder($container ?? new EchoContainer(), $routes->registry(), new Router($routes->table()));
+        return new HandlerBuilder($container ?? new EchoContainer(), new Router($routes->table()));
     }
 
     private static function respond(
-        RoutesHandlerBuilder $builder,
+        HandlerBuilder $builder,
         ServerRequestInterface $request,
         ?RequestHandlerInterface $notFoundHandler = null,
     ): ResponseInterface {
@@ -56,7 +56,7 @@ final class RoutesHandlerBuilderTest extends TestCase
     /**
      * The `Found` the route's handler was given, as it echoed it back.
      */
-    private static function found(RoutesHandlerBuilder $builder, ServerRequestInterface $request): Found
+    private static function found(HandlerBuilder $builder, ServerRequestInterface $request): Found
     {
         $response = self::respond($builder, $request);
         static::assertSame(200, $response->getStatusCode());
@@ -70,7 +70,7 @@ final class RoutesHandlerBuilderTest extends TestCase
     /**
      * The handler identifier of the route the request reached.
      */
-    private static function handlerOf(RoutesHandlerBuilder $builder, ServerRequestInterface $request): string
+    private static function handlerOf(HandlerBuilder $builder, ServerRequestInterface $request): string
     {
         $response = self::respond($builder, $request);
         static::assertSame(200, $response->getStatusCode());
@@ -78,14 +78,14 @@ final class RoutesHandlerBuilderTest extends TestCase
         return $response->getHeaderLine('X-Handler');
     }
 
-    private static function assertNotFound(RoutesHandlerBuilder $builder, ServerRequestInterface $request): void
+    private static function assertNotFound(HandlerBuilder $builder, ServerRequestInterface $request): void
     {
         static::assertSame(404, self::respond($builder, $request)->getStatusCode());
     }
 
     private static function assertMethodNotAllowed(
         string $allow,
-        RoutesHandlerBuilder $builder,
+        HandlerBuilder $builder,
         ServerRequestInterface $request,
     ): void {
         $response = self::respond($builder, $request);
@@ -94,7 +94,7 @@ final class RoutesHandlerBuilderTest extends TestCase
         static::assertSame($allow, $response->getHeaderLine('Allow'));
     }
 
-    private static function apiBuilder(): RoutesHandlerBuilder
+    private static function apiBuilder(): HandlerBuilder
     {
         return self::builder(
             static function (Routes $r): void {
@@ -229,7 +229,7 @@ final class RoutesHandlerBuilderTest extends TestCase
         static::assertSame('raw', self::handlerOf($builder, new ServerRequest('DELETE', '/raw')));
     }
 
-    private static function routingBuilder(): RoutesHandlerBuilder
+    private static function routingBuilder(): HandlerBuilder
     {
         return self::builder(static function (Routes $r): void {
             $r->get('/users', 'list');
@@ -372,15 +372,15 @@ final class RoutesHandlerBuilderTest extends TestCase
         // what ends up in the compiled routes.
         $cold = new Routes();
         $cold->get('/x', new PlainHandler());
-        (new RoutesHandlerBuilder(new EchoContainer(), $cold->registry(), new Router($cold->table('routes'), $cache)))
+        (new HandlerBuilder(new EchoContainer(), new Router($cold->table('routes'), $cache)))
             ->build(new ServerRequest('GET', '/x'));
 
         // Warm: a fresh declaration, with its own fresh instance at the same id, answers from the
-        // cached routes and resolves its own instance for that id — as long as its own registry is
-        // paired with a router built from the same declaration.
+        // cached routes and resolves its own instance for that id — its `Router` carries this same
+        // declaration's registry automatically, never the cold one's.
         $warm = new Routes();
         $warm->get('/x', new PlainHandler());
-        $builder = new RoutesHandlerBuilder(new EchoContainer(), $warm->registry(), new Router($warm->table('routes'), $cache));
+        $builder = new HandlerBuilder(new EchoContainer(), new Router($warm->table('routes'), $cache));
 
         $response = $builder->build(new ServerRequest('GET', '/x'))->handle(new ServerRequest('GET', '/x'));
 

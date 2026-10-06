@@ -15,7 +15,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use SilenZ\Segmatch\Http\Found;
 use SilenZ\Segmatch\Http\Routes;
-use SilenZ\Segmatch\Http\RoutesHandlerBuilder;
+use SilenZ\Segmatch\Http\HandlerBuilder;
 use SilenZ\Segmatch\Router;
 use SilenZ\Segmatch\Tests\Http\Fixtures\ArrayContainer;
 use SilenZ\Segmatch\Tests\Http\Fixtures\EchoContainer;
@@ -32,15 +32,15 @@ final class ResolvedHandlerTest extends TestCase
     /**
      * @param callable(Routes): void $define
      */
-    private static function builder(callable $define, ContainerInterface $container): RoutesHandlerBuilder
+    private static function builder(callable $define, ContainerInterface $container): HandlerBuilder
     {
         $routes = new Routes();
         $define($routes);
 
-        return new RoutesHandlerBuilder($container, $routes->registry(), new Router($routes->table()));
+        return new HandlerBuilder($container, new Router($routes->table()));
     }
 
-    private static function apiBuilder(): RoutesHandlerBuilder
+    private static function apiBuilder(): HandlerBuilder
     {
         return self::builder(static function (Routes $routes): void {
             $routes->get('/ping', PlainHandler::class);
@@ -57,7 +57,7 @@ final class ResolvedHandlerTest extends TestCase
     }
 
     private static function respond(
-        RoutesHandlerBuilder $builder,
+        HandlerBuilder $builder,
         ServerRequestInterface $request,
         ?RequestHandlerInterface $notFoundHandler = null,
     ): ResponseInterface {

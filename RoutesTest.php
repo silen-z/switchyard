@@ -10,7 +10,6 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SilenZ\Segmatch\Exception\InvalidRouteException;
 use SilenZ\Segmatch\Http\MethodNotAllowed;
-use SilenZ\Segmatch\Http\Registry;
 use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\RouteDefinition;
 use SilenZ\Segmatch\RouteMatch;
@@ -29,7 +28,7 @@ final class RoutesTest extends TestCase
      */
     private static function router(callable $define): Router
     {
-        $routes = new Routes(new Registry());
+        $routes = new Routes();
         $define($routes);
 
         return new Router($routes->table());
@@ -204,7 +203,7 @@ final class RoutesTest extends TestCase
 
     public function testAHandlerMiddlewareOrFilterInstanceBecomesARegistryId(): void
     {
-        $routes = new Routes(new Registry());
+        $routes = new Routes();
         $handler = new stdClass();
         $middleware = new stdClass();
         $filter = new FeatureRouteFilter('beta');
@@ -231,7 +230,7 @@ final class RoutesTest extends TestCase
 
     public function testAClassNameStaysLiteralEvenWithOtherInstancesAround(): void
     {
-        $routes = new Routes(new Registry());
+        $routes = new Routes();
         $routes->get('/x', 'show')->middleware('api')->filter(FeatureRouteFilter::class);
 
         /** @var array<string, mixed> $metadata */
@@ -256,7 +255,7 @@ final class RoutesTest extends TestCase
 
     public function testRootMiddlewareIsTheTableMetadataNotPartOfAnyRoute(): void
     {
-        $routes = new Routes(new Registry());
+        $routes = new Routes();
         $routes->middleware(['log', 'cors']);
         $routes->get('/a', 'a');
         $routes->group('/api')->middleware('api')->get('/b', 'b');
@@ -270,7 +269,7 @@ final class RoutesTest extends TestCase
 
     public function testRootMiddlewareGivenAsAnInstanceIsARegistryIdInTheTableMetadata(): void
     {
-        $routes = new Routes(new Registry());
+        $routes = new Routes();
         $middleware = new stdClass();
         $routes->middleware($middleware);
 

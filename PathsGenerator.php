@@ -4,28 +4,30 @@ declare(strict_types=1);
 
 namespace SilenZ\Segmatch\OpenApi;
 
-use SilenZ\Segmatch\Internal\Segment;
-use SilenZ\Segmatch\Internal\SegmentType;
+use OpenApi\Attributes as OA;
+use SilenZ\Segmatch\PathParameter;
 use SilenZ\Segmatch\RouteDefinition;
 
 use function array_map;
-use function implode;
+use function array_values;
 use function is_array;
 use function is_string;
 use function strtolower;
 
 /**
- * Builds the `paths` object of an OpenAPI document from a router's declared routes
+ * Builds the `PathItem`s of an OpenAPI document from a router's declared routes
  * ({@see \SilenZ\Segmatch\Router::definitions()}), reading the metadata shape {@see \SilenZ\Segmatch\Http\Route}
  * stores: a route's `name` becomes its `operationId`, its `tags` become the operation's tags, and its
- * path parameters come straight from the segments the path was declared with.
+ * path parameters come straight from {@see RouteDefinition::$pathTemplate} and
+ * {@see RouteDefinition::$parameters}.
  *
  *     $paths = PathsGenerator::generate($router->definitions());
- *     $document = ['openapi' => '3.1.0', 'info' => [...], ...$paths];
+ *     $document = new OA\OpenApi(openapi: '3.1.0', info: new OA\Info(...), paths: $paths);
  *
  * This covers only what segmatch itself knows: paths, methods, names, tags and path parameters.
  * Request/response bodies, security schemes, `info` and `servers` aren't its business; merge them
- * into the document yourself, e.g. by keying off each operation's `operationId` or route name.
+ * into the document yourself, e.g. by keying off each operation's `operationId` or route name, using
+ * the same {@see OA} types.
  *
  * - **`any()` routes** have no declared methods, so every method OpenAPI supports is listed.
  * - **Catch-alls** (`{name*}`, `{name+}`) become a single `{name}` path parameter, since OpenAPI has
@@ -40,83 +42,81 @@ final class PathsGenerator
     /**
      * @param iterable<mixed, RouteDefinition> $definitions
      *
-     * @return array{paths: array<string, array<string, array<string, mixed>>>}
+     * @return list<OA\PathItem>
      */
     public static function generate(iterable $definitions): array
     {
-        $paths = [];
+        /** @var array<string, OA\PathItem> $pathItems */
+        $pathItems = [];
+
         foreach ($definitions as $definition) {
-            $path = self::path($definition->segments);
-            $operation = self::operation($definition);
+            $path = $definition->pathTemplate;
+            $pathItems[$path] ??= new OA\PathItem(path: $path);
+            $pathItem = $pathItems[$path];
 
             foreach (self::methods($definition->metadata) as $method) {
-                $paths[$path][$method] = $operation;
+                self::assign($pathItem, $method, $definition);
             }
         }
 
-        return ['paths' => $paths];
+        return array_values($pathItems);
     }
 
     /**
-     * @param non-empty-list<Segment> $segments
+     * Builds the operation for `$method` and assigns it to `$pathItem`'s matching property.
+     *
+     * A method outside the fixed set OpenAPI's `PathItem` can represent (get/put/post/delete/
+     * options/head/patch/trace) has no property to hold it and is silently dropped.
      */
-    private static function path(array $segments): string
-    {
-        $parts = [];
-        foreach ($segments as $segment) {
-            $parts[] = $segment->type === SegmentType::Static ? $segment->value : '{' . $segment->value . '}';
-        }
-
-        return '/' . implode('/', $parts);
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private static function operation(RouteDefinition $definition): array
+    private static function assign(OA\PathItem $pathItem, string $method, RouteDefinition $definition): void
     {
         $metadata = is_array($definition->metadata) ? $definition->metadata : [];
 
-        $operation = ['responses' => ['200' => ['description' => 'OK']]];
-
-        if (is_string($metadata['name'] ?? null)) {
-            $operation['operationId'] = $metadata['name'];
-        }
-
+        $tags = null;
         if (is_array($metadata['tags'] ?? null)) {
-            $operation['tags'] = $metadata['tags'];
+            /** @var list<string> $tags */
+            $tags = $metadata['tags'];
         }
 
-        $parameters = self::parameters($definition->segments);
-        if ($parameters !== []) {
-            $operation['parameters'] = $parameters;
-        }
+        $args = [
+            'operationId' => is_string($metadata['name'] ?? null) ? $metadata['name'] : null,
+            'tags' => $tags,
+            'parameters' => self::parameters($definition->parameters),
+            'responses' => [new OA\Response(response: 200, description: 'OK')],
+        ];
 
-        return $operation;
+        match ($method) {
+            'get' => $pathItem->get = new OA\Get(...$args),
+            'put' => $pathItem->put = new OA\Put(...$args),
+            'post' => $pathItem->post = new OA\Post(...$args),
+            'delete' => $pathItem->delete = new OA\Delete(...$args),
+            'options' => $pathItem->options = new OA\Options(...$args),
+            'head' => $pathItem->head = new OA\Head(...$args),
+            'patch' => $pathItem->patch = new OA\Patch(...$args),
+            'trace' => $pathItem->trace = new OA\Trace(...$args),
+            default => null,
+        };
     }
 
     /**
-     * @param non-empty-list<Segment> $segments
+     * @param list<PathParameter> $parameters
      *
-     * @return list<array<string, mixed>>
+     * @return list<OA\Parameter>|null
      */
-    private static function parameters(array $segments): array
+    private static function parameters(array $parameters): ?array
     {
-        $parameters = [];
-        foreach ($segments as $segment) {
-            if ($segment->type === SegmentType::Static) {
-                continue;
-            }
-
-            $parameters[] = [
-                'name' => $segment->value,
-                'in' => 'path',
-                'required' => $segment->type !== SegmentType::CatchAllZero,
-                'schema' => ['type' => 'string'],
-            ];
+        if ($parameters === []) {
+            return null;
         }
 
-        return $parameters;
+        return array_map(
+            static fn(PathParameter $parameter): OA\Parameter => new OA\PathParameter(
+                name: $parameter->name,
+                required: $parameter->required,
+                schema: new OA\Schema(type: 'string'),
+            ),
+            $parameters,
+        );
     }
 
     /**

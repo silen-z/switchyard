@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 namespace SilenZ\Segmatch\Tests\OpenApi;
 
+use OpenApi\Attributes as OA;
 use PHPUnit\Framework\TestCase;
 use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\OpenApi\PathsGenerator;
 use SilenZ\Segmatch\Router;
-
-use function array_keys;
 
 final class PathsGeneratorTest extends TestCase
 {
@@ -24,16 +23,34 @@ final class PathsGeneratorTest extends TestCase
         return new Router($routes->table());
     }
 
+    /**
+     * @param list<OA\PathItem> $pathItems
+     */
+    private static function pathItem(array $pathItems, string $path): OA\PathItem
+    {
+        foreach ($pathItems as $pathItem) {
+            if ($pathItem->path === $path) {
+                return $pathItem;
+            }
+        }
+
+        static::fail("No path item generated for \"{$path}\"");
+    }
+
     public function testStaticPathWithAPlaceholderResponse(): void
     {
         $router = self::router(static function (Routes $r): void {
             $r->get('/ping', 'ping');
         });
 
-        static::assertSame(
-            ['paths' => ['/ping' => ['get' => ['responses' => ['200' => ['description' => 'OK']]]]]],
-            PathsGenerator::generate($router->definitions()),
-        );
+        $pathItems = PathsGenerator::generate($router->definitions());
+
+        static::assertCount(1, $pathItems);
+        $get = self::pathItem($pathItems, '/ping')->get;
+        static::assertInstanceOf(OA\Get::class, $get);
+        static::assertCount(1, $get->responses);
+        static::assertSame(200, $get->responses[0]->response);
+        static::assertSame('OK', $get->responses[0]->description);
     }
 
     public function testPathParametersComeFromTheRouteSegments(): void
@@ -42,12 +59,15 @@ final class PathsGeneratorTest extends TestCase
             $r->get('/users/{id}', 'show');
         });
 
-        $paths = PathsGenerator::generate($router->definitions())['paths'];
+        $pathItems = PathsGenerator::generate($router->definitions());
+        $get = self::pathItem($pathItems, '/users/{id}')->get;
 
-        static::assertSame(
-            [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'string']]],
-            $paths['/users/{id}']['get']['parameters'],
-        );
+        static::assertCount(1, $get->parameters);
+        $parameter = $get->parameters[0];
+        static::assertSame('id', $parameter->name);
+        static::assertSame('path', $parameter->in);
+        static::assertTrue($parameter->required);
+        static::assertSame('string', $parameter->schema->type);
     }
 
     public function testCatchAllZeroOrMoreIsNotRequired(): void
@@ -56,12 +76,10 @@ final class PathsGeneratorTest extends TestCase
             $r->get('/assets/{path*}', 'assets');
         });
 
-        $paths = PathsGenerator::generate($router->definitions())['paths'];
+        $pathItems = PathsGenerator::generate($router->definitions());
+        $get = self::pathItem($pathItems, '/assets/{path}')->get;
 
-        static::assertSame(
-            [['name' => 'path', 'in' => 'path', 'required' => false, 'schema' => ['type' => 'string']]],
-            $paths['/assets/{path}']['get']['parameters'],
-        );
+        static::assertFalse($get->parameters[0]->required);
     }
 
     public function testCatchAllOneOrMoreIsRequired(): void
@@ -70,12 +88,10 @@ final class PathsGeneratorTest extends TestCase
             $r->get('/files/{path+}', 'files');
         });
 
-        $paths = PathsGenerator::generate($router->definitions())['paths'];
+        $pathItems = PathsGenerator::generate($router->definitions());
+        $get = self::pathItem($pathItems, '/files/{path}')->get;
 
-        static::assertSame(
-            [['name' => 'path', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'string']]],
-            $paths['/files/{path}']['get']['parameters'],
-        );
+        static::assertTrue($get->parameters[0]->required);
     }
 
     public function testNameBecomesTheOperationId(): void
@@ -84,9 +100,9 @@ final class PathsGeneratorTest extends TestCase
             $r->get('/users/{id}', 'show')->name('users.show');
         });
 
-        $paths = PathsGenerator::generate($router->definitions())['paths'];
+        $pathItems = PathsGenerator::generate($router->definitions());
 
-        static::assertSame('users.show', $paths['/users/{id}']['get']['operationId']);
+        static::assertSame('users.show', self::pathItem($pathItems, '/users/{id}')->get->operationId);
     }
 
     public function testUnnamedRouteHasNoOperationId(): void
@@ -95,9 +111,9 @@ final class PathsGeneratorTest extends TestCase
             $r->get('/ping', 'ping');
         });
 
-        $paths = PathsGenerator::generate($router->definitions())['paths'];
+        $pathItems = PathsGenerator::generate($router->definitions());
 
-        static::assertArrayNotHasKey('operationId', $paths['/ping']['get']);
+        static::assertTrue(\OpenApi\Undefined::isDefault(self::pathItem($pathItems, '/ping')->get->operationId));
     }
 
     public function testTagsAreCarriedOver(): void
@@ -106,9 +122,9 @@ final class PathsGeneratorTest extends TestCase
             $r->get('/users', 'list')->tag('public', 'users');
         });
 
-        $paths = PathsGenerator::generate($router->definitions())['paths'];
+        $pathItems = PathsGenerator::generate($router->definitions());
 
-        static::assertSame(['public', 'users'], $paths['/users']['get']['tags']);
+        static::assertSame(['public', 'users'], self::pathItem($pathItems, '/users')->get->tags);
     }
 
     public function testRoutesSharingAPathMergeIntoOnePathItem(): void
@@ -118,9 +134,12 @@ final class PathsGeneratorTest extends TestCase
             $r->post('/users', 'create');
         });
 
-        $path = PathsGenerator::generate($router->definitions())['paths']['/users'];
+        $pathItems = PathsGenerator::generate($router->definitions());
 
-        static::assertSame(['get', 'post'], array_keys($path));
+        static::assertCount(1, $pathItems);
+        $pathItem = self::pathItem($pathItems, '/users');
+        static::assertInstanceOf(OA\Get::class, $pathItem->get);
+        static::assertInstanceOf(OA\Post::class, $pathItem->post);
     }
 
     public function testMapListsEachOfItsMethods(): void
@@ -129,9 +148,12 @@ final class PathsGeneratorTest extends TestCase
             $r->map(['PUT', 'PATCH'], '/users/{id}', 'update');
         });
 
-        $path = PathsGenerator::generate($router->definitions())['paths']['/users/{id}'];
+        $pathItems = PathsGenerator::generate($router->definitions());
+        $pathItem = self::pathItem($pathItems, '/users/{id}');
 
-        static::assertSame(['put', 'patch'], array_keys($path));
+        static::assertInstanceOf(OA\Put::class, $pathItem->put);
+        static::assertInstanceOf(OA\Patch::class, $pathItem->patch);
+        static::assertTrue(\OpenApi\Undefined::isDefault($pathItem->get));
     }
 
     public function testAnyRouteListsEveryMethod(): void
@@ -140,9 +162,17 @@ final class PathsGeneratorTest extends TestCase
             $r->any('/webhooks/{provider}', 'webhook');
         });
 
-        $path = PathsGenerator::generate($router->definitions())['paths']['/webhooks/{provider}'];
+        $pathItems = PathsGenerator::generate($router->definitions());
+        $pathItem = self::pathItem($pathItems, '/webhooks/{provider}');
 
-        static::assertSame(['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'], array_keys($path));
+        static::assertInstanceOf(OA\Get::class, $pathItem->get);
+        static::assertInstanceOf(OA\Put::class, $pathItem->put);
+        static::assertInstanceOf(OA\Post::class, $pathItem->post);
+        static::assertInstanceOf(OA\Delete::class, $pathItem->delete);
+        static::assertInstanceOf(OA\Options::class, $pathItem->options);
+        static::assertInstanceOf(OA\Head::class, $pathItem->head);
+        static::assertInstanceOf(OA\Patch::class, $pathItem->patch);
+        static::assertInstanceOf(OA\Trace::class, $pathItem->trace);
     }
 
     public function testTrailingSlashIsPreservedInThePath(): void
@@ -151,7 +181,9 @@ final class PathsGeneratorTest extends TestCase
             $r->get('/users/', 'trailing');
         });
 
-        static::assertArrayHasKey('/users/', PathsGenerator::generate($router->definitions())['paths']);
+        $pathItems = PathsGenerator::generate($router->definitions());
+
+        static::assertInstanceOf(OA\Get::class, self::pathItem($pathItems, '/users/')->get);
     }
 
     public function testGroupPrefixesAreIncludedInThePath(): void
@@ -160,8 +192,8 @@ final class PathsGeneratorTest extends TestCase
             $r->group('/api')->get('/users/{id}', 'show');
         });
 
-        $paths = PathsGenerator::generate($router->definitions())['paths'];
+        $pathItems = PathsGenerator::generate($router->definitions());
 
-        static::assertArrayHasKey('/api/users/{id}', $paths);
+        static::assertInstanceOf(OA\Get::class, self::pathItem($pathItems, '/api/users/{id}')->get);
     }
 }

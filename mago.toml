@@ -1,0 +1,26 @@
+#:schema https://mago.carthage.software/1.40.2/schema.json
+version = "1"
+php-version = "8.4"
+
+[source]
+paths = ["src", "tests", "benchmarks", "examples"]
+includes = ["vendor"]
+excludes = ["var/**", "*/var/**"]
+
+[linter]
+integrations = ["phpunit"]
+
+[linter.rules]
+# HandlerBuilder::build() enumerates every distinct outcome one request can have — a matched route,
+# a HEAD request answered by a GET route's handler, a trailing-slash redirect (itself subject to the
+# same HEAD/GET equivalence), method-not-allowed, not-found — each its own real branch of one
+# decision, not entangled unrelated responsibilities. Splitting it further would scatter that one
+# decision across more entry points rather than simplify it.
+cyclomatic-complexity = { threshold = 30, exclude = ["src/HandlerBuilder.php"] }
+halstead = { exclude = ["tests/**", "benchmarks/**"] }
+
+# Data-provider heavy test classes and benchmark classes legitimately have many methods, and so do
+# Routes and LazyRoutes, each with one helper per HTTP method.
+too-many-methods = { exclude = ["tests/**", "benchmarks/**", "src/Routes.php", "src/LazyRoutes.php"] }
+
+no-else-clause = { enabled = false }

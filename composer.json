@@ -11,7 +11,8 @@
     },
     "autoload-dev": {
         "psr-4": {
-            "SilenZ\\Switchyard\\Tests\\": "tests/"
+            "SilenZ\\Switchyard\\Tests\\": "tests/",
+            "SilenZ\\Switchyard\\Benchmarks\\": "benchmarks/"
         }
     },
     "authors": [
@@ -33,7 +34,8 @@
     },
     "require-dev": {
         "phpunit/phpunit": "^13.3",
-        "nyholm/psr7": "^1.8"
+        "nyholm/psr7": "^1.8",
+        "phpbench/phpbench": "^1.7"
     },
     "repositories": [
         {
@@ -43,6 +45,13 @@
     ],
     "scripts": {
         "test": "phpunit",
-        "coverage": "phpunit --coverage-html var/coverage --coverage-text"
+        "coverage": "phpunit --coverage-html var/coverage --coverage-text",
+        "bench": "phpbench run --report=aggregate",
+        "qa": [
+            "mago format --check",
+            "mago lint",
+            "mago analyze",
+            "@test"
+        ]
     }
 }

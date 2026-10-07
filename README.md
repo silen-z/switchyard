@@ -112,8 +112,9 @@ $router = new Router(
   ```
 
   Full runnable apps contrasting the two, each with its own `index.php` to run with
-  `php -S localhost:8000 index.php`, are in `examples/eager-routes` and `examples/lazy-routes` in
-  the sibling `segmatch` repo, which exercises this package alongside Beeline.
+  `php -S localhost:8000 index.php`, are in
+  [`examples/eager-routes`](examples/eager-routes/index.php) and
+  [`examples/lazy-routes`](examples/lazy-routes/index.php).
 
   The price: every handler, middleware entry and filter must be a class name or container identifier
   — an instance or closure would only exist on the request that built the cache, so `$define` throws
@@ -415,8 +416,8 @@ $document = new OA\OpenApi(
 $document->toJson(); // or ->toYaml(), ->saveAs(...), ->validate()
 ```
 
-A full runnable version is in `examples/openapi.php` in the sibling `segmatch` repo — run it with
-`php examples/openapi.php` from that repo's root.
+A full runnable version is in [`examples/openapi.php`](examples/openapi.php) — run it with
+`php examples/openapi.php`.
 
 - **It covers only what Beeline's route table knows:** paths, methods, path parameters, names (as
   `operationId`) and tags. Request/response bodies, security schemes, `info` and `servers` aren't
@@ -435,9 +436,25 @@ A full runnable version is in `examples/openapi.php` in the sibling `segmatch` r
 
 ## Development
 
+There's no PHP on the host by assumption — use the Docker setup in `docker/`. Since this package
+depends on `silenz/beeline` via a local path repository (`../beeline`), `docker-compose.yml` mounts
+the *parent* directory, not just this repo, so the sibling is visible inside the container:
+
 ```bash
-composer test
+docker compose up -d
+docker compose exec php composer install
+docker compose exec php composer qa
 ```
 
-Standalone package tests. For QA tooling, benchmarks and runnable examples exercising this package
-alongside Beeline, see the sibling `segmatch` repo.
+`composer qa` runs `mago format --check`, `mago lint`, `mago analyze` and then the tests
+(`composer test`). If Docker isn't available, any PHP ≥8.4 CLI binary works the same way, as long as
+`../beeline` exists on disk.
+
+```bash
+composer bench
+```
+
+The one benchmark here, `DeclareBench`, measures the cost of declaring routes through `Routes`
+(`benchFlat`) versus declaring and compiling them (`benchCompiled`) — see its own docblock for how
+that compares to Beeline's own benchmarks (in the sibling `beeline` repo) for the compile-only cost.
+Run it with `vendor/bin/phpbench run --report=aggregate`.

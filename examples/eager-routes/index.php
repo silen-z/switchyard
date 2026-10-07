@@ -17,7 +17,7 @@
  * Routes declares the whole tree on every request — there's no way around that: a handler or
  * middleware given as a real instance (as below) only exists for as long as the request that declared
  * it, so it can never be loaded back from a route cache. That's what Routes' own
- * MetadataRegistry is for (see switchyard/README.md's "HTTP routes" section) — only *that* is ever skipped on a
+ * MetadataRegistry is for (see this repo's README, "HTTP routes" section) — only *that* is ever skipped on a
  * cache hit, the compiled path tree below it. So a FileCache still pays off here: what's expensive is
  * the segment-tree compilation, not re-running a handful of ->get()/->group() calls, and the
  * X-Routes-Declared header below is "yes" on every single request to make that explicit. Compare

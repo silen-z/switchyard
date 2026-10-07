@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace SilenZ\Benchmarks;
+namespace SilenZ\Switchyard\Benchmarks;
 
 use PhpBench\Attributes\Groups;
 use PhpBench\Attributes\Iterations;

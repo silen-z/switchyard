@@ -1,0 +1,10 @@
+services:
+  php:
+    build:
+      context: ./docker/php
+    volumes:
+      # The whole parent directory, not just this repo: composer.json depends on ../beeline via a
+      # local path repository, which needs to be visible inside the container too.
+      - ..:/experiments
+    working_dir: /experiments/switchyard
+    command: ["sleep", "infinity"]

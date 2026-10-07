@@ -43,7 +43,7 @@ final class PathsGeneratorTest extends TestCase
             $r->get('/ping', 'ping');
         });
 
-        $pathItems = PathsGenerator::generate($router->table()->definitions());
+        $pathItems = PathsGenerator::generate($router->table()->definitions(), $router->table()->registry());
 
         static::assertCount(1, $pathItems);
         $get = self::pathItem($pathItems, '/ping')->get;
@@ -59,7 +59,7 @@ final class PathsGeneratorTest extends TestCase
             $r->get('/users/{id}', 'show');
         });
 
-        $pathItems = PathsGenerator::generate($router->table()->definitions());
+        $pathItems = PathsGenerator::generate($router->table()->definitions(), $router->table()->registry());
         $get = self::pathItem($pathItems, '/users/{id}')->get;
 
         static::assertCount(1, $get->parameters);
@@ -76,7 +76,7 @@ final class PathsGeneratorTest extends TestCase
             $r->get('/assets/{path*}', 'assets');
         });
 
-        $pathItems = PathsGenerator::generate($router->table()->definitions());
+        $pathItems = PathsGenerator::generate($router->table()->definitions(), $router->table()->registry());
         $get = self::pathItem($pathItems, '/assets/{path}')->get;
 
         static::assertFalse($get->parameters[0]->required);
@@ -88,7 +88,7 @@ final class PathsGeneratorTest extends TestCase
             $r->get('/files/{path+}', 'files');
         });
 
-        $pathItems = PathsGenerator::generate($router->table()->definitions());
+        $pathItems = PathsGenerator::generate($router->table()->definitions(), $router->table()->registry());
         $get = self::pathItem($pathItems, '/files/{path}')->get;
 
         static::assertTrue($get->parameters[0]->required);
@@ -100,7 +100,7 @@ final class PathsGeneratorTest extends TestCase
             $r->get('/users/{id}', 'show')->name('users.show');
         });
 
-        $pathItems = PathsGenerator::generate($router->table()->definitions());
+        $pathItems = PathsGenerator::generate($router->table()->definitions(), $router->table()->registry());
 
         static::assertSame('users.show', self::pathItem($pathItems, '/users/{id}')->get->operationId);
     }
@@ -111,7 +111,7 @@ final class PathsGeneratorTest extends TestCase
             $r->get('/ping', 'ping');
         });
 
-        $pathItems = PathsGenerator::generate($router->table()->definitions());
+        $pathItems = PathsGenerator::generate($router->table()->definitions(), $router->table()->registry());
 
         static::assertTrue(\OpenApi\Undefined::isDefault(self::pathItem($pathItems, '/ping')->get->operationId));
     }
@@ -122,7 +122,7 @@ final class PathsGeneratorTest extends TestCase
             $r->get('/users', 'list')->tag('public', 'users');
         });
 
-        $pathItems = PathsGenerator::generate($router->table()->definitions());
+        $pathItems = PathsGenerator::generate($router->table()->definitions(), $router->table()->registry());
 
         static::assertSame(['public', 'users'], self::pathItem($pathItems, '/users')->get->tags);
     }
@@ -134,7 +134,7 @@ final class PathsGeneratorTest extends TestCase
             $r->post('/users', 'create');
         });
 
-        $pathItems = PathsGenerator::generate($router->table()->definitions());
+        $pathItems = PathsGenerator::generate($router->table()->definitions(), $router->table()->registry());
 
         static::assertCount(1, $pathItems);
         $pathItem = self::pathItem($pathItems, '/users');
@@ -148,7 +148,7 @@ final class PathsGeneratorTest extends TestCase
             $r->map(['PUT', 'PATCH'], '/users/{id}', 'update');
         });
 
-        $pathItems = PathsGenerator::generate($router->table()->definitions());
+        $pathItems = PathsGenerator::generate($router->table()->definitions(), $router->table()->registry());
         $pathItem = self::pathItem($pathItems, '/users/{id}');
 
         static::assertInstanceOf(OA\Put::class, $pathItem->put);
@@ -162,7 +162,7 @@ final class PathsGeneratorTest extends TestCase
             $r->any('/webhooks/{provider}', 'webhook');
         });
 
-        $pathItems = PathsGenerator::generate($router->table()->definitions());
+        $pathItems = PathsGenerator::generate($router->table()->definitions(), $router->table()->registry());
         $pathItem = self::pathItem($pathItems, '/webhooks/{provider}');
 
         static::assertInstanceOf(OA\Get::class, $pathItem->get);
@@ -181,7 +181,7 @@ final class PathsGeneratorTest extends TestCase
             $r->get('/users/', 'trailing');
         });
 
-        $pathItems = PathsGenerator::generate($router->table()->definitions());
+        $pathItems = PathsGenerator::generate($router->table()->definitions(), $router->table()->registry());
 
         static::assertInstanceOf(OA\Get::class, self::pathItem($pathItems, '/users/')->get);
     }
@@ -192,7 +192,7 @@ final class PathsGeneratorTest extends TestCase
             $r->group('/api')->get('/users/{id}', 'show');
         });
 
-        $pathItems = PathsGenerator::generate($router->table()->definitions());
+        $pathItems = PathsGenerator::generate($router->table()->definitions(), $router->table()->registry());
 
         static::assertInstanceOf(OA\Get::class, self::pathItem($pathItems, '/api/users/{id}')->get);
     }

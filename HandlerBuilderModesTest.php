@@ -6,12 +6,15 @@ namespace SilenZ\Segmatch\Tests\Http;
 
 use ArrayObject;
 use Closure;
+use Nyholm\Psr7\Factory\Psr17Factory;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Server\MiddlewareInterface;
 use SilenZ\Segmatch\Cache\RouteCache;
 use SilenZ\Segmatch\Exception\InvalidRouteException;
+use SilenZ\Segmatch\Http\ErrorMiddleware;
 use SilenZ\Segmatch\Http\HandlerBuilder;
 use SilenZ\Segmatch\Http\LazyRoutes;
 use SilenZ\Segmatch\Http\Routes;
@@ -78,11 +81,15 @@ final class HandlerBuilderModesTest extends TestCase
         $r->get('/ping', 'ping');
     }
 
-    private static function respond(HandlerBuilder $builder, string $method, string $path): ResponseInterface
-    {
+    private static function respond(
+        HandlerBuilder $builder,
+        string $method,
+        string $path,
+        MiddlewareInterface|string $errorMiddleware = ErrorMiddleware::class,
+    ): ResponseInterface {
         $request = new ServerRequest($method, $path);
 
-        return $builder->build($request)->handle($request);
+        return $builder->build($request, errorMiddleware: $errorMiddleware)->handle($request);
     }
 
     /**
@@ -156,12 +163,17 @@ final class HandlerBuilderModesTest extends TestCase
     #[DataProvider('modes')]
     public function testAHandlerMethodMustReturnAResponse(string $mode): void
     {
-        $builder = self::declared($mode, static fn(Routes|LazyRoutes $r) => $r->get('/x', [UserController::class, 'broken']));
+        $builder = self::declared($mode, static fn(Routes|LazyRoutes $r) => $r->get('/x', [
+            UserController::class,
+            'broken',
+        ]));
 
         $this->expectException(UnexpectedValueException::class);
         $this->expectExceptionMessageMatches('/::broken\(\) returned string instead of a /');
 
-        self::respond($builder, 'GET', '/x');
+        // The default ErrorMiddleware would otherwise turn this into a 500 response; a middleware that
+        // doesn't catch anything lets it propagate, so the underlying exception is still visible here.
+        self::respond($builder, 'GET', '/x', errorMiddleware: new TagMiddleware('unused'));
     }
 
     public function testAHandlerPairMayHoldAnInstanceWhenDeclaredEagerly(): void
@@ -176,8 +188,13 @@ final class HandlerBuilderModesTest extends TestCase
 
     public function testAHandlerPairsTargetIsOnlyResolvedOnceTheRequestReachesIt(): void
     {
-        // The container knows nothing but the middleware, so resolving the target would throw.
-        $container = new ArrayContainer(['deny' => new StatusMiddleware(401)]);
+        // The container knows nothing but the middleware and HandlerBuilder's own fallbacks, so
+        // resolving the target would throw.
+        $psr17 = new Psr17Factory();
+        $container = new ArrayContainer([
+            'deny' => new StatusMiddleware(401),
+            ErrorMiddleware::class => new ErrorMiddleware($psr17, $psr17),
+        ]);
         $table = LazyRoutes::table(
             static fn(LazyRoutes $r) => $r->get('/x', ['unknown.controller', 'show'])->middleware('deny'),
         );

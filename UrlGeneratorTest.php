@@ -108,7 +108,7 @@ final class UrlGeneratorTest extends TestCase
     public function testWorksFromTheCache(): void
     {
         $cache = new ArrayRouteCache();
-        self::router($cache, 'routes')->matcher();
+        self::router($cache, 'routes')->metadata();
 
         $cached = new Router(
             new RouteTable(static fn(): never => throw new RuntimeException('Routes were declared.'), 'routes'),

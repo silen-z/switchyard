@@ -7,6 +7,7 @@ namespace SilenZ\Segmatch\Tests\Http\Fixtures;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Psr\Container\ContainerInterface;
 use SilenZ\Segmatch\Http\AllowedMethodsHandler;
+use SilenZ\Segmatch\Http\ErrorMiddleware;
 use SilenZ\Segmatch\Http\HeadMiddleware;
 use SilenZ\Segmatch\Http\NotFoundHandler;
 
@@ -42,6 +43,7 @@ final class EchoContainer implements ContainerInterface
             NotFoundHandler::class => new NotFoundHandler($this->psr17),
             AllowedMethodsHandler::class => new AllowedMethodsHandler($this->psr17),
             HeadMiddleware::class => new HeadMiddleware($this->psr17),
+            ErrorMiddleware::class => new ErrorMiddleware($this->psr17, $this->psr17),
             // @mago-expect analysis:unknown-class-instantiation
             default => class_exists($id) ? new $id() : new EchoHandler($id),
         };

@@ -13,11 +13,14 @@ use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use SilenZ\Segmatch\Http\ErrorMiddleware;
 use SilenZ\Segmatch\Http\Found;
-use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\Http\HandlerBuilder;
+use SilenZ\Segmatch\Http\NotFoundHandler;
+use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\Router;
 use SilenZ\Segmatch\Tests\Http\Fixtures\ArrayContainer;
+use SilenZ\Segmatch\Tests\Http\Fixtures\CustomErrorMiddleware;
 use SilenZ\Segmatch\Tests\Http\Fixtures\EchoContainer;
 use SilenZ\Segmatch\Tests\Http\Fixtures\FeatureRouteFilter;
 use SilenZ\Segmatch\Tests\Http\Fixtures\NumericRouteFilter;
@@ -26,6 +29,7 @@ use SilenZ\Segmatch\Tests\Http\Fixtures\RouteInfoMiddleware;
 use SilenZ\Segmatch\Tests\Http\Fixtures\ShowHandler;
 use SilenZ\Segmatch\Tests\Http\Fixtures\StatusHandler;
 use SilenZ\Segmatch\Tests\Http\Fixtures\TagMiddleware;
+use SilenZ\Segmatch\Tests\Http\Fixtures\ThrowingHandler;
 
 final class ResolvedHandlerTest extends TestCase
 {
@@ -59,7 +63,7 @@ final class ResolvedHandlerTest extends TestCase
     private static function respond(
         HandlerBuilder $builder,
         ServerRequestInterface $request,
-        ?RequestHandlerInterface $notFoundHandler = null,
+        RequestHandlerInterface|string $notFoundHandler = NotFoundHandler::class,
     ): ResponseInterface {
         return $builder->build($request, $notFoundHandler)->handle($request);
     }
@@ -85,10 +89,12 @@ final class ResolvedHandlerTest extends TestCase
 
     public function testRunsTheRoutesMiddlewareThenItsHandler(): void
     {
+        $psr17 = new Psr17Factory();
         $container = new ArrayContainer([
-            'show' => new ShowHandler(new Psr17Factory()),
+            'show' => new ShowHandler($psr17),
             'first' => new TagMiddleware('first'),
             'second' => new TagMiddleware('second'),
+            ErrorMiddleware::class => new ErrorMiddleware($psr17, $psr17),
         ]);
         $builder = self::builder(static function (Routes $r): void {
             $r->get('/users/{id}', 'show')->middleware(['first', 'second']);
@@ -115,11 +121,12 @@ final class ResolvedHandlerTest extends TestCase
                 return new Response(204);
             }
         };
+        $psr17 = new Psr17Factory();
         $builder = self::builder(
             static function (Routes $r): void {
                 $r->get('/users/{id}', 'show');
             },
-            new ArrayContainer(['show' => $handler]),
+            new ArrayContainer(['show' => $handler, ErrorMiddleware::class => new ErrorMiddleware($psr17, $psr17)]),
         );
 
         self::respond($builder, new ServerRequest('GET', '/users/42'));
@@ -239,5 +246,25 @@ final class ResolvedHandlerTest extends TestCase
         static::assertSame('GET, HEAD', $options->getHeaderLine('Allow'));
 
         static::assertSame(204, self::respond($builder, new ServerRequest('GET', '/ping'))->getStatusCode());
+    }
+
+    public function testDefaultErrorMiddlewareCatchesAThrowingHandler(): void
+    {
+        $builder = self::builder(static fn(Routes $r) => $r->get('/boom', ThrowingHandler::class), new EchoContainer());
+
+        $response = self::respond($builder, new ServerRequest('GET', '/boom'));
+
+        static::assertSame(500, $response->getStatusCode());
+        static::assertSame('Server error', (string) $response->getBody());
+    }
+
+    public function testOwnErrorMiddlewareReplacesTheDefault(): void
+    {
+        $builder = self::builder(static fn(Routes $r) => $r->get('/boom', ThrowingHandler::class), new EchoContainer());
+        $request = new ServerRequest('GET', '/boom');
+
+        $response = $builder->build($request, errorMiddleware: new CustomErrorMiddleware(599))->handle($request);
+
+        static::assertSame(599, $response->getStatusCode());
     }
 }

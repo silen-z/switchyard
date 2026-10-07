@@ -12,6 +12,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use SilenZ\Segmatch\Http\Found;
 use SilenZ\Segmatch\Http\HandlerBuilder;
+use SilenZ\Segmatch\Http\NotFoundHandler;
 use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\Router;
 use SilenZ\Segmatch\Tests\Http\Fixtures\ArrayRouteCache;
@@ -48,7 +49,7 @@ final class HandlerBuilderTest extends TestCase
     private static function respond(
         HandlerBuilder $builder,
         ServerRequestInterface $request,
-        ?RequestHandlerInterface $notFoundHandler = null,
+        RequestHandlerInterface|string $notFoundHandler = NotFoundHandler::class,
     ): ResponseInterface {
         return $builder->build($request, $notFoundHandler)->handle($request);
     }
@@ -372,8 +373,10 @@ final class HandlerBuilderTest extends TestCase
         // what ends up in the compiled routes.
         $cold = new Routes();
         $cold->get('/x', new PlainHandler());
-        (new HandlerBuilder(new EchoContainer(), new Router($cold->table('routes'), $cache)))
-            ->build(new ServerRequest('GET', '/x'));
+        new HandlerBuilder(new EchoContainer(), new Router($cold->table('routes'), $cache))->build(new ServerRequest(
+            'GET',
+            '/x',
+        ));
 
         // Warm: a fresh declaration, with its own fresh instance at the same id, answers from the
         // cached routes and resolves its own instance for that id — its `Router` carries this same

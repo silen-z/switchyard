@@ -262,7 +262,7 @@ final class RoutesTest extends TestCase
 
         $router = new Router($routes->table());
 
-        static::assertSame(['middleware' => ['log', 'cors']], $router->tableMetadata());
+        static::assertSame(['middleware' => ['log', 'cors']], $router->metadata());
         static::assertSame([], self::find($router, 'GET', '/a')['middleware'] ?? null);
         static::assertSame(['api'], self::find($router, 'GET', '/api/b')['middleware'] ?? null);
     }
@@ -423,6 +423,6 @@ final class RoutesTest extends TestCase
         $this->expectException(InvalidRouteException::class);
         $this->expectExceptionMessageMatches('/' . preg_quote($message, delimiter: '/') . '/');
 
-        self::router($define)->matcher();
+        self::router($define)->metadata();
     }
 }

@@ -8,6 +8,7 @@ use Nyholm\Psr7\Factory\Psr17Factory;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
 use SilenZ\Segmatch\Http\AllowedMethodsHandler;
+use SilenZ\Segmatch\Http\ErrorMiddleware;
 use SilenZ\Segmatch\Http\HandlerBuilder;
 use SilenZ\Segmatch\Http\HeadMiddleware;
 use SilenZ\Segmatch\Http\LazyRoutes;
@@ -26,12 +27,12 @@ use SilenZ\Segmatch\Tests\Http\Fixtures\UserController;
  * straight-line in its own test with no shared `builder()`/`respond()` helper in between: this is what
  * the call sites actually look like.
  *
- * Eager routes may hand over real instances directly, so the container below only has to resolve the
- * three fallback handlers. Lazy routes can't: every middleware, filter and handler target has to be a
- * class name or container identifier instead, so the same container also has to know "log", "auth",
- * {@see UserController} and the pre-configured {@see NumericRouteFilter} — and, since nothing it
- * declares is ever wrapped, there's no registry setup to do for it either: `$router->registry()` is
- * just the empty default every `RouteTable` carries.
+ * Eager routes may hand over real instances directly, so the container below only has to resolve
+ * {@see HandlerBuilder}'s own fallbacks. Lazy routes can't: every middleware, filter and handler
+ * target has to be a class name or container identifier instead, so the same container also has to
+ * know "log", "auth", {@see UserController} and the pre-configured {@see NumericRouteFilter} — and,
+ * since nothing it declares is ever wrapped, there's no registry setup to do for it either:
+ * `$router->table()->registry()` is just the empty default every `RouteTable` carries.
  */
 final class HandlerBuilderUsageTest extends TestCase
 {
@@ -42,6 +43,7 @@ final class HandlerBuilderUsageTest extends TestCase
             NotFoundHandler::class => new NotFoundHandler($psr17),
             AllowedMethodsHandler::class => new AllowedMethodsHandler($psr17),
             HeadMiddleware::class => new HeadMiddleware($psr17),
+            ErrorMiddleware::class => new ErrorMiddleware($psr17, $psr17),
         ]);
 
         $routes = new Routes();
@@ -88,6 +90,7 @@ final class HandlerBuilderUsageTest extends TestCase
             NotFoundHandler::class => new NotFoundHandler($psr17),
             AllowedMethodsHandler::class => new AllowedMethodsHandler($psr17),
             HeadMiddleware::class => new HeadMiddleware($psr17),
+            ErrorMiddleware::class => new ErrorMiddleware($psr17, $psr17),
             'log' => new TagMiddleware('log'),
             'auth' => new StatusMiddleware(401),
             PlainHandler::class => new PlainHandler(),

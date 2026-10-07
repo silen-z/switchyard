@@ -41,8 +41,9 @@ use function strtoupper;
  * all an all-lazy router ever needs.
  *
  * Otherwise this is {@see Routes}, shaped the same way: verb helpers, `group()`, `->middleware()` and
- * `->tag()` accumulate only once the tree is resolved into definitions. {@see notFoundHandler()} and
- * {@see errorMiddleware()} work the same way they do there too — see {@see Routes} for why they exist.
+ * `->tag()` accumulate only once the tree is resolved into definitions. {@see notFound()} works the
+ * same way it does there too — see {@see Routes} for why it exists, and why there's no equivalent
+ * for the default error middleware.
  */
 final class LazyRoutes
 {
@@ -55,9 +56,7 @@ final class LazyRoutes
     /** @var list<string> */
     private array $tags = [];
 
-    private ?string $notFoundHandler = null;
-
-    private ?string $errorMiddleware = null;
+    private ?string $notFound = null;
 
     /**
      * @param string $prefix "" for no prefix (the root has none), otherwise starting with "/" and not
@@ -183,7 +182,8 @@ final class LazyRoutes
      * middleware of any enclosing group.
      *
      * Declared on the root {@see HandlerBuilder} answers from, it also wraps the not-found and
-     * method-not-allowed/OPTIONS responses — see {@see Routes::middleware()}.
+     * method-not-allowed/OPTIONS responses, and sits inside the default {@see ErrorMiddleware} if
+     * declared first — see {@see Routes::middleware()}.
      *
      * @param string|list<string> $middleware one middleware, or a list of them, each a class name or
      *                                        container identifier
@@ -221,33 +221,13 @@ final class LazyRoutes
      *
      * @throws InvalidRouteException when called on anything but the root, or $handler isn't a string
      */
-    public function notFoundHandler(mixed $handler): self
+    public function notFound(mixed $handler): self
     {
         if ($this->root !== null) {
             throw new InvalidRouteException('Only the root Routes may set the not-found handler, not a nested group.');
         }
 
-        $this->notFoundHandler = self::plainString($handler, 'The not-found handler');
-
-        return $this;
-    }
-
-    /**
-     * Replaces {@see HandlerBuilder}'s default {@see ErrorMiddleware} for this tree: what wraps every
-     * outcome — matched or not — turning a throw into a response instead of letting it reach
-     * `build()`'s caller. A class name or container identifier, same restriction as {@see middleware()}.
-     *
-     * Only the root may set this, for the same reason as {@see notFoundHandler()}.
-     *
-     * @throws InvalidRouteException when called on anything but the root, or $middleware isn't a string
-     */
-    public function errorMiddleware(mixed $middleware): self
-    {
-        if ($this->root !== null) {
-            throw new InvalidRouteException('Only the root Routes may set the error middleware, not a nested group.');
-        }
-
-        $this->errorMiddleware = self::plainString($middleware, 'The error middleware');
+        $this->notFound = self::plainString($handler, 'The not-found handler');
 
         return $this;
     }
@@ -275,8 +255,7 @@ final class LazyRoutes
 
         return new RouteTable(static fn(): array => $once()->definitions(), $cacheKey, static fn(): array => [
             'middleware' => $once()->middleware,
-            'notFoundHandler' => $once()->notFoundHandler,
-            'errorMiddleware' => $once()->errorMiddleware,
+            'notFound' => $once()->notFound,
         ]);
     }
 

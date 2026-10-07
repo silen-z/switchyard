@@ -43,8 +43,7 @@ final class HandlerBuilder
     /**
      * @param ContainerInterface $container resolves everything a stack entry is named as — the
      *                                       route's middleware and handler, its {@see RouteFilter}s,
-     *                                       {@see Routes::notFoundHandler()} and {@see
-     *                                       Routes::errorMiddleware()} if either replaces the default —
+     *                                       {@see Routes::notFound()} if it replaces the default —
      *                                       plus this builder's own fallbacks: a PSR-17 response
      *                                       factory for {@see NotFoundHandler}, {@see
      *                                       AllowedMethodsHandler} and this builder's own trailing-slash
@@ -72,22 +71,25 @@ final class HandlerBuilder
      * - no route for the exact path, but one exists with its trailing "/" added or removed: a 308 to
      *   that path via {@see RedirectHandler};
      * - no route for the path at all (nor, if looked for, a trailing-slash counterpart): {@see
-     *   NotFoundHandler}, a 404, or whatever {@see Routes::notFoundHandler()} replaced it with;
+     *   NotFoundHandler}, a 404, or whatever {@see Routes::notFound()} replaced it with;
      * - routes for the path, not the method: {@see AllowedMethodsHandler}, a 405 with `Allow`;
      * - the same for an OPTIONS request: {@see AllowedMethodsHandler}, a 200 with `Allow`.
      *
      * The latter two give `$request->getAttribute(MethodNotAllowed::class)`, counting only routes
      * rejected solely for their method (HEAD included whenever GET is).
      *
-     * Either way, {@see ErrorMiddleware} — or whatever {@see Routes::errorMiddleware()} replaced it
-     * with — wraps everything else, including the root's own middleware — turning whatever any of it
-     * throws into a 500 instead of letting it reach this method's caller — outermost of all but
-     * {@see HeadMiddleware} on a HEAD request, whose body-stripping applies to an error response too.
+     * Either way, {@see ErrorMiddleware} wraps everything else, including the root's own middleware —
+     * turning whatever any of it throws into a 500 instead of letting it reach this method's caller —
+     * outermost of all but {@see HeadMiddleware} on a HEAD request, whose body-stripping applies to an
+     * error response too. Unlike {@see Routes::notFound()}, this default isn't replaceable: it's
+     * always the outermost entry, so add your own error-catching middleware via
+     * {@see Routes::middleware()} instead (declared first) to actually change the effective behavior —
+     * see there for why that's equivalent, not just a workaround.
      *
-     * Both replacements are declared on {@see Routes}/{@see LazyRoutes}, not passed here: whoever
-     * declares the routes may not be whoever builds this `HandlerBuilder` (e.g. a framework exposing
-     * `Routes` to its own users while keeping this call to itself), so there's nothing left for a
-     * caller of `build()` itself to override.
+     * The not-found replacement is declared on {@see Routes}/{@see LazyRoutes}, not passed here:
+     * whoever declares the routes may not be whoever builds this `HandlerBuilder` (e.g. a framework
+     * exposing `Routes` to its own users while keeping this call to itself), so there's nothing left
+     * for a caller of `build()` itself to override.
      */
     public function build(ServerRequestInterface $request): RequestHandlerInterface
     {
@@ -99,7 +101,7 @@ final class HandlerBuilder
 
         $match = $this->router->match($path, $filter);
 
-        $stack = [$this->errorMiddleware(), ...$this->globalMiddleware()];
+        $stack = [ErrorMiddleware::class, ...$this->globalMiddleware()];
 
         if ($match instanceof RouteMatch) {
             array_push($stack, ...$this->matched($match));
@@ -109,7 +111,7 @@ final class HandlerBuilder
             if ($redirect !== null) {
                 $stack[] = $redirect;
             } else {
-                array_push($stack, ...$this->fallback($match->rejected, $request, $this->notFoundHandler()));
+                array_push($stack, ...$this->fallback($match->rejected, $request, $this->notFound()));
             }
         }
 
@@ -291,25 +293,15 @@ final class HandlerBuilder
     }
 
     /**
-     * {@see Routes::notFoundHandler()}'s replacement, from {@see Router::metadata()} — see
+     * {@see Routes::notFound()}'s replacement, from {@see Router::metadata()} — see
      * {@see metadataValue()} — or {@see NotFoundHandler} if it was never called. Not resolved here: a
      * class name, container identifier or {@see InstanceRegistry} id (an instance was given) is
      * pushed onto the Relay stack as-is, same as any other entry, for {@see Resolver::entry()} to
      * resolve when the request actually reaches it.
      */
-    private function notFoundHandler(): mixed
+    private function notFound(): mixed
     {
-        return $this->metadataValue('notFoundHandler') ?? NotFoundHandler::class;
-    }
-
-    /**
-     * {@see Routes::errorMiddleware()}'s replacement, from {@see Router::metadata()} — see
-     * {@see metadataValue()} — or {@see ErrorMiddleware} if it was never called. Not resolved here,
-     * for the same reason as {@see notFoundHandler()}.
-     */
-    private function errorMiddleware(): mixed
-    {
-        return $this->metadataValue('errorMiddleware') ?? ErrorMiddleware::class;
+        return $this->metadataValue('notFound') ?? NotFoundHandler::class;
     }
 
     /**

@@ -40,9 +40,11 @@ use function strtoupper;
  * declaring on every request costs too much; its handler, middleware and filters may only be a class
  * name or container identifier.
  *
- * {@see notFoundHandler()} and {@see errorMiddleware()} let whoever declares the routes — not just
- * whoever builds the `HandlerBuilder` — replace those two defaults, e.g. a framework exposing this
- * tree to its own users while configuring its own `HandlerBuilder` internally.
+ * {@see notFound()} lets whoever declares the routes — not just whoever builds the `HandlerBuilder`
+ * — replace its default not-found handler, e.g. a framework exposing this tree to its own users while
+ * configuring its own `HandlerBuilder` internally. There's no equivalent for the default error
+ * middleware: it's always the outermost entry, so anything declared with {@see middleware()} instead
+ * sits further in and catches first — see {@see middleware()}.
  */
 final class Routes
 {
@@ -55,9 +57,7 @@ final class Routes
     /** @var list<string> */
     private array $tags = [];
 
-    private mixed $notFoundHandler = null;
-
-    private mixed $errorMiddleware = null;
+    private mixed $notFound = null;
 
     /**
      * @param string $prefix "" for no prefix (the root has none), otherwise starting with "/" and not
@@ -169,7 +169,11 @@ final class Routes
      * answers from — it also wraps the not-found and method-not-allowed/OPTIONS responses: the one way
      * to declare middleware for every outcome, matched or not. {@see HandlerBuilder}'s own default
      * {@see ErrorMiddleware} wraps this root middleware too, so a throw from it still becomes a 500
-     * rather than reaching `build()`'s caller.
+     * rather than reaching `build()`'s caller — there's deliberately no way to replace that default:
+     * add your own error-catching middleware here instead, declared first so it still wraps every
+     * other root middleware while itself sitting inside the default. An exception reaches the
+     * innermost catch first, so yours answers it and the default further out never sees a throwable
+     * at all — harmless, not a conflict.
      *
      * @param mixed $middleware one middleware, or a list of them
      */
@@ -209,34 +213,13 @@ final class Routes
      *
      * @throws InvalidRouteException when called on anything but the root
      */
-    public function notFoundHandler(mixed $handler): self
+    public function notFound(mixed $handler): self
     {
         if ($this->root !== null) {
             throw new InvalidRouteException('Only the root Routes may set the not-found handler, not a nested group.');
         }
 
-        $this->notFoundHandler = $this->registry->wrap($handler, 'The not-found handler');
-
-        return $this;
-    }
-
-    /**
-     * Replaces {@see HandlerBuilder}'s default {@see ErrorMiddleware} for this tree: what wraps every
-     * outcome — matched or not — turning a throw into a response instead of letting it reach
-     * `build()`'s caller. A class name or container identifier is resolved as usual; a real instance
-     * or closure is wrapped into the tree's {@see InstanceRegistry} instead, transparently.
-     *
-     * Only the root may set this, for the same reason as {@see notFoundHandler()}.
-     *
-     * @throws InvalidRouteException when called on anything but the root
-     */
-    public function errorMiddleware(mixed $middleware): self
-    {
-        if ($this->root !== null) {
-            throw new InvalidRouteException('Only the root Routes may set the error middleware, not a nested group.');
-        }
-
-        $this->errorMiddleware = $this->registry->wrap($middleware, 'The error middleware');
+        $this->notFound = $this->registry->wrap($handler, 'The not-found handler');
 
         return $this;
     }
@@ -247,11 +230,10 @@ final class Routes
      * that changes whenever these declarations would, e.g. an application version or a configuration
      * hash, for the caching described in {@see \SilenZ\Segmatch\Router} to actually take effect.
      *
-     * The table's metadata ({@see RouteTable::metadata()}) is this scope's own middleware, not-found
-     * handler and error middleware (`middleware`, `notFoundHandler`, `errorMiddleware`), which
-     * {@see definitions()} bakes into no route; {@see HandlerBuilder::build()} reads it back.
-     * {@see registry()} travels with the table too, so a `Router` built from it is always paired with
-     * the same declaration's registry.
+     * The table's metadata ({@see RouteTable::metadata()}) is this scope's own middleware and
+     * not-found handler (`middleware`, `notFound`), which {@see definitions()} bakes into no route;
+     * {@see HandlerBuilder::build()} reads it back. {@see registry()} travels with the table too, so a
+     * `Router` built from it is always paired with the same declaration's registry.
      */
     public function table(?string $cacheKey = null): RouteTable
     {
@@ -260,8 +242,7 @@ final class Routes
             $cacheKey,
             fn(): array => [
                 'middleware' => $this->middleware,
-                'notFoundHandler' => $this->notFoundHandler,
-                'errorMiddleware' => $this->errorMiddleware,
+                'notFound' => $this->notFound,
             ],
             $this->registry,
         );

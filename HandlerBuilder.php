@@ -17,7 +17,9 @@ use function array_push;
 use function array_unshift;
 use function is_array;
 use function ltrim;
+use function str_ends_with;
 use function strtoupper;
+use function substr;
 
 /**
  * Answers HTTP requests by matching against an already-built {@see \SilenZ\Segmatch\Router} and
@@ -43,8 +45,9 @@ final class HandlerBuilder
      * @param ContainerInterface $container resolves everything a stack entry is named as — the
      *                                       route's middleware and handler, its {@see RouteFilter}s —
      *                                       plus this builder's own fallbacks: a PSR-17 response
-     *                                       factory for {@see NotFoundHandler} and {@see
-     *                                       AllowedMethodsHandler}, and a stream factory for {@see
+     *                                       factory for {@see NotFoundHandler}, {@see
+     *                                       AllowedMethodsHandler} and this builder's own trailing-slash
+     *                                       {@see RedirectHandler}, and a stream factory for {@see
      *                                       HeadMiddleware} and {@see ErrorMiddleware} (which also
      *                                       needs the response factory). A container that autowires
      *                                       constructor arguments needs no registration of its own
@@ -63,9 +66,12 @@ final class HandlerBuilder
      * as one {@link https://relayphp.com/ Relay} stack — a `[target, 'method']` handler becomes a
      * {@see MethodHandler} — with the match on the request as `$request->getAttribute(Found::class)`.
      *
-     * Otherwise one of three fallbacks, depending on why nothing matched:
+     * Otherwise one of four fallbacks, depending on why nothing matched:
      *
-     * - no route for the path: {@see NotFoundHandler}, a 404, or `$notFoundHandler`;
+     * - no route for the exact path, but one exists with its trailing "/" added or removed: a 308 to
+     *   that path via {@see RedirectHandler};
+     * - no route for the path at all (nor, if looked for, a trailing-slash counterpart):
+     *   {@see NotFoundHandler}, a 404, or `$notFoundHandler`;
      * - routes for the path, not the method: {@see AllowedMethodsHandler}, a 405 with `Allow`;
      * - the same for an OPTIONS request: {@see AllowedMethodsHandler}, a 200 with `Allow`.
      *
@@ -89,29 +95,34 @@ final class HandlerBuilder
         RequestHandlerInterface|string $notFoundHandler = NotFoundHandler::class,
         MiddlewareInterface|string $errorMiddleware = ErrorMiddleware::class,
     ): RequestHandlerInterface {
-        $match = $this->router->match(
-            // The router wants the path to start with exactly one "/".
-            '/' . ltrim($request->getUri()->getPath(), characters: '/'),
-            fn(RouteMatch $candidate): bool => (
-                MethodNotAllowed::accepts($candidate->route, $request->getMethod())
-                && $this->accepts($candidate, $request)
-            ),
+        // The router wants the path to start with exactly one "/".
+        $path = '/' . ltrim($request->getUri()->getPath(), characters: '/');
+        $filter = fn(RouteMatch $candidate): bool => (
+            MethodNotAllowed::accepts($candidate->route, $request->getMethod()) && $this->accepts($candidate, $request)
         );
 
-        $queue = [$errorMiddleware, ...$this->globalMiddleware()];
+        $match = $this->router->match($path, $filter);
+
+        $stack = [$errorMiddleware, ...$this->globalMiddleware()];
 
         if ($match instanceof RouteMatch) {
-            array_push($queue, ...$this->matched($match));
+            array_push($stack, ...$this->matched($match));
         } else {
-            array_push($queue, ...$this->fallback($match->rejected, $request, $notFoundHandler));
+            $redirect = $match->rejected === [] ? $this->trailingSlash($path, $filter, $request) : null;
+
+            if ($redirect !== null) {
+                $stack[] = $redirect;
+            } else {
+                array_push($stack, ...$this->fallback($match->rejected, $request, $notFoundHandler));
+            }
         }
 
         if (strtoupper($request->getMethod()) === 'HEAD') {
             // Whoever answers, a HEAD response has no body.
-            array_unshift($queue, HeadMiddleware::class);
+            array_unshift($stack, HeadMiddleware::class);
         }
 
-        return new Relay($queue, $this->resolver->entry(...));
+        return new Relay($stack, $this->resolver->entry(...));
     }
 
     /**
@@ -136,6 +147,38 @@ final class HandlerBuilder
     }
 
     /**
+     * A {@see RedirectHandler} to `$path`'s trailing-slash counterpart ("/foo/" for "/foo" or vice
+     * versa), when one exists and accepts `$filter` — the same one `$path` itself was just tried
+     * with — or, for a HEAD request, when {@see headFallback()} would still answer it from there, same
+     * as it would for `$path` itself. Either way the redirect only ever points somewhere this request
+     * would actually be answered, not merely somewhere a route happens to exist. `null` when there's
+     * nothing to redirect to, including for `$path` itself being "/", which has no counterpart to
+     * toggle.
+     *
+     * Only ever reached for a `$path` with no route of its own ({@see build()} only calls this when
+     * {@see \SilenZ\Segmatch\NoMatch::$rejected} came back empty), so an existing route always takes
+     * precedence over redirecting to another one. For `$path` itself being "/", toggling it yields ""
+     * — not a path `Router::match()` could ever have a route for, so it, too, naturally falls through
+     * to `null` below, with no special case needed for it here.
+     *
+     * @param callable(RouteMatch): bool $filter
+     */
+    private function trailingSlash(string $path, callable $filter, ServerRequestInterface $request): ?RedirectHandler
+    {
+        $toggled = str_ends_with($path, '/') ? substr($path, offset: 0, length: -1) : $path . '/';
+        $retry = $this->router->match($toggled, $filter);
+
+        if (!$retry instanceof RouteMatch && $this->headFallback($retry->rejected, $request) === null) {
+            return null;
+        }
+
+        $query = $request->getUri()->getQuery();
+        $location = $query === '' ? $toggled : $toggled . '?' . $query;
+
+        return new RedirectHandler($this->resolver->responseFactory(), $location);
+    }
+
+    /**
      * The Relay queue for a request no route took, from the routes the router rejected for its path:
      *
      * - for a HEAD request, the queue of the first of them that accepts GET, as {@see matched()}.
@@ -156,17 +199,16 @@ final class HandlerBuilder
         ServerRequestInterface $request,
         RequestHandlerInterface|string $notFoundHandler,
     ): array {
-        $method = strtoupper($request->getMethod());
+        $head = $this->headFallback($rejected, $request);
+        if ($head !== null) {
+            return $this->matched($head);
+        }
 
         $allowed = [];
         foreach ($rejected as $candidate) {
             $methods = MethodNotAllowed::of($candidate->route);
             if ($methods === null || !$this->accepts($candidate, $request)) {
                 continue;
-            }
-
-            if ($method === 'HEAD' && MethodNotAllowed::accepts($candidate->route, 'GET')) {
-                return $this->matched($candidate);
             }
 
             foreach ($methods as $allowedMethod) {
@@ -187,6 +229,32 @@ final class HandlerBuilder
         }
 
         return [$notFoundHandler];
+    }
+
+    /**
+     * For a HEAD request, the first of `$rejected` that accepts GET and whose own filters accept —
+     * the route a second pass for GET would find, since the router already tried every candidate of
+     * the path in declaration order. `null` for any other method, or when none of them do.
+     *
+     * @param list<RouteMatch> $rejected
+     */
+    private function headFallback(array $rejected, ServerRequestInterface $request): ?RouteMatch
+    {
+        if (strtoupper($request->getMethod()) !== 'HEAD') {
+            return null;
+        }
+
+        foreach ($rejected as $candidate) {
+            if (
+                MethodNotAllowed::accepts($candidate->route, 'GET')
+                && MethodNotAllowed::of($candidate->route) !== null
+                && $this->accepts($candidate, $request)
+            ) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     /**

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace SilenZ\Segmatch\Http;
 
 use Psr\Container\ContainerInterface;
+use Psr\Http\Message\ResponseFactoryInterface;
 use SilenZ\Segmatch\InstanceRegistry;
 use UnexpectedValueException;
 
@@ -68,5 +69,27 @@ final readonly class Resolver
         }
 
         return $filter;
+    }
+
+    /**
+     * The container's {@see ResponseFactoryInterface}, for building a response with nothing already
+     * on hand to base one on, e.g. {@see HandlerBuilder}'s own trailing-slash {@see RedirectHandler}.
+     *
+     * @throws UnexpectedValueException when it resolves to anything else
+     */
+    public function responseFactory(): ResponseFactoryInterface
+    {
+        // @mago-expect analysis:mixed-assignment
+        $factory = $this->entry(ResponseFactoryInterface::class);
+        if (!$factory instanceof ResponseFactoryInterface) {
+            throw new UnexpectedValueException(sprintf(
+                '%s resolved to %s, which is not a %s.',
+                ResponseFactoryInterface::class,
+                get_debug_type($factory),
+                ResponseFactoryInterface::class,
+            ));
+        }
+
+        return $factory;
     }
 }

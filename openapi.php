@@ -14,12 +14,11 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 
 use OpenApi\Attributes as OA;
-use SilenZ\Segmatch\Http\Registry;
 use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\OpenApi\PathsGenerator;
 use SilenZ\Segmatch\Router;
 
-$routes = new Routes(new Registry());
+$routes = new Routes();
 $routes->get('/', 'home')->name('home')->tag('public');
 
 $users = $routes->group('/api/users')->tag('api', 'users');
@@ -38,7 +37,7 @@ $router = new Router($routes->table());
 $document = new OA\OpenApi(
     openapi: '3.1.0',
     info: new OA\Info(title: 'Example API', version: '1.0.0'),
-    paths: PathsGenerator::generate($router->definitions()),
+    paths: PathsGenerator::generate($router->table()->definitions()),
 );
 
 if (!$document->validate()) {

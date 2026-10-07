@@ -9,6 +9,9 @@ use SilenZ\Beeline\MetadataRegistry;
 use SilenZ\Beeline\RouteDefinition;
 use SilenZ\Beeline\Router;
 use SilenZ\Beeline\RouteTable;
+use SilenZ\Switchyard\Handler\NotFoundHandler;
+use SilenZ\Switchyard\Handler\RedirectHandler;
+use SilenZ\Switchyard\Middleware\ErrorMiddleware;
 
 use function array_unique;
 use function array_values;

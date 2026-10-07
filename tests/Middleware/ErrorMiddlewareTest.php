@@ -2,22 +2,22 @@
 
 declare(strict_types=1);
 
-namespace SilenZ\Switchyard\Tests;
+namespace SilenZ\Switchyard\Tests\Middleware;
 
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use SilenZ\Beeline\Router;
-use SilenZ\Switchyard\ErrorMiddleware;
 use SilenZ\Switchyard\HandlerBuilder;
+use SilenZ\Switchyard\Middleware\ErrorMiddleware;
 use SilenZ\Switchyard\Routes;
 use SilenZ\Switchyard\Tests\Fixtures\EchoContainer;
 use SilenZ\Switchyard\Tests\Fixtures\PlainHandler;
 use SilenZ\Switchyard\Tests\Fixtures\ThrowingHandler;
 
 /**
- * {@see ErrorMiddleware} declared as middleware on the root `Http\Routes`, so it wraps a route
+ * {@see ErrorMiddleware} declared as middleware on the root `Routes`, so it wraps a route
  * handler's own exception as well as a request no route applies to.
  */
 final class ErrorMiddlewareTest extends TestCase

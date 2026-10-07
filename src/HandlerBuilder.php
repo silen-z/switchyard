@@ -10,6 +10,14 @@ use Psr\Http\Server\RequestHandlerInterface;
 use Relay\Relay;
 use SilenZ\Beeline\RouteMatch;
 use SilenZ\Beeline\Router;
+use SilenZ\Switchyard\Attribute\Found;
+use SilenZ\Switchyard\Attribute\MethodNotAllowed;
+use SilenZ\Switchyard\Handler\AllowedMethodsHandler;
+use SilenZ\Switchyard\Handler\NotFoundHandler;
+use SilenZ\Switchyard\Handler\RedirectHandler;
+use SilenZ\Switchyard\Middleware\ErrorMiddleware;
+use SilenZ\Switchyard\Middleware\HeadMiddleware;
+use SilenZ\Switchyard\Middleware\RouteContextMiddleware;
 
 use function array_keys;
 use function array_push;

@@ -2,12 +2,13 @@
 
 declare(strict_types=1);
 
-namespace SilenZ\Switchyard;
+namespace SilenZ\Switchyard\Handler;
 
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use SilenZ\Switchyard\HandlerBuilder;
 
 /**
  * Redirects to `$location`, 308 by default — permanent, preserving the method and body, unlike a 301

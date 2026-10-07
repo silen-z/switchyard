@@ -2,9 +2,10 @@
 
 declare(strict_types=1);
 
-namespace SilenZ\Switchyard;
+namespace SilenZ\Switchyard\Attribute;
 
 use Psr\Http\Message\ServerRequestInterface;
+use SilenZ\Switchyard\HandlerBuilder;
 
 use function in_array;
 use function is_array;

@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace SilenZ\Switchyard\Tests;
+namespace SilenZ\Switchyard\Tests\Handler;
 
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
 use SilenZ\Beeline\Router;
+use SilenZ\Switchyard\Handler\RedirectHandler;
 use SilenZ\Switchyard\HandlerBuilder;
-use SilenZ\Switchyard\RedirectHandler;
 use SilenZ\Switchyard\Routes;
 use SilenZ\Switchyard\Tests\Fixtures\EchoContainer;
 

@@ -10,7 +10,7 @@ use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use SilenZ\Beeline\Router;
-use SilenZ\Switchyard\Found;
+use SilenZ\Switchyard\Attribute\Found;
 use SilenZ\Switchyard\HandlerBuilder;
 use SilenZ\Switchyard\Routes;
 use SilenZ\Switchyard\Tests\Fixtures\ArrayRouteCache;

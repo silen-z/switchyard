@@ -2,13 +2,14 @@
 
 declare(strict_types=1);
 
-namespace SilenZ\Switchyard;
+namespace SilenZ\Switchyard\Middleware;
 
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Message\StreamFactoryInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use SilenZ\Switchyard\HandlerBuilder;
 
 /**
  * The first entry of every stack {@see HandlerBuilder::build()} builds for a HEAD request: runs

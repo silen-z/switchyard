@@ -8,7 +8,7 @@ use Nyholm\Psr7\Response;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-use SilenZ\Switchyard\Found;
+use SilenZ\Switchyard\Attribute\Found;
 
 /**
  * An ordinary single-action handler, resolved by class name or container identifier like any other —

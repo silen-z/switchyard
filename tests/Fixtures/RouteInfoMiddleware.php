@@ -8,8 +8,8 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-use SilenZ\Switchyard\Found;
-use SilenZ\Switchyard\MethodNotAllowed;
+use SilenZ\Switchyard\Attribute\Found;
+use SilenZ\Switchyard\Attribute\MethodNotAllowed;
 
 use function implode;
 

@@ -2,10 +2,11 @@
 
 declare(strict_types=1);
 
-namespace SilenZ\Switchyard;
+namespace SilenZ\Switchyard\Attribute;
 
 use Psr\Http\Message\ServerRequestInterface;
 use SilenZ\Beeline\RouteMatch;
+use SilenZ\Switchyard\HandlerBuilder;
 
 use function is_array;
 use function is_string;

@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace SilenZ\Switchyard;
 
-use SilenZ\Beeline\Exception\UrlGenerationException;
 use SilenZ\Beeline\Internal\Segment;
 use SilenZ\Beeline\Internal\SegmentType;
 use SilenZ\Beeline\RouteDefinition;
 use SilenZ\Beeline\Router;
+use SilenZ\Switchyard\Exception\UrlGenerationException;
 use Stringable;
 
 use function array_key_exists;

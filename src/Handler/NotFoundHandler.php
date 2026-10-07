@@ -2,12 +2,13 @@
 
 declare(strict_types=1);
 
-namespace SilenZ\Switchyard;
+namespace SilenZ\Switchyard\Handler;
 
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use SilenZ\Switchyard\HandlerBuilder;
 
 /**
  * {@see HandlerBuilder}'s default answer when no route applies to the request: an empty 404.

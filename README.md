@@ -228,10 +228,10 @@ $response = $builder->build($request)->handle($request);
 - **`$container` is a PSR-11 `ContainerInterface`.** It resolves everything a stack entry is named as:
   the route's middleware and handler, its filters, and `Routes::notFound()` if it named a class or
   container identifier instead of giving an instance. So it needs a PSR-17 response factory for
-  `NotFoundHandler` and `AllowedMethodsHandler` (unless the first is replaced), and a stream
-  factory for `HeadMiddleware` and `ErrorMiddleware` (which needs both — always, since
-  there's no way to replace it); a container that autowires constructor arguments needs no
-  registration of its own. `Psr\Http\Message\ResponseFactoryInterface` itself must also resolve on its
+  `Handler\NotFoundHandler` and `Handler\AllowedMethodsHandler` (unless the first is replaced), and
+  a stream factory for `Middleware\HeadMiddleware` and `Middleware\ErrorMiddleware` (which needs
+  both — always, since there's no way to replace it); a container that autowires constructor
+  arguments needs no registration of its own. `Psr\Http\Message\ResponseFactoryInterface` itself must also resolve on its
   own — `HandlerBuilder` asks for it directly to build its own trailing-slash `RedirectHandler`,
   rather than resolving a handler class by name for it. Each middleware entry must resolve to a
   `Psr\Http\Server\MiddlewareInterface`, and the handler to a `Psr\Http\Server\RequestHandlerInterface`.
@@ -251,9 +251,10 @@ $response = $builder->build($request)->handle($request);
   before declaring the route, or build a small invokable handler of your own; that's deliberately a
   concern for whatever framework or application sits on top of this library, not this one.
 - **The match is a request attribute.** PSR-15 handlers take only the request, so
-  `Found::fromRequest($request)` gives the route's own middleware and handler a
-  `Found` (null outside a matched route's stack): its `params` (URL-decoded, by name), `name` and `tags`. Parameters are deliberately
-  not separate attributes, so they can't collide with the application's own:
+  `Found::fromRequest($request)` gives the route's own middleware and handler an
+  `Attribute\Found` (null outside a matched route's stack): its `params` (URL-decoded, by name),
+  `name` and `tags`. Parameters are deliberately not separate attributes, so they can't collide
+  with the application's own:
 
   ```php
   $id = Found::fromRequest($request)?->params['id'];
@@ -270,7 +271,7 @@ $response = $builder->build($request)->handle($request);
   | Routes for the path, not the method | `AllowedMethodsHandler`: 405 + `Allow` | — |
   | The same, for an OPTIONS request | `AllowedMethodsHandler`: 200 + `Allow` | — |
 
-  For the middle two, middleware sees `MethodNotAllowed::fromRequest($request)`, whose
+  For the middle two, middleware sees `Attribute\MethodNotAllowed::fromRequest($request)`, whose
   `allowed` lists the path's methods, e.g. `['GET', 'PUT', 'HEAD']` — HEAD is included whenever GET
   is.
 - **"/foo" and "/foo/" redirect to each other when only one is declared.** Declare both yourself

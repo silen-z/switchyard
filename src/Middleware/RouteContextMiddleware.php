@@ -2,12 +2,15 @@
 
 declare(strict_types=1);
 
-namespace SilenZ\Switchyard;
+namespace SilenZ\Switchyard\Middleware;
 
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use SilenZ\Switchyard\Attribute\Found;
+use SilenZ\Switchyard\Attribute\MethodNotAllowed;
+use SilenZ\Switchyard\HandlerBuilder;
 
 /**
  * The first entry of the stacks {@see HandlerBuilder::build()} builds: sets the routing result

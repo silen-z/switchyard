@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace SilenZ\Switchyard\Tests;
+namespace SilenZ\Switchyard\Tests\Attribute;
 
 use PHPUnit\Framework\TestCase;
-use SilenZ\Switchyard\MethodNotAllowed;
+use SilenZ\Switchyard\Attribute\MethodNotAllowed;
 
 final class MethodNotAllowedTest extends TestCase
 {

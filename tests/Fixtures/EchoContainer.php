@@ -7,10 +7,10 @@ namespace SilenZ\Switchyard\Tests\Fixtures;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseFactoryInterface;
-use SilenZ\Switchyard\AllowedMethodsHandler;
-use SilenZ\Switchyard\ErrorMiddleware;
-use SilenZ\Switchyard\HeadMiddleware;
-use SilenZ\Switchyard\NotFoundHandler;
+use SilenZ\Switchyard\Handler\AllowedMethodsHandler;
+use SilenZ\Switchyard\Handler\NotFoundHandler;
+use SilenZ\Switchyard\Middleware\ErrorMiddleware;
+use SilenZ\Switchyard\Middleware\HeadMiddleware;
 
 use function array_key_exists;
 use function class_exists;

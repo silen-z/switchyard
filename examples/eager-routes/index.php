@@ -43,12 +43,12 @@ use Psr\Http\Server\RequestHandlerInterface;
 use RuntimeException;
 use SilenZ\Beeline\Cache\FileCache;
 use SilenZ\Beeline\Router;
-use SilenZ\Switchyard\AllowedMethodsHandler;
-use SilenZ\Switchyard\ErrorMiddleware;
-use SilenZ\Switchyard\Found;
+use SilenZ\Switchyard\Attribute\Found;
+use SilenZ\Switchyard\Handler\AllowedMethodsHandler;
+use SilenZ\Switchyard\Handler\NotFoundHandler;
 use SilenZ\Switchyard\HandlerBuilder;
-use SilenZ\Switchyard\HeadMiddleware;
-use SilenZ\Switchyard\NotFoundHandler;
+use SilenZ\Switchyard\Middleware\ErrorMiddleware;
+use SilenZ\Switchyard\Middleware\HeadMiddleware;
 use SilenZ\Switchyard\Routes;
 
 /** A trivial PSR-11 container backed by a fixed map, standing in for the application's own. */

@@ -13,7 +13,7 @@ use SilenZ\Beeline\RouteDefinition;
 use SilenZ\Beeline\RouteMatch;
 use SilenZ\Beeline\Router;
 use SilenZ\Beeline\RouteTable;
-use SilenZ\Switchyard\MethodNotAllowed;
+use SilenZ\Switchyard\Attribute\MethodNotAllowed;
 use SilenZ\Switchyard\Routes;
 use SilenZ\Switchyard\Tests\Fixtures\FeatureRouteFilter;
 use SilenZ\Switchyard\Tests\Fixtures\UserController;

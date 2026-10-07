@@ -6,6 +6,7 @@ namespace SilenZ\Switchyard;
 
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseFactoryInterface;
+use SilenZ\Switchyard\Handler\RedirectHandler;
 use UnexpectedValueException;
 
 use function get_debug_type;

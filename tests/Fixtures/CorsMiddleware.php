@@ -17,7 +17,7 @@ use function strtoupper;
  * A basic CORS middleware, declared with `$routes->middleware(new CorsMiddleware(...))` on the root
  * `Http\Routes`, so it wraps every outcome of `$builder->handler($request)->handle($request)`, not
  * just matched routes — see `Http\Routes::middleware()`. It reads the allowed methods from the
- * response's `Allow` header, built by `Http\AllowedMethodsHandler` in exactly the format
+ * response's `Allow` header, built by `Handler\AllowedMethodsHandler` in exactly the format
  * `Access-Control-Allow-Methods` wants, rather than the `MethodNotAllowed::class` request attribute:
  * that attribute only exists inside `HandlerBuilder`'s own Relay stack, invisible to anything
  * wrapping it from outside.

@@ -6,6 +6,7 @@ namespace SilenZ\Switchyard;
 
 use Psr\Http\Message\ServerRequestInterface;
 use SilenZ\Beeline\RouteMatch;
+use SilenZ\Switchyard\Attribute\MethodNotAllowed;
 
 /**
  * A condition a route attaches to itself, checked while matching.

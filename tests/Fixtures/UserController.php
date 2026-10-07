@@ -7,7 +7,7 @@ namespace SilenZ\Switchyard\Tests\Fixtures;
 use Nyholm\Psr7\Response;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
-use SilenZ\Switchyard\Found;
+use SilenZ\Switchyard\Attribute\Found;
 
 /**
  * A controller with ordinary methods, for a handler declared as `[$instance, 'method']` — a plain

@@ -7,6 +7,7 @@ namespace SilenZ\Switchyard;
 use SilenZ\Beeline\Exception\InvalidRouteException;
 use SilenZ\Beeline\MetadataRegistry;
 use SilenZ\Beeline\RouteDefinition;
+use SilenZ\Switchyard\Handler\RedirectHandler;
 
 use function array_unique;
 use function array_values;

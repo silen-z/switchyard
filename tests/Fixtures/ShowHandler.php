@@ -8,7 +8,7 @@ use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-use SilenZ\Switchyard\Found;
+use SilenZ\Switchyard\Attribute\Found;
 
 /**
  * A route handler, resolved via the container like any PSR-15 handler would be. Echoes the "id"

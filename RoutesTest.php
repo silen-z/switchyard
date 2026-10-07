@@ -253,6 +253,31 @@ final class RoutesTest extends TestCase
         static::assertSame(['feature.beta'], $metadata['filters']);
     }
 
+    public function testRedirectDeclaresAGetRouteWithRedirectMetadataInsteadOfAHandler(): void
+    {
+        $routes = new Routes();
+        $routes->redirect('/old', '/new')->middleware('log');
+
+        /** @var array<string, mixed> $metadata */
+        $metadata = $routes->definitions()[0]->metadata;
+
+        static::assertSame(['location' => '/new', 'status' => 308], $metadata['redirect']);
+        static::assertSame(['GET'], $metadata['methods']);
+        static::assertSame(['log'], $metadata['middleware']);
+        static::assertArrayNotHasKey('handler', $metadata);
+    }
+
+    public function testRedirectAcceptsAnotherStatus(): void
+    {
+        $routes = new Routes();
+        $routes->redirect('/old', '/new', 301);
+
+        /** @var array<string, mixed> $metadata */
+        $metadata = $routes->definitions()[0]->metadata;
+
+        static::assertSame(['location' => '/new', 'status' => 301], $metadata['redirect']);
+    }
+
     public function testRootMiddlewareIsTheTableMetadataNotPartOfAnyRoute(): void
     {
         $routes = new Routes();

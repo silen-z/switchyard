@@ -16,7 +16,8 @@ use SilenZ\Segmatch\Tests\Http\Fixtures\EchoContainer;
 /**
  * {@see RedirectHandler} on its own — {@see TrailingSlashTest} covers {@see HandlerBuilder::build()}
  * using one for a trailing-slash redirect, but it's a plain {@see \Psr\Http\Server\RequestHandlerInterface}
- * a route may just as well use directly, e.g. for a moved path.
+ * a route may just as well use directly, e.g. for a moved path — or, more conveniently,
+ * {@see Routes::redirect()} declares one for you.
  */
 final class RedirectHandlerTest extends TestCase
 {
@@ -49,5 +50,49 @@ final class RedirectHandlerTest extends TestCase
 
         static::assertSame(308, $response->getStatusCode());
         static::assertSame('/new', $response->getHeaderLine('Location'));
+    }
+
+    public function testRoutesRedirectIsSugarForARedirectHandlerBuiltPerRequest(): void
+    {
+        $routes = new Routes();
+        $routes->redirect('/old', '/new');
+        $routes->redirect('/old-temp', '/new-temp', 301);
+
+        $builder = new HandlerBuilder(new EchoContainer(), new Router($routes->table()));
+
+        $response = $builder->build(new ServerRequest('GET', '/old'))->handle(new ServerRequest('GET', '/old'));
+        static::assertSame(308, $response->getStatusCode());
+        static::assertSame('/new', $response->getHeaderLine('Location'));
+
+        $temp = $builder->build(new ServerRequest('GET', '/old-temp'))->handle(new ServerRequest('GET', '/old-temp'));
+        static::assertSame(301, $temp->getStatusCode());
+        static::assertSame('/new-temp', $temp->getHeaderLine('Location'));
+    }
+
+    public function testRoutesRedirectRespondsToHeadWithTheBodyStripped(): void
+    {
+        $routes = new Routes();
+        $routes->redirect('/old', '/new');
+
+        $builder = new HandlerBuilder(new EchoContainer(), new Router($routes->table()));
+        $request = new ServerRequest('HEAD', '/old');
+        $response = $builder->build($request)->handle($request);
+
+        static::assertSame(308, $response->getStatusCode());
+        static::assertSame('/new', $response->getHeaderLine('Location'));
+        static::assertSame('', (string) $response->getBody());
+    }
+
+    public function testRoutesRedirectOnlyAnswersGet(): void
+    {
+        $routes = new Routes();
+        $routes->redirect('/old', '/new');
+
+        $builder = new HandlerBuilder(new EchoContainer(), new Router($routes->table()));
+        $request = new ServerRequest('DELETE', '/old');
+        $response = $builder->build($request)->handle($request);
+
+        static::assertSame(405, $response->getStatusCode());
+        static::assertSame('GET, HEAD', $response->getHeaderLine('Allow'));
     }
 }

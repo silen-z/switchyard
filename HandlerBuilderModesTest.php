@@ -134,6 +134,17 @@ final class HandlerBuilderModesTest extends TestCase
     }
 
     #[DataProvider('modes')]
+    public function testRedirectWorksTheSameEagerOrLazy(string $mode): void
+    {
+        $builder = self::declared($mode, static fn(Routes|LazyRoutes $r) => $r->redirect('/old', '/new', 301));
+
+        $response = self::respond($builder, 'GET', '/old');
+
+        static::assertSame(301, $response->getStatusCode());
+        static::assertSame('/new', $response->getHeaderLine('Location'));
+    }
+
+    #[DataProvider('modes')]
     public function testAMatchedRouteRunsInsideTheRootGroupAndRouteMiddleware(string $mode): void
     {
         $response = self::respond(self::declared($mode, self::api(...)), 'GET', '/api/users/42');

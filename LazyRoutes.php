@@ -37,8 +37,8 @@ use function strtoupper;
  * container identifier — an instance or closure would only exist on the request that built the cache,
  * so `$define` throws {@see InvalidRouteException} the moment it declares one. In exchange, nothing
  * this tree declares is ever wrapped for later lookup, so there's never anything to resolve out of
- * `$router->registry()` — the empty {@see InstanceRegistry} {@see RouteTable} defaults to is all an
- * all-lazy router ever needs.
+ * `$router->table()->registry()` — the empty {@see InstanceRegistry} {@see RouteTable} defaults to is
+ * all an all-lazy router ever needs.
  *
  * Otherwise this is {@see Routes}, shaped the same way: verb helpers, `group()`, `->middleware()` and
  * `->tag()` accumulate only once the tree is resolved into definitions.

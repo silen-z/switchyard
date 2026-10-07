@@ -128,7 +128,7 @@ final class UrlGenerator
         if ($this->paths === null) {
             $this->paths = [];
             // @mago-expect analysis:mixed-assignment
-            foreach ($this->router->matcher()->metadata() as $route) {
+            foreach ($this->router->routes() as $route) {
                 if (!is_array($route) || !is_string($route['name'] ?? null) || !is_string($route['path'] ?? null)) {
                     continue;
                 }

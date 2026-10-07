@@ -157,8 +157,9 @@ final class Routes
      * is no "wrong method" or "no route" response to decorate for a path the group doesn't own. Declared
      * on the root instead — the tree whose {@see table()} built the `Router` a `HandlerBuilder`
      * answers from — it also wraps the not-found and method-not-allowed/OPTIONS responses: the one way
-     * to run middleware for every outcome, matched or not, since `HandlerBuilder` takes no middleware
-     * of its own.
+     * to declare middleware for every outcome, matched or not. {@see HandlerBuilder}'s own default
+     * {@see ErrorMiddleware} wraps this root middleware too, so a throw from it still becomes a 500
+     * rather than reaching `build()`'s caller.
      *
      * @param mixed $middleware one middleware, or a list of them
      */
@@ -199,26 +200,14 @@ final class Routes
      */
     public function table(?string $cacheKey = null): RouteTable
     {
-        return new RouteTable($this->definitions(...), $cacheKey, fn(): array => [
-            'middleware' => $this->middleware,
-        ], $this->registry);
-    }
-
-    /**
-     * The root's middleware out of a table's metadata as {@see table()} gave it, e.g. read back with
-     * {@see \SilenZ\Segmatch\Router::tableMetadata()}; none for anything else.
-     *
-     * @internal for {@see HandlerBuilder}
-     *
-     * @return list<mixed>
-     */
-    public static function middlewareOf(mixed $tableMetadata): array
-    {
-        if (!is_array($tableMetadata) || !is_array($tableMetadata['middleware'] ?? null)) {
-            return [];
-        }
-
-        return array_values($tableMetadata['middleware']);
+        return new RouteTable(
+            $this->definitions(...),
+            $cacheKey,
+            fn(): array => [
+                'middleware' => $this->middleware,
+            ],
+            $this->registry,
+        );
     }
 
     /**

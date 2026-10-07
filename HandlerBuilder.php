@@ -6,6 +6,7 @@ namespace SilenZ\Segmatch\Http;
 
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Relay\Relay;
 use SilenZ\Segmatch\RouteMatch;
@@ -31,8 +32,8 @@ use function strtoupper;
  *     $response = $builder->build($request)->handle($request);
  *
  * A handler, middleware entry or filter declared as a real instance or closure is looked up in
- * `$router->registry()` — {@see \SilenZ\Segmatch\RouteTable} carries it paired with the table it was
- * built from, so there's no separate registry argument here to get out of step with `$router`.
+ * `$router->table()->registry()` — {@see \SilenZ\Segmatch\RouteTable} carries it paired with the table
+ * it was built from, so there's no separate registry argument here to get out of step with `$router`.
  */
 final class HandlerBuilder
 {
@@ -44,8 +45,9 @@ final class HandlerBuilder
      *                                       plus this builder's own fallbacks: a PSR-17 response
      *                                       factory for {@see NotFoundHandler} and {@see
      *                                       AllowedMethodsHandler}, and a stream factory for {@see
-     *                                       HeadMiddleware}. A container that autowires constructor
-     *                                       arguments needs no registration of its own
+     *                                       HeadMiddleware} and {@see ErrorMiddleware} (which also
+     *                                       needs the response factory). A container that autowires
+     *                                       constructor arguments needs no registration of its own
      * @param Router $router already built, and ideally shared across requests — see
      *                       {@see \SilenZ\Segmatch\Router} for how it caches its own compiled routes
      */
@@ -53,7 +55,7 @@ final class HandlerBuilder
         ContainerInterface $container,
         private readonly Router $router,
     ) {
-        $this->resolver = new Resolver($router->registry(), $container);
+        $this->resolver = new Resolver($router->table()->registry(), $container);
     }
 
     /**
@@ -70,16 +72,22 @@ final class HandlerBuilder
      * The latter two give `$request->getAttribute(MethodNotAllowed::class)`, counting only routes
      * rejected solely for their method (HEAD included whenever GET is).
      *
-     * Either way, the root's own middleware wraps the result, outermost of all but {@see
-     * HeadMiddleware} on a HEAD request — whoever answers, its response loses its body. HEAD also
-     * matches a GET route unless one declared for HEAD itself applies.
+     * Either way, {@see ErrorMiddleware} (or `$errorMiddleware`) wraps everything else, including the
+     * root's own middleware — turning whatever any of it throws into a 500 instead of letting it reach
+     * this method's caller — outermost of all but {@see HeadMiddleware} on a HEAD request, whose
+     * body-stripping applies to an error response too.
      *
-     * @param ?RequestHandlerInterface $notFoundHandler answers requests no route applies to, instead
+     * @param ServerRequestInterface $request
+     * @param RequestHandlerInterface|string $notFoundHandler answers requests no route applies to, instead
      *                                                   of the container's {@see NotFoundHandler}
+     * @param MiddlewareInterface|string $errorMiddleware catches what the rest of the stack throws, instead
+     *                                               of the container's {@see ErrorMiddleware}
+     * @return RequestHandlerInterface
      */
     public function build(
         ServerRequestInterface $request,
-        ?RequestHandlerInterface $notFoundHandler = null,
+        RequestHandlerInterface|string $notFoundHandler = NotFoundHandler::class,
+        MiddlewareInterface|string $errorMiddleware = ErrorMiddleware::class,
     ): RequestHandlerInterface {
         $match = $this->router->match(
             // The router wants the path to start with exactly one "/".
@@ -90,18 +98,12 @@ final class HandlerBuilder
             ),
         );
 
-        // The root's own middleware wraps every outcome. It's kept as the table's metadata, so it's
-        // read from the router — from the cache on a hit, like the routes — rather than from the tree.
-        $queue = Routes::middlewareOf($this->router->tableMetadata());
+        $queue = [$errorMiddleware, ...$this->globalMiddleware()];
 
         if ($match instanceof RouteMatch) {
             array_push($queue, ...$this->matched($match));
         } else {
-            array_push($queue, ...$this->fallback(
-                $match->rejected,
-                $request,
-                $notFoundHandler ?? NotFoundHandler::class,
-            ));
+            array_push($queue, ...$this->fallback($match->rejected, $request, $notFoundHandler));
         }
 
         if (strtoupper($request->getMethod()) === 'HEAD') {
@@ -213,5 +215,23 @@ final class HandlerBuilder
         }
 
         return true;
+    }
+
+    /**
+     * Read through {@see Router::metadata()}, not {@see Router::table()}: it comes from the cache on
+     * a hit, same as the routes, where the table's own {@see RouteTable::metadata()} would re-run the
+     * metadata closure (and, for {@see LazyRoutes}, declare the whole tree again) on every single
+     * request regardless of the cache.
+     */
+    private function globalMiddleware(): array
+    {
+        // The table's own metadata is arbitrary user data, so it's mixed by definition.
+        // @mago-expect analysis:mixed-assignment
+        $metadata = $this->router->metadata();
+        if (!is_array($metadata) || !is_array($metadata['middleware'] ?? null)) {
+            return [];
+        }
+
+        return array_values($metadata['middleware']);
     }
 }

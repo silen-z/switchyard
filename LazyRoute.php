@@ -211,7 +211,7 @@ final class LazyRoute
      */
     private static function plain(mixed $value, string $owner): string|array
     {
-        if (is_string($value) || (is_array($value) && is_string($value[0]))) {
+        if (is_string($value) || is_array($value) && is_string($value[0])) {
             /** @var string|array{0: string, 1: string} $value */
             return $value;
         }

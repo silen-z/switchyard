@@ -16,12 +16,12 @@ use function strtolower;
 
 /**
  * Builds the `PathItem`s of an OpenAPI document from a router's declared routes
- * ({@see \SilenZ\Segmatch\Router::definitions()}), reading the metadata shape {@see \SilenZ\Segmatch\Http\Route}
+ * ({@see \SilenZ\Segmatch\RouteTable::definitions()}), reading the metadata shape {@see \SilenZ\Segmatch\Http\Route}
  * stores: a route's `name` becomes its `operationId`, its `tags` become the operation's tags, and its
  * path parameters come straight from {@see RouteDefinition::$pathTemplate} and
  * {@see RouteDefinition::$parameters}.
  *
- *     $paths = PathsGenerator::generate($router->definitions());
+ *     $paths = PathsGenerator::generate($router->table()->definitions());
  *     $document = new OA\OpenApi(openapi: '3.1.0', info: new OA\Info(...), paths: $paths);
  *
  * This covers only what segmatch itself knows: paths, methods, names, tags and path parameters.

@@ -54,6 +54,39 @@ final class RoutesTest extends TestCase
         return $result->route;
     }
 
+    /**
+     * One declared route's resolved metadata: {@see Routes::definitions()} gives the
+     * {@see \SilenZ\Segmatch\MetadataRegistry} id {@see Route::definition()} stored, not the metadata
+     * itself — resolved back through the same registry here, the way {@see Router::match()} does
+     * while matching.
+     *
+     * @return array<string, mixed>
+     */
+    private static function metadataOf(Routes $routes, int $index = 0): array
+    {
+        /** @var int $id */
+        $id = $routes->definitions()[$index]->metadata;
+
+        /** @var array<string, mixed> */
+        return $routes->registry()->get($id);
+    }
+
+    /**
+     * The table's own resolved metadata: {@see Routes::table()}'s metadata closure registers it on
+     * {@see Routes::registry()} the moment it's actually called, returning the id back here, the same
+     * way {@see \SilenZ\Segmatch\Router} reads it while matching.
+     *
+     * @return array<string, mixed>
+     */
+    private static function tableMetadataOf(Routes $routes): array
+    {
+        /** @var int $id */
+        $id = $routes->table()->metadata();
+
+        /** @var array<string, mixed> */
+        return $routes->registry()->get($id);
+    }
+
     public function testVerbHelpersDeclareRoutesPerMethod(): void
     {
         $router = self::router(static function (Routes $r): void {
@@ -201,7 +234,7 @@ final class RoutesTest extends TestCase
         );
     }
 
-    public function testAHandlerMiddlewareOrFilterInstanceBecomesARegistryId(): void
+    public function testAHandlerMiddlewareOrFilterInstanceIsKeptAsGiven(): void
     {
         $routes = new Routes();
         $handler = new stdClass();
@@ -209,23 +242,11 @@ final class RoutesTest extends TestCase
         $filter = new FeatureRouteFilter('beta');
         $routes->get('/x', $handler)->middleware($middleware)->filter($filter);
 
-        /** @var array<string, mixed> $metadata */
-        $metadata = $routes->definitions()[0]->metadata;
-        /** @var list<mixed> $middlewareIds */
-        $middlewareIds = $metadata['middleware'];
-        /** @var list<mixed> $filters */
-        $filters = $metadata['filters'];
+        $metadata = self::metadataOf($routes);
 
-        static::assertIsInt($metadata['handler']);
-        static::assertSame($handler, $routes->registry()->get($metadata['handler']));
-
-        static::assertCount(1, $middlewareIds);
-        static::assertIsInt($middlewareIds[0]);
-        static::assertSame($middleware, $routes->registry()->get($middlewareIds[0]));
-
-        static::assertCount(1, $filters);
-        static::assertIsInt($filters[0]);
-        static::assertSame($filter, $routes->registry()->get($filters[0]));
+        static::assertSame($handler, $metadata['handler']);
+        static::assertSame([$middleware], $metadata['middleware']);
+        static::assertSame([$filter], $metadata['filters']);
     }
 
     public function testAClassNameStaysLiteralEvenWithOtherInstancesAround(): void
@@ -233,8 +254,7 @@ final class RoutesTest extends TestCase
         $routes = new Routes();
         $routes->get('/x', 'show')->middleware('api')->filter(FeatureRouteFilter::class);
 
-        /** @var array<string, mixed> $metadata */
-        $metadata = $routes->definitions()[0]->metadata;
+        $metadata = self::metadataOf($routes);
 
         static::assertSame('show', $metadata['handler']);
         static::assertSame(['api'], $metadata['middleware']);
@@ -246,8 +266,7 @@ final class RoutesTest extends TestCase
         $routes = new Routes();
         $routes->get('/x', [UserController::class, 'show'])->filter('feature.beta');
 
-        /** @var array<string, mixed> $metadata */
-        $metadata = $routes->definitions()[0]->metadata;
+        $metadata = self::metadataOf($routes);
 
         static::assertSame([UserController::class, 'show'], $metadata['handler']);
         static::assertSame(['feature.beta'], $metadata['filters']);
@@ -258,8 +277,7 @@ final class RoutesTest extends TestCase
         $routes = new Routes();
         $routes->redirect('/old', '/new')->middleware('log');
 
-        /** @var array<string, mixed> $metadata */
-        $metadata = $routes->definitions()[0]->metadata;
+        $metadata = self::metadataOf($routes);
 
         static::assertSame(['location' => '/new', 'status' => 308], $metadata['redirect']);
         static::assertSame(['GET'], $metadata['methods']);
@@ -272,8 +290,7 @@ final class RoutesTest extends TestCase
         $routes = new Routes();
         $routes->redirect('/old', '/new', 301);
 
-        /** @var array<string, mixed> $metadata */
-        $metadata = $routes->definitions()[0]->metadata;
+        $metadata = self::metadataOf($routes);
 
         static::assertSame(['location' => '/new', 'status' => 301], $metadata['redirect']);
     }
@@ -292,17 +309,16 @@ final class RoutesTest extends TestCase
         static::assertSame(['api'], self::find($router, 'GET', '/api/b')['middleware'] ?? null);
     }
 
-    public function testRootMiddlewareGivenAsAnInstanceIsARegistryIdInTheTableMetadata(): void
+    public function testRootMiddlewareGivenAsAnInstanceIsKeptAsGivenInTheTableMetadata(): void
     {
         $routes = new Routes();
         $middleware = new stdClass();
         $routes->middleware($middleware);
 
         /** @var array{middleware: list<mixed>} $metadata */
-        $metadata = $routes->table()->metadata();
+        $metadata = self::tableMetadataOf($routes);
 
-        static::assertIsInt($metadata['middleware'][0]);
-        static::assertSame($middleware, $routes->registry()->get($metadata['middleware'][0]));
+        static::assertSame($middleware, $metadata['middleware'][0]);
     }
 
     public function testNotFoundIsTheTableMetadata(): void
@@ -310,19 +326,18 @@ final class RoutesTest extends TestCase
         $routes = new Routes();
         $routes->notFound('my-not-found');
 
-        static::assertSame(['middleware' => [], 'notFound' => 'my-not-found'], $routes->table()->metadata());
+        static::assertSame(['middleware' => [], 'notFound' => 'my-not-found'], self::tableMetadataOf($routes));
     }
 
-    public function testNotFoundAsAnInstanceIsARegistryIdInTheTableMetadata(): void
+    public function testNotFoundAsAnInstanceIsKeptAsGivenInTheTableMetadata(): void
     {
         $routes = new Routes();
         $notFound = new stdClass();
         $routes->notFound($notFound);
 
-        /** @var array{notFound: int} $metadata */
-        $metadata = $routes->table()->metadata();
+        $metadata = self::tableMetadataOf($routes);
 
-        static::assertSame($notFound, $routes->registry()->get($metadata['notFound']));
+        static::assertSame($notFound, $metadata['notFound']);
     }
 
     public function testNotFoundDeclaredOnTheRootIsUnaffectedByAGroup(): void
@@ -334,8 +349,7 @@ final class RoutesTest extends TestCase
         // the root has one not-found handler to begin with.
         $routes->notFound('second');
 
-        /** @var array{notFound: string} $metadata */
-        $metadata = $routes->table()->metadata();
+        $metadata = self::tableMetadataOf($routes);
 
         static::assertSame('second', $metadata['notFound']);
     }

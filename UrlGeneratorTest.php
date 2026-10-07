@@ -7,14 +7,12 @@ namespace SilenZ\Segmatch\Tests\Http;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use RuntimeException;
 use SilenZ\Segmatch\Cache\RouteCache;
 use SilenZ\Segmatch\Exception\UrlGenerationException;
 use SilenZ\Segmatch\Http\HandlerBuilder;
 use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\Http\UrlGenerator;
 use SilenZ\Segmatch\Router;
-use SilenZ\Segmatch\RouteTable;
 use SilenZ\Segmatch\Tests\Http\Fixtures\ArrayRouteCache;
 use SilenZ\Segmatch\Tests\Http\Fixtures\EchoContainer;
 use stdClass;
@@ -110,10 +108,10 @@ final class UrlGeneratorTest extends TestCase
         $cache = new ArrayRouteCache();
         self::router($cache, 'routes')->metadata();
 
-        $cached = new Router(
-            new RouteTable(static fn(): never => throw new RuntimeException('Routes were declared.'), 'routes'),
-            $cache,
-        );
+        // Eager routes always re-declare, cache or not — what the cache actually buys is skipping
+        // Compiler::compile(), not the declaration itself; a fresh Routes/MetadataRegistry pair,
+        // declared the same way, resolves the cached tree's metadata ids right back to their names.
+        $cached = self::router($cache, 'routes');
 
         static::assertSame('/api/users/42', new UrlGenerator($cached)->url('users.show', ['id' => 42]));
     }

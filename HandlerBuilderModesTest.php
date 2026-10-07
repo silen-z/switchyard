@@ -296,14 +296,35 @@ final class HandlerBuilderModesTest extends TestCase
         static::assertSame(599, self::respond($builder, 'GET', '/boom')->getStatusCode());
     }
 
-    #[DataProvider('modes')]
-    public function testRootMiddlewareWrapsANotFoundAnsweredFromTheCache(string $mode): void
+    public function testLazyRootMiddlewareWrapsANotFoundAnsweredFromTheCache(): void
     {
         $cache = new ArrayRouteCache();
-        self::respond(self::declared($mode, self::api(...), $cache, 'routes'), 'GET', '/');
+        self::respond(self::declaredLazily(self::api(...), $cache, 'routes'), 'GET', '/');
 
-        // A warm builder whose declaration would say otherwise: the cached root middleware applies.
-        $warm = self::declared($mode, static fn(Routes|LazyRoutes $r) => $r->middleware('auth'), $cache, 'routes');
+        // A warm builder whose declaration would say otherwise: LazyRoutes only declares on a cache
+        // miss, so this middleware never actually runs — the cached root middleware applies instead.
+        $warm = self::declaredLazily(static fn(LazyRoutes $r) => $r->middleware('auth'), $cache, 'routes');
+
+        $response = self::respond($warm, 'GET', '/nope');
+
+        static::assertSame(404, $response->getStatusCode());
+        static::assertSame('log', $response->getHeaderLine('X-Trail'));
+    }
+
+    /**
+     * Unlike {@see testLazyRootMiddlewareWrapsANotFoundAnsweredFromTheCache()}, eager routes always
+     * re-declare, warm cache or not — so the warm builder here uses the same declaration as the cold
+     * one (changing it on a warm request, with the same cache key, is already a cache-key misuse, not
+     * something this registry design can paper over). What this actually checks is that a second,
+     * independently declared {@see Routes} tree still resolves the right metadata through its own
+     * freshly built {@see \SilenZ\Segmatch\MetadataRegistry} against a route tree compiled earlier.
+     */
+    public function testEagerRootMiddlewareIsReResolvedFromALiveRegistryOnAWarmCache(): void
+    {
+        $cache = new ArrayRouteCache();
+        self::respond(self::declaredEagerly(self::api(...), $cache, 'routes'), 'GET', '/');
+
+        $warm = self::declaredEagerly(self::api(...), $cache, 'routes');
 
         $response = self::respond($warm, 'GET', '/nope');
 

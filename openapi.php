@@ -2,7 +2,7 @@
 
 /**
  * Generates an OpenAPI document from a route declaration, using `OpenApi\PathsGenerator` for the
- * `paths` and segmatch/zircote-swagger-php types for everything else.
+ * `paths` and zircote/swagger-php types for everything else.
  *
  * Run from the repository root:
  *
@@ -14,9 +14,9 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 
 use OpenApi\Attributes as OA;
-use SilenZ\Segmatch\Http\Routes;
-use SilenZ\Segmatch\OpenApi\PathsGenerator;
-use SilenZ\Segmatch\Router;
+use SilenZ\Beeline\Router;
+use SilenZ\Switchyard\OpenApi\PathsGenerator;
+use SilenZ\Switchyard\Routes;
 
 $routes = new Routes();
 $routes->get('/', 'home')->name('home')->tag('public');

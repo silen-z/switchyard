@@ -100,7 +100,6 @@ final class HandlerBuilderModesTest extends TestCase
             'log' => new TagMiddleware('log'),
             'api' => new TagMiddleware('api'),
             'auth' => new TagMiddleware('auth'),
-            'unused' => new TagMiddleware('unused'),
             'status-410' => new StatusHandler(410),
             'status-599' => new CustomErrorMiddleware(599),
             NumericRouteFilter::class => new NumericRouteFilter('id'),
@@ -196,17 +195,17 @@ final class HandlerBuilderModesTest extends TestCase
     #[DataProvider('modes')]
     public function testAHandlerMethodMustReturnAResponse(string $mode): void
     {
-        $builder = self::declared($mode, static function (Routes|LazyRoutes $r): void {
-            // A middleware that doesn't catch anything lets the underlying exception propagate,
-            // instead of the default ErrorMiddleware turning it into a 500 response.
-            $r->errorMiddleware('unused');
-            $r->get('/x', [UserController::class, 'broken']);
-        });
+        // The default ErrorMiddleware is never replaceable (see Routes::middleware()), so a broken
+        // handler's UnexpectedValueException always ends up caught, same as any other throw.
+        $builder = self::declared($mode, static fn(Routes|LazyRoutes $r) => $r->get('/x', [
+            UserController::class,
+            'broken',
+        ]));
 
-        $this->expectException(UnexpectedValueException::class);
-        $this->expectExceptionMessageMatches('/::broken\(\) returned string instead of a /');
+        $response = self::respond($builder, 'GET', '/x');
 
-        self::respond($builder, 'GET', '/x');
+        static::assertSame(500, $response->getStatusCode());
+        static::assertSame('Server error', (string) $response->getBody());
     }
 
     public function testAHandlerPairMayHoldAnInstanceWhenDeclaredEagerly(): void
@@ -257,22 +256,33 @@ final class HandlerBuilderModesTest extends TestCase
     }
 
     #[DataProvider('modes')]
-    public function testNotFoundHandlerAndErrorMiddlewareMayBeReplaced(string $mode): void
+    public function testNotFoundMayBeReplaced(string $mode): void
     {
         $builder = self::declared($mode, static function (Routes|LazyRoutes $r): void {
             self::api($r);
-            $r->notFoundHandler('status-410');
-            $r->errorMiddleware('status-599');
-            $r->get('/boom', ThrowingHandler::class);
+            $r->notFound('status-410');
         });
 
         static::assertSame(410, self::respond($builder, 'GET', '/nope')->getStatusCode());
-        static::assertSame(599, self::respond($builder, 'GET', '/boom')->getStatusCode());
 
         // The 405 and OPTIONS answers, and matched routes, are unaffected.
         static::assertSame(405, self::respond($builder, 'POST', '/ping')->getStatusCode());
         static::assertSame(200, self::respond($builder, 'OPTIONS', '/ping')->getStatusCode());
         static::assertSame('ping', self::respond($builder, 'GET', '/ping')->getHeaderLine('X-Handler'));
+    }
+
+    #[DataProvider('modes')]
+    public function testACustomErrorMiddlewareCatchesBeforeTheDefault(string $mode): void
+    {
+        $builder = self::declared($mode, static function (Routes|LazyRoutes $r): void {
+            // Declared first, so it wraps every other root middleware while itself sitting inside
+            // the default ErrorMiddleware — the innermost catch wins, so this one answers first.
+            $r->middleware('status-599');
+            self::api($r);
+            $r->get('/boom', ThrowingHandler::class);
+        });
+
+        static::assertSame(599, self::respond($builder, 'GET', '/boom')->getStatusCode());
     }
 
     #[DataProvider('modes')]
@@ -379,9 +389,9 @@ final class HandlerBuilderModesTest extends TestCase
         self::respond($builder, 'GET', '/x');
     }
 
-    public function testLazyRoutesNotFoundHandlerAndErrorMiddlewareMayOnlyBeSetOnTheRoot(): void
+    public function testLazyRoutesNotFoundMayOnlyBeSetOnTheRoot(): void
     {
-        $builder = self::declaredLazily(static fn(LazyRoutes $r) => $r->group('/api')->notFoundHandler('x'));
+        $builder = self::declaredLazily(static fn(LazyRoutes $r) => $r->group('/api')->notFound('x'));
 
         $this->expectException(InvalidRouteException::class);
         $this->expectExceptionMessageMatches(

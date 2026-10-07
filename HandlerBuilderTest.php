@@ -175,7 +175,7 @@ final class HandlerBuilderTest extends TestCase
         $builder = self::builder(
             static function (Routes $r): void {
                 self::apiRoutes($r);
-                $r->notFoundHandler(new EchoHandler());
+                $r->notFound(new EchoHandler());
             },
             new EchoContainer(['api' => new TagMiddleware('api'), 'auth' => new TagMiddleware('auth')]),
         );

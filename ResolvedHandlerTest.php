@@ -229,7 +229,7 @@ final class ResolvedHandlerTest extends TestCase
     {
         $builder = self::builder(static function (Routes $routes): void {
             self::apiRoutes($routes);
-            $routes->notFoundHandler(new StatusHandler(410));
+            $routes->notFound(new StatusHandler(410));
         }, new EchoContainer());
 
         static::assertSame(410, self::respond($builder, new ServerRequest('GET', '/nope'))->getStatusCode());
@@ -256,10 +256,12 @@ final class ResolvedHandlerTest extends TestCase
         static::assertSame('Server error', (string) $response->getBody());
     }
 
-    public function testOwnErrorMiddlewareReplacesTheDefault(): void
+    public function testACustomErrorMiddlewareCatchesBeforeTheDefault(): void
     {
+        // Declared via middleware(), not a dedicated setter: there's no way to replace the default
+        // ErrorMiddleware, only to catch before it reaches it — the innermost catch wins.
         $builder = self::builder(static function (Routes $r): void {
-            $r->errorMiddleware(new CustomErrorMiddleware(599));
+            $r->middleware(new CustomErrorMiddleware(599));
             $r->get('/boom', ThrowingHandler::class);
         }, new EchoContainer());
 

@@ -262,10 +262,7 @@ final class RoutesTest extends TestCase
 
         $router = new Router($routes->table());
 
-        static::assertSame(
-            ['middleware' => ['log', 'cors'], 'notFoundHandler' => null, 'errorMiddleware' => null],
-            $router->metadata(),
-        );
+        static::assertSame(['middleware' => ['log', 'cors'], 'notFound' => null], $router->metadata());
         static::assertSame([], self::find($router, 'GET', '/a')['middleware'] ?? null);
         static::assertSame(['api'], self::find($router, 'GET', '/api/b')['middleware'] ?? null);
     }
@@ -283,46 +280,39 @@ final class RoutesTest extends TestCase
         static::assertSame($middleware, $routes->registry()->get($metadata['middleware'][0]));
     }
 
-    public function testNotFoundHandlerAndErrorMiddlewareAreTheTableMetadata(): void
+    public function testNotFoundIsTheTableMetadata(): void
     {
         $routes = new Routes();
-        $routes->notFoundHandler('my-not-found');
-        $routes->errorMiddleware('my-error-middleware');
+        $routes->notFound('my-not-found');
 
-        static::assertSame(
-            ['middleware' => [], 'notFoundHandler' => 'my-not-found', 'errorMiddleware' => 'my-error-middleware'],
-            $routes->table()->metadata(),
-        );
+        static::assertSame(['middleware' => [], 'notFound' => 'my-not-found'], $routes->table()->metadata());
     }
 
-    public function testNotFoundHandlerAndErrorMiddlewareAsInstancesAreRegistryIdsInTheTableMetadata(): void
+    public function testNotFoundAsAnInstanceIsARegistryIdInTheTableMetadata(): void
     {
         $routes = new Routes();
-        $notFoundHandler = new stdClass();
-        $errorMiddleware = new stdClass();
-        $routes->notFoundHandler($notFoundHandler);
-        $routes->errorMiddleware($errorMiddleware);
+        $notFound = new stdClass();
+        $routes->notFound($notFound);
 
-        /** @var array{notFoundHandler: int, errorMiddleware: int} $metadata */
+        /** @var array{notFound: int} $metadata */
         $metadata = $routes->table()->metadata();
 
-        static::assertSame($notFoundHandler, $routes->registry()->get($metadata['notFoundHandler']));
-        static::assertSame($errorMiddleware, $routes->registry()->get($metadata['errorMiddleware']));
+        static::assertSame($notFound, $routes->registry()->get($metadata['notFound']));
     }
 
-    public function testNotFoundHandlerAndErrorMiddlewareDeclaredOnTheRootAreUnaffectedByAGroup(): void
+    public function testNotFoundDeclaredOnTheRootIsUnaffectedByAGroup(): void
     {
         $routes = new Routes();
-        $routes->notFoundHandler('first');
+        $routes->notFound('first');
         $routes->group('/api')->get('/x', 'x');
         // A later call on the root overwrites, rather than accumulating like middleware() does — only
         // the root has one not-found handler to begin with.
-        $routes->notFoundHandler('second');
+        $routes->notFound('second');
 
-        /** @var array{notFoundHandler: string} $metadata */
+        /** @var array{notFound: string} $metadata */
         $metadata = $routes->table()->metadata();
 
-        static::assertSame('second', $metadata['notFoundHandler']);
+        static::assertSame('second', $metadata['notFound']);
     }
 
     public function testRoutesKeepDeclarationOrderAcrossGroups(): void
@@ -458,15 +448,11 @@ final class RoutesTest extends TestCase
             'Routes without a prefix middleware cannot be an integer (1)',
         ];
         yield 'not-found handler set on a group' => [
-            static fn(Routes $r) => $r->group('/api')->notFoundHandler('x'),
+            static fn(Routes $r) => $r->group('/api')->notFound('x'),
             'Only the root Routes may set the not-found handler, not a nested group.',
         ];
-        yield 'error middleware set on a group' => [
-            static fn(Routes $r) => $r->group('/api')->errorMiddleware('x'),
-            'Only the root Routes may set the error middleware, not a nested group.',
-        ];
         yield 'not-found handler set on a nested group' => [
-            static fn(Routes $r) => $r->group('/api')->group('/v1')->notFoundHandler('x'),
+            static fn(Routes $r) => $r->group('/api')->group('/v1')->notFound('x'),
             'Only the root Routes may set the not-found handler, not a nested group.',
         ];
     }

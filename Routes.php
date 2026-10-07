@@ -108,6 +108,21 @@ final class Routes
     }
 
     /**
+     * A GET route answering with a {@see RedirectHandler} to `$location`, 308 by default — permanent,
+     * preserving the method and body, unlike a 301/302:
+     *
+     *     $routes->redirect('/old', '/new');
+     *
+     * Unlike every other handler, `$location`/`$status` need no {@see InstanceRegistry} id: they're
+     * already plain data, so {@see HandlerBuilder} builds the `RedirectHandler` itself, fresh per
+     * request, straight from the route's own metadata.
+     */
+    public function redirect(string $path, string $location, int $status = 308): Route
+    {
+        return $this->get($path, RedirectHandler::class)->asRedirect($location, $status);
+    }
+
+    /**
      * A route for every HTTP method (it gets no 'methods' metadata, so it's never method-checked).
      */
     public function any(string $path, mixed $handler): Route

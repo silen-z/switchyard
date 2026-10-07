@@ -124,6 +124,16 @@ final class LazyRoutes
     }
 
     /**
+     * A GET route answering with a {@see RedirectHandler} to `$location`, 308 by default — see
+     * {@see Routes::redirect()}. `$location`/`$status` are plain data already, so this needs no class
+     * name or container identifier the way every other handler does.
+     */
+    public function redirect(string $path, string $location, int $status = 308): LazyRoute
+    {
+        return $this->get($path, RedirectHandler::class)->asRedirect($location, $status);
+    }
+
+    /**
      * A route for every HTTP method (it gets no 'methods' metadata, so it's never method-checked).
      *
      * @param string|array{0: string, 1: string} $handler

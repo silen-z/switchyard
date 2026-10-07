@@ -33,6 +33,9 @@ final class Route
 {
     private readonly mixed $handler;
 
+    /** @var ?array{location: string, status: int} */
+    private ?array $redirect = null;
+
     private ?string $name = null;
 
     /** @var list<mixed> */
@@ -56,6 +59,17 @@ final class Route
         $owner = sprintf('Route "%s" handler', $path);
         MethodHandler::check($handler, $owner);
         $this->handler = $this->registry->wrap($handler, $owner);
+    }
+
+    /**
+     * @internal set by {@see Routes::redirect()}, replacing the placeholder handler its constructor
+     *           call needed in the route's own metadata — {@see HandlerBuilder} checks for this first
+     */
+    public function asRedirect(string $location, int $status): self
+    {
+        $this->redirect = ['location' => $location, 'status' => $status];
+
+        return $this;
     }
 
     /**
@@ -174,7 +188,10 @@ final class Route
      *     ]
      *
      * `handler` and each `middleware`/`filters` entry is a class name, a container identifier, or an
-     * {@see InstanceRegistry} id standing in for a real instance or closure.
+     * {@see InstanceRegistry} id standing in for a real instance or closure. A route built by
+     * {@see Routes::redirect()} gets `'redirect' => ['location' => ..., 'status' => ...]` instead of
+     * `handler` — plain data, so unlike every other handler it needs no {@see InstanceRegistry} id:
+     * {@see HandlerBuilder} builds its {@see RedirectHandler} directly from it, fresh per request.
      *
      * @internal
      *
@@ -208,10 +225,8 @@ final class Route
             $names[$this->name] = $fullPath;
         }
 
-        $metadata = [
-            'handler' => $this->handler,
-            'middleware' => [...$groupMiddleware, ...$this->middleware],
-        ];
+        $metadata = $this->redirect !== null ? ['redirect' => $this->redirect] : ['handler' => $this->handler];
+        $metadata['middleware'] = [...$groupMiddleware, ...$this->middleware];
 
         if ($this->name !== null) {
             $metadata['name'] = $this->name;

@@ -126,7 +126,9 @@ final class HandlerBuilder
     /**
      * A matched route's Relay queue: its {@see Found} for {@see RouteContextMiddleware}, then the
      * route's own middleware (groups' first, outermost first) and handler, both as declared — a
-     * `[target, 'method']` handler as a {@see MethodHandler}.
+     * `[target, 'method']` handler as a {@see MethodHandler}, or, for a route built by
+     * {@see Routes::redirect()}, a {@see RedirectHandler} built fresh from its `'redirect'` metadata
+     * instead of resolved from `'handler'` at all.
      *
      * @return non-empty-list<mixed>
      */
@@ -137,10 +139,18 @@ final class HandlerBuilder
         /** @var list<mixed> $middleware */
         $middleware = is_array($route['middleware'] ?? null) ? $route['middleware'] : [];
 
+        /** @var array{location: string, status: int}|null $redirect */
+        $redirect = is_array($route['redirect'] ?? null) ? $route['redirect'] : null;
+        // The matched route's metadata is arbitrary user data, so it's mixed by definition.
+        // @mago-expect analysis:mixed-assignment
+        $handler = $redirect !== null
+            ? new RedirectHandler($this->resolver->responseFactory(), $redirect['location'], $redirect['status'])
+            : MethodHandler::wrap($this->resolver, $route['handler'] ?? null);
+
         return [
             new RouteContextMiddleware(Found::fromMatch($match)),
             ...$middleware,
-            MethodHandler::wrap($this->resolver, $route['handler'] ?? null),
+            $handler,
         ];
     }
 

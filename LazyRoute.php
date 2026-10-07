@@ -34,6 +34,9 @@ final class LazyRoute
     /** @var string|array{0: string, 1: string} */
     private readonly string|array $handler;
 
+    /** @var ?array{location: string, status: int} */
+    private ?array $redirect = null;
+
     private ?string $name = null;
 
     /** @var list<string> */
@@ -60,6 +63,18 @@ final class LazyRoute
         $owner = sprintf('Route "%s" handler', $path);
         MethodHandler::check($handler, $owner);
         $this->handler = self::plain($handler, $owner);
+    }
+
+    /**
+     * @internal set by {@see LazyRoutes::redirect()}, replacing the placeholder handler its
+     *           constructor call needed in the route's own metadata — {@see HandlerBuilder} checks
+     *           for this first
+     */
+    public function asRedirect(string $location, int $status): self
+    {
+        $this->redirect = ['location' => $location, 'status' => $status];
+
+        return $this;
     }
 
     /**
@@ -172,10 +187,8 @@ final class LazyRoute
             $names[$this->name] = $fullPath;
         }
 
-        $metadata = [
-            'handler' => $this->handler,
-            'middleware' => [...$groupMiddleware, ...$this->middleware],
-        ];
+        $metadata = $this->redirect !== null ? ['redirect' => $this->redirect] : ['handler' => $this->handler];
+        $metadata['middleware'] = [...$groupMiddleware, ...$this->middleware];
 
         if ($this->name !== null) {
             $metadata['name'] = $this->name;

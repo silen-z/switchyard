@@ -86,8 +86,6 @@ final class LazyRoute
     {
         $entries = is_array($middleware) ? array_values($middleware) : [$middleware];
         $owner = sprintf('Route "%s" middleware', $this->path);
-        // Middleware is arbitrary user data, so its entries are mixed by definition.
-        // @mago-expect analysis:mixed-assignment
         foreach ($entries as $entry) {
             $this->middleware[] = self::plainString($entry, $owner);
         }

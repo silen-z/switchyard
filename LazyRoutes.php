@@ -41,7 +41,8 @@ use function strtoupper;
  * all an all-lazy router ever needs.
  *
  * Otherwise this is {@see Routes}, shaped the same way: verb helpers, `group()`, `->middleware()` and
- * `->tag()` accumulate only once the tree is resolved into definitions.
+ * `->tag()` accumulate only once the tree is resolved into definitions. {@see notFoundHandler()} and
+ * {@see errorMiddleware()} work the same way they do there too — see {@see Routes} for why they exist.
  */
 final class LazyRoutes
 {
@@ -54,12 +55,18 @@ final class LazyRoutes
     /** @var list<string> */
     private array $tags = [];
 
+    private ?string $notFoundHandler = null;
+
+    private ?string $errorMiddleware = null;
+
     /**
      * @param string $prefix "" for no prefix (the root has none), otherwise starting with "/" and not
      *                       ending with "/"
+     * @param ?self $root the tree's actual root, `null` if this instance is it — see {@see group()}
      */
     public function __construct(
         private readonly string $prefix = '',
+        private readonly ?self $root = null,
     ) {
         if ($prefix !== '' && (!str_starts_with($prefix, '/') || str_ends_with($prefix, '/'))) {
             throw new InvalidRouteException(sprintf(
@@ -165,7 +172,7 @@ final class LazyRoutes
      */
     public function group(string $prefix = ''): self
     {
-        $group = new self($prefix);
+        $group = new self($prefix, $this->root());
         $this->items[] = $group;
 
         return $group;
@@ -204,6 +211,48 @@ final class LazyRoutes
     }
 
     /**
+     * Replaces {@see HandlerBuilder}'s default {@see NotFoundHandler} for this tree: the answer to a
+     * request no route takes at all (not merely the wrong method). A class name or container
+     * identifier, same restriction as {@see middleware()}.
+     *
+     * Only the root may set this — there's one not-found handler for the whole table, never one per
+     * group, so calling this anywhere else would silently reconfigure the root instead of scoping to
+     * where it was called, which {@see InvalidRouteException} catches instead.
+     *
+     * @throws InvalidRouteException when called on anything but the root, or $handler isn't a string
+     */
+    public function notFoundHandler(mixed $handler): self
+    {
+        if ($this->root !== null) {
+            throw new InvalidRouteException('Only the root Routes may set the not-found handler, not a nested group.');
+        }
+
+        $this->notFoundHandler = self::plainString($handler, 'The not-found handler');
+
+        return $this;
+    }
+
+    /**
+     * Replaces {@see HandlerBuilder}'s default {@see ErrorMiddleware} for this tree: what wraps every
+     * outcome — matched or not — turning a throw into a response instead of letting it reach
+     * `build()`'s caller. A class name or container identifier, same restriction as {@see middleware()}.
+     *
+     * Only the root may set this, for the same reason as {@see notFoundHandler()}.
+     *
+     * @throws InvalidRouteException when called on anything but the root, or $middleware isn't a string
+     */
+    public function errorMiddleware(mixed $middleware): self
+    {
+        if ($this->root !== null) {
+            throw new InvalidRouteException('Only the root Routes may set the error middleware, not a nested group.');
+        }
+
+        $this->errorMiddleware = self::plainString($middleware, 'The error middleware');
+
+        return $this;
+    }
+
+    /**
      * A {@see RouteTable} for a tree built by `$define`, cached under `$cacheKey` — `null` (the
      * default) never caches it. `$define` is only called once, and only when the table's definitions
      * or metadata are actually needed, i.e. on a cache miss, so a request answered from the cache
@@ -226,6 +275,8 @@ final class LazyRoutes
 
         return new RouteTable(static fn(): array => $once()->definitions(), $cacheKey, static fn(): array => [
             'middleware' => $once()->middleware,
+            'notFoundHandler' => $once()->notFoundHandler,
+            'errorMiddleware' => $once()->errorMiddleware,
         ]);
     }
 
@@ -306,5 +357,15 @@ final class LazyRoutes
     private function owner(): string
     {
         return $this->prefix === '' ? 'Routes without a prefix' : sprintf('Group "%s"', $this->prefix);
+    }
+
+    /**
+     * The tree's actual root, itself if {@see $root} is `null` — flattened at construction time
+     * ({@see group()} passes its own already-resolved root along), so this is never more than one hop
+     * away regardless of nesting depth.
+     */
+    private function root(): self
+    {
+        return $this->root ?? $this;
     }
 }

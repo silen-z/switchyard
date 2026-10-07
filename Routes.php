@@ -39,6 +39,10 @@ use function strtoupper;
  * automatically into {@see table()}'s result. {@see LazyRoutes} declares lazily instead, when even
  * declaring on every request costs too much; its handler, middleware and filters may only be a class
  * name or container identifier.
+ *
+ * {@see notFoundHandler()} and {@see errorMiddleware()} let whoever declares the routes — not just
+ * whoever builds the `HandlerBuilder` — replace those two defaults, e.g. a framework exposing this
+ * tree to its own users while configuring its own `HandlerBuilder` internally.
  */
 final class Routes
 {
@@ -51,13 +55,19 @@ final class Routes
     /** @var list<string> */
     private array $tags = [];
 
+    private mixed $notFoundHandler = null;
+
+    private mixed $errorMiddleware = null;
+
     /**
      * @param string $prefix "" for no prefix (the root has none), otherwise starting with "/" and not
      *                       ending with "/"
+     * @param ?self $root the tree's actual root, `null` if this instance is it — see {@see group()}
      */
     public function __construct(
         private readonly InstanceRegistry $registry = new InstanceRegistry(),
         private readonly string $prefix = '',
+        private readonly ?self $root = null,
     ) {
         if ($prefix !== '' && (!str_starts_with($prefix, '/') || str_ends_with($prefix, '/'))) {
             throw new InvalidRouteException(sprintf(
@@ -142,7 +152,7 @@ final class Routes
      */
     public function group(string $prefix = ''): self
     {
-        $group = new self($this->registry, $prefix);
+        $group = new self($this->registry, $prefix, $this->root());
         $this->items[] = $group;
 
         return $group;
@@ -188,15 +198,60 @@ final class Routes
     }
 
     /**
+     * Replaces {@see HandlerBuilder}'s default {@see NotFoundHandler} for this tree: the answer to a
+     * request no route takes at all (not merely the wrong method). A class name or container
+     * identifier is resolved as usual; a real instance or closure is wrapped into the tree's
+     * {@see InstanceRegistry} instead, transparently.
+     *
+     * Only the root may set this — there's one not-found handler for the whole table, never one per
+     * group, so calling this anywhere else would silently reconfigure the root instead of scoping to
+     * where it was called, which {@see InvalidRouteException} catches instead.
+     *
+     * @throws InvalidRouteException when called on anything but the root
+     */
+    public function notFoundHandler(mixed $handler): self
+    {
+        if ($this->root !== null) {
+            throw new InvalidRouteException('Only the root Routes may set the not-found handler, not a nested group.');
+        }
+
+        $this->notFoundHandler = $this->registry->wrap($handler, 'The not-found handler');
+
+        return $this;
+    }
+
+    /**
+     * Replaces {@see HandlerBuilder}'s default {@see ErrorMiddleware} for this tree: what wraps every
+     * outcome — matched or not — turning a throw into a response instead of letting it reach
+     * `build()`'s caller. A class name or container identifier is resolved as usual; a real instance
+     * or closure is wrapped into the tree's {@see InstanceRegistry} instead, transparently.
+     *
+     * Only the root may set this, for the same reason as {@see notFoundHandler()}.
+     *
+     * @throws InvalidRouteException when called on anything but the root
+     */
+    public function errorMiddleware(mixed $middleware): self
+    {
+        if ($this->root !== null) {
+            throw new InvalidRouteException('Only the root Routes may set the error middleware, not a nested group.');
+        }
+
+        $this->errorMiddleware = $this->registry->wrap($middleware, 'The error middleware');
+
+        return $this;
+    }
+
+    /**
      * This tree as a {@see RouteTable}, cached under `$cacheKey` — `null` (the default) never caches
      * it, compiling on every request regardless of whether `Router` was given a cache. Pass something
      * that changes whenever these declarations would, e.g. an application version or a configuration
      * hash, for the caching described in {@see \SilenZ\Segmatch\Router} to actually take effect.
      *
-     * The table's metadata ({@see RouteTable::metadata()}) is this scope's own middleware,
-     * `['middleware' => [...]]`, which {@see definitions()} bakes into no route; read it back with
-     * {@see middlewareOf()}. {@see registry()} travels with the table too, so a `Router` built from
-     * it is always paired with the same declaration's registry.
+     * The table's metadata ({@see RouteTable::metadata()}) is this scope's own middleware, not-found
+     * handler and error middleware (`middleware`, `notFoundHandler`, `errorMiddleware`), which
+     * {@see definitions()} bakes into no route; {@see HandlerBuilder::build()} reads it back.
+     * {@see registry()} travels with the table too, so a `Router` built from it is always paired with
+     * the same declaration's registry.
      */
     public function table(?string $cacheKey = null): RouteTable
     {
@@ -205,6 +260,8 @@ final class Routes
             $cacheKey,
             fn(): array => [
                 'middleware' => $this->middleware,
+                'notFoundHandler' => $this->notFoundHandler,
+                'errorMiddleware' => $this->errorMiddleware,
             ],
             $this->registry,
         );
@@ -279,5 +336,15 @@ final class Routes
     private function owner(): string
     {
         return $this->prefix === '' ? 'Routes without a prefix' : sprintf('Group "%s"', $this->prefix);
+    }
+
+    /**
+     * The tree's actual root, itself if {@see $root} is `null` — flattened at construction time
+     * ({@see group()} passes its own already-resolved root along), so this is never more than one hop
+     * away regardless of nesting depth.
+     */
+    private function root(): self
+    {
+        return $this->root ?? $this;
     }
 }

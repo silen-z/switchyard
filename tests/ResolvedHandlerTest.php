@@ -130,9 +130,9 @@ final class ResolvedHandlerTest extends TestCase
 
         self::respond($builder, new ServerRequest('GET', '/users/42'));
 
-        // @mago-expect analysis:mixed-assignment
-        $found = $handler->request?->getAttribute(Found::class);
-        static::assertInstanceOf(Found::class, $found);
+        static::assertNotNull($handler->request);
+        $found = Found::fromRequest($handler->request);
+        static::assertNotNull($found);
         static::assertSame(['id' => '42'], $found->params);
         static::assertNull($handler->request?->getAttribute('id'));
     }

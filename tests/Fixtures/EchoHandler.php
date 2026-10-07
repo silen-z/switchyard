@@ -34,6 +34,6 @@ final class EchoHandler implements RequestHandlerInterface
             'X-Handler' => $this->id,
         ];
 
-        return new Response(200, $headers, json_encode($request->getAttribute(Found::class), JSON_THROW_ON_ERROR));
+        return new Response(200, $headers, json_encode(Found::fromRequest($request), JSON_THROW_ON_ERROR));
     }
 }

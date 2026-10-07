@@ -27,11 +27,10 @@ final readonly class AllowedMethodsHandler implements RequestHandlerInterface
     {
         $status = strtoupper($request->getMethod()) === 'OPTIONS' ? 200 : 405;
         $response = $this->responseFactory->createResponse($status);
-        // @mago-expect analysis:mixed-assignment
-        $result = $request->getAttribute(MethodNotAllowed::class);
+        $methodNotAllowed = MethodNotAllowed::fromRequest($request);
 
-        return $result instanceof MethodNotAllowed
-            ? $response->withHeader('Allow', implode(', ', $result->allowed))
+        return $methodNotAllowed !== null
+            ? $response->withHeader('Allow', implode(', ', $methodNotAllowed->allowed))
             : $response;
     }
 }

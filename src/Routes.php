@@ -197,7 +197,6 @@ final class Routes
     {
         $entries = is_array($middleware) ? array_values($middleware) : [$middleware];
         // Middleware is arbitrary user data, so its entries are mixed by definition.
-        // @mago-expect analysis:mixed-assignment
         foreach ($entries as $entry) {
             $this->middleware[] = $entry;
         }

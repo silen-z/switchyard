@@ -190,8 +190,8 @@ $public->get('/login', LoginForm::class)->tag('public');
 $public->get('/account', ShowAccount::class);
 
 // in AuthMiddleware::process(), which HandlerBuilder runs inside each route's stack:
-$found = $request->getAttribute(Found::class);
-if (!in_array('public', $found->tags, true) && !$session->isLoggedIn()) {
+$found = Found::fromRequest($request);
+if (!in_array('public', $found?->tags ?? [], true) && !$session->isLoggedIn()) {
     return new Response(401);
 }
 ```
@@ -251,12 +251,12 @@ $response = $builder->build($request)->handle($request);
   before declaring the route, or build a small invokable handler of your own; that's deliberately a
   concern for whatever framework or application sits on top of this library, not this one.
 - **The match is a request attribute.** PSR-15 handlers take only the request, so
-  `$request->getAttribute(Found::class)` gives the route's own middleware and handler a
-  `Found`: its `params` (URL-decoded, by name), `name` and `tags`. Parameters are deliberately
+  `Found::fromRequest($request)` gives the route's own middleware and handler a
+  `Found` (null outside a matched route's stack): its `params` (URL-decoded, by name), `name` and `tags`. Parameters are deliberately
   not separate attributes, so they can't collide with the application's own:
 
   ```php
-  $id = $request->getAttribute(Found::class)->params['id'];
+  $id = Found::fromRequest($request)?->params['id'];
   ```
 
   Middleware can use it too, for example to skip authentication on routes tagged `public`, without
@@ -270,7 +270,7 @@ $response = $builder->build($request)->handle($request);
   | Routes for the path, not the method | `AllowedMethodsHandler`: 405 + `Allow` | — |
   | The same, for an OPTIONS request | `AllowedMethodsHandler`: 200 + `Allow` | — |
 
-  For the middle two, middleware sees `$request->getAttribute(MethodNotAllowed::class)`, whose
+  For the middle two, middleware sees `MethodNotAllowed::fromRequest($request)`, whose
   `allowed` lists the path's methods, e.g. `['GET', 'PUT', 'HEAD']` — HEAD is included whenever GET
   is.
 - **"/foo" and "/foo/" redirect to each other when only one is declared.** Declare both yourself

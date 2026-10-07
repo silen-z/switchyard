@@ -44,7 +44,6 @@ final readonly class Resolver
      */
     public function filter(mixed $entry): RouteFilter
     {
-        // @mago-expect analysis:mixed-assignment
         $filter = $this->entry($entry);
         if (!$filter instanceof RouteFilter) {
             throw new UnexpectedValueException(sprintf(
@@ -66,7 +65,6 @@ final readonly class Resolver
      */
     public function responseFactory(): ResponseFactoryInterface
     {
-        // @mago-expect analysis:mixed-assignment
         $factory = $this->entry(ResponseFactoryInterface::class);
         if (!$factory instanceof ResponseFactoryInterface) {
             throw new UnexpectedValueException(sprintf(

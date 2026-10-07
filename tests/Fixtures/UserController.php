@@ -22,10 +22,7 @@ final class UserController
      */
     public function show(ServerRequestInterface $request): ResponseInterface
     {
-        /** @var Found $found */
-        $found = $request->getAttribute(Found::class);
-
-        return new Response(200, ['X-User' => $found->params['id'] ?? '']);
+        return new Response(200, ['X-User' => Found::fromRequest($request)->params['id'] ?? '']);
     }
 
     /**

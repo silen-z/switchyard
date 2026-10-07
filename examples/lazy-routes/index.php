@@ -27,8 +27,11 @@
 
 declare(strict_types=1);
 
+namespace SilenZ\Switchyard\Examples\LazyRoutes;
+
 require __DIR__ . '/../../vendor/autoload.php';
 
+use LogicException;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Nyholm\Psr7\ServerRequest;
 use Psr\Container\ContainerInterface;
@@ -37,6 +40,7 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use RuntimeException;
 use SilenZ\Beeline\Cache\FileCache;
 use SilenZ\Beeline\Router;
 use SilenZ\Switchyard\AllowedMethodsHandler;
@@ -57,12 +61,16 @@ final class ArrayContainer implements ContainerInterface
 
     public function get(string $id): object
     {
-        return $this->services[$id] ?? throw new RuntimeException(sprintf('Service "%s" not found.', $id));
+        if (!array_key_exists($id, $this->services)) {
+            throw new RuntimeException(sprintf('Service "%s" not found.', $id));
+        }
+
+        return $this->services[$id];
     }
 
     public function has(string $id): bool
     {
-        return isset($this->services[$id]);
+        return array_key_exists($id, $this->services);
     }
 }
 
@@ -106,9 +114,7 @@ final class HelloHandler implements RequestHandlerInterface
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $found = $request->getAttribute(Found::class);
-
-        return json($this->psr17, ['hello' => $found->params['name']]);
+        return json($this->psr17, ['hello' => found($request)->params['name']]);
     }
 }
 
@@ -120,12 +126,18 @@ final class ShowUserHandler implements RequestHandlerInterface
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $found = $request->getAttribute(Found::class);
-
-        return json($this->psr17, ['user' => $found->params['id']]);
+        return json($this->psr17, ['user' => found($request)->params['id']]);
     }
 }
 
+function found(ServerRequestInterface $request): Found
+{
+    return Found::fromRequest($request) ?? throw new LogicException('Only a matched route carries a Found attribute.');
+}
+
+/**
+ * @param array<string, mixed> $data
+ */
 function json(Psr17Factory $psr17, array $data): ResponseInterface
 {
     return $psr17
@@ -167,10 +179,11 @@ $builder = new HandlerBuilder($container, $router);
 // Psr17Factory::createServerRequest() builds no headers at all from $_SERVER — the built-in server
 // also hides Authorization from $_SERVER itself unless getallheaders() is used, so that's where the
 // AuthMiddleware above actually reads it from.
+$headers = getallheaders();
 $request = new ServerRequest(
     $_SERVER['REQUEST_METHOD'] ?? 'GET',
     $_SERVER['REQUEST_URI'] ?? '/',
-    getallheaders(),
+    $headers === false ? [] : $headers,
     null,
     '1.1',
     $_SERVER,
@@ -184,7 +197,7 @@ $response = $builder
 http_response_code($response->getStatusCode());
 foreach ($response->getHeaders() as $name => $values) {
     foreach ($values as $value) {
-        header("$name: $value", replace: false);
+        header("{$name}: {$value}", replace: false);
     }
 }
-echo $response->getBody();
+echo (string) $response->getBody();

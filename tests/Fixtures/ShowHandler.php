@@ -23,12 +23,9 @@ final class ShowHandler implements RequestHandlerInterface
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        // @mago-expect analysis:mixed-assignment
-        $found = $request->getAttribute(Found::class);
-
         return $this->responseFactory->createResponse(200)->withHeader(
             'X-Id',
-            $found instanceof Found ? $found->params['id'] ?? '' : '',
+            Found::fromRequest($request)->params['id'] ?? '',
         );
     }
 }

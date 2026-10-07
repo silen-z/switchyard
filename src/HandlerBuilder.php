@@ -65,7 +65,7 @@ final class HandlerBuilder
     /**
      * The PSR-15 handler for one request. For a matched route, that's its own middleware and handler
      * as one {@link https://relayphp.com/ Relay} stack — with the match on the request as
-     * `$request->getAttribute(Found::class)`.
+     * `Found::fromRequest($request)`.
      *
      * Otherwise one of four fallbacks, depending on why nothing matched:
      *
@@ -76,7 +76,7 @@ final class HandlerBuilder
      * - routes for the path, not the method: {@see AllowedMethodsHandler}, a 405 with `Allow`;
      * - the same for an OPTIONS request: {@see AllowedMethodsHandler}, a 200 with `Allow`.
      *
-     * The latter two give `$request->getAttribute(MethodNotAllowed::class)`, counting only routes
+     * The latter two give `MethodNotAllowed::fromRequest($request)`, counting only routes
      * rejected solely for their method (HEAD included whenever GET is).
      *
      * Either way, {@see ErrorMiddleware} wraps everything else, including the root's own middleware —
@@ -142,7 +142,6 @@ final class HandlerBuilder
         /** @var array{location: string, status: int}|null $redirect */
         $redirect = is_array($route['redirect'] ?? null) ? $route['redirect'] : null;
         // The matched route's metadata is arbitrary user data, so it's mixed by definition.
-        // @mago-expect analysis:mixed-assignment
         $handler = $redirect !== null
             ? new RedirectHandler($this->resolver->responseFactory(), $redirect['location'], $redirect['status'])
             : $route['handler'] ?? null;
@@ -271,7 +270,6 @@ final class HandlerBuilder
     private function accepts(RouteMatch $match, ServerRequestInterface $request): bool
     {
         // The matched route's metadata is arbitrary user data, so it's mixed by definition.
-        // @mago-expect analysis:mixed-assignment
         $route = $match->route;
         if (!is_array($route) || !is_array($route['filters'] ?? null)) {
             return true;
@@ -280,7 +278,6 @@ final class HandlerBuilder
         /** @var list<mixed> $filters */
         $filters = $route['filters'];
 
-        // @mago-expect analysis:mixed-assignment
         foreach ($filters as $filter) {
             if (!$this->resolver->filter($filter)->accepts($match, $request)) {
                 return false;
@@ -296,7 +293,6 @@ final class HandlerBuilder
     private function globalMiddleware(): array
     {
         // The table's own metadata is arbitrary user data, so it's mixed by definition.
-        // @mago-expect analysis:mixed-assignment
         $middleware = $this->metadataValue('middleware');
 
         return is_array($middleware) ? array_values($middleware) : [];
@@ -326,7 +322,6 @@ final class HandlerBuilder
     private function metadataValue(string $key): mixed
     {
         // The table's own metadata is arbitrary user data, so it's mixed by definition.
-        // @mago-expect analysis:mixed-assignment
         $metadata = $this->router->metadata();
 
         return is_array($metadata) ? $metadata[$key] ?? null : null;

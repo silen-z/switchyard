@@ -90,7 +90,6 @@ final class UrlGeneratorTest extends TestCase
         ] as [$name, $params]) {
             $request = new ServerRequest('GET', $urls->url($name, $params));
             // EchoHandler answers with the route's Found as JSON.
-            // @mago-expect analysis:mixed-assignment
             $found = json_decode(
                 (string) $builder->build($request)->handle($request)->getBody(),
                 associative: true,

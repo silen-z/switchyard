@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace SilenZ\Switchyard;
 
+use Psr\Http\Message\ServerRequestInterface;
 use SilenZ\Beeline\RouteMatch;
 
 use function is_array;
@@ -37,5 +38,16 @@ final readonly class Found
             name: is_string($route['name'] ?? null) ? $route['name'] : null,
             tags: $tags,
         );
+    }
+
+    /**
+     * The `Found` {@see HandlerBuilder::build()} put on the request, null outside a matched route's
+     * stack.
+     */
+    public static function fromRequest(ServerRequestInterface $request): ?Found
+    {
+        $found = $request->getAttribute(self::class);
+
+        return $found instanceof self ? $found : null;
     }
 }

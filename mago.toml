@@ -7,6 +7,12 @@ paths = ["src", "tests", "benchmarks", "examples"]
 includes = ["vendor"]
 excludes = ["var/**", "*/var/**"]
 
+[analyzer]
+# Assigning a mixed value is harmless on its own: any later use that needs a real type is still
+# reported where it happens (mixed-property-access, mixed-argument, ...), so this only demands
+# suppressions at places that already narrow the value before using it.
+ignore = ["mixed-assignment"]
+
 [linter]
 integrations = ["phpunit"]
 
@@ -23,5 +29,9 @@ halstead = { exclude = ["tests/**", "benchmarks/**"] }
 # Data-provider heavy test classes and benchmark classes legitimately have many methods, and so do
 # Routes and LazyRoutes, each with one helper per HTTP method.
 too-many-methods = { exclude = ["tests/**", "benchmarks/**", "src/Routes.php", "src/LazyRoutes.php"] }
+
+# Each example is one self-contained script, runnable as-is with PHP's built-in server, so its
+# handlers and middleware live right next to the routes that use them.
+single-class-per-file = { exclude = ["examples/**"] }
 
 no-else-clause = { enabled = false }

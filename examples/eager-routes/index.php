@@ -26,8 +26,12 @@
 
 declare(strict_types=1);
 
+namespace SilenZ\Switchyard\Examples\EagerRoutes;
+
 require __DIR__ . '/../../vendor/autoload.php';
 
+use Closure;
+use LogicException;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Nyholm\Psr7\ServerRequest;
 use Psr\Container\ContainerInterface;
@@ -36,6 +40,7 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use RuntimeException;
 use SilenZ\Beeline\Cache\FileCache;
 use SilenZ\Beeline\Router;
 use SilenZ\Switchyard\AllowedMethodsHandler;
@@ -56,12 +61,16 @@ final class ArrayContainer implements ContainerInterface
 
     public function get(string $id): object
     {
-        return $this->services[$id] ?? throw new RuntimeException(sprintf('Service "%s" not found.', $id));
+        if (!array_key_exists($id, $this->services)) {
+            throw new RuntimeException(sprintf('Service "%s" not found.', $id));
+        }
+
+        return $this->services[$id];
     }
 
     public function has(string $id): bool
     {
-        return isset($this->services[$id]);
+        return array_key_exists($id, $this->services);
     }
 }
 
@@ -84,6 +93,9 @@ final class AuthMiddleware implements MiddlewareInterface
 
 final class JsonHandler implements RequestHandlerInterface
 {
+    /**
+     * @param Closure(Found): array<string, mixed> $body
+     */
     public function __construct(
         private readonly Psr17Factory $psr17,
         private readonly Closure $body,
@@ -91,7 +103,8 @@ final class JsonHandler implements RequestHandlerInterface
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $data = ($this->body)($request->getAttribute(Found::class));
+        $found = Found::fromRequest($request) ?? throw new LogicException('JsonHandler only handles matched routes.');
+        $data = ($this->body)($found);
 
         return $this->psr17
             ->createResponse(200)
@@ -131,10 +144,11 @@ $builder = new HandlerBuilder($container, $router);
 // Psr17Factory::createServerRequest() builds no headers at all from $_SERVER — the built-in server
 // also hides Authorization from $_SERVER itself unless getallheaders() is used, so that's where the
 // AuthMiddleware above actually reads it from.
+$headers = getallheaders();
 $request = new ServerRequest(
     $_SERVER['REQUEST_METHOD'] ?? 'GET',
     $_SERVER['REQUEST_URI'] ?? '/',
-    getallheaders(),
+    $headers === false ? [] : $headers,
     null,
     '1.1',
     $_SERVER,
@@ -145,7 +159,7 @@ $response = $builder->build($request)->handle($request)->withHeader('X-Routes-De
 http_response_code($response->getStatusCode());
 foreach ($response->getHeaders() as $name => $values) {
     foreach ($values as $value) {
-        header("$name: $value", replace: false);
+        header("{$name}: {$value}", replace: false);
     }
 }
-echo $response->getBody();
+echo (string) $response->getBody();

@@ -60,13 +60,11 @@ final class PathsGenerator
             $pathItem = $pathItems[$path];
 
             // Metadata is arbitrary user data, so it's mixed by definition.
-            // @mago-expect analysis:mixed-assignment
             if ($registry === null) {
                 $metadata = $definition->metadata;
             } else {
                 /** @var int $id */
                 $id = $definition->metadata;
-                // @mago-expect analysis:mixed-assignment
                 $metadata = $registry->get($id);
             }
 

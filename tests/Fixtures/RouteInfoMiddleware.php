@@ -22,18 +22,16 @@ final class RouteInfoMiddleware implements MiddlewareInterface
 {
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
-        // @mago-expect analysis:mixed-assignment
-        $found = $request->getAttribute(Found::class);
-        // @mago-expect analysis:mixed-assignment
-        $methodNotAllowed = $request->getAttribute(MethodNotAllowed::class);
+        $found = Found::fromRequest($request);
+        $methodNotAllowed = MethodNotAllowed::fromRequest($request);
         $response = $handler->handle($request);
 
-        if ($found instanceof Found) {
+        if ($found !== null) {
             $tags = implode(',', $found->tags);
             $response = $response->withHeader('X-Route-Name', $found->name ?? '')->withHeader('X-Route-Tags', $tags);
         }
 
-        if ($methodNotAllowed instanceof MethodNotAllowed) {
+        if ($methodNotAllowed !== null) {
             $response = $response->withHeader('X-Route-Allowed', implode(',', $methodNotAllowed->allowed));
         }
 

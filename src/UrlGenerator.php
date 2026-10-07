@@ -106,7 +106,6 @@ final class UrlGenerator
             ));
         }
 
-        // @mago-expect analysis:mixed-assignment
         $value = $params[$param];
         if (is_string($value) || is_int($value) || $value instanceof Stringable) {
             return (string) $value;
@@ -127,7 +126,6 @@ final class UrlGenerator
     {
         if ($this->paths === null) {
             $this->paths = [];
-            // @mago-expect analysis:mixed-assignment
             foreach ($this->router->routes() as $route) {
                 if (!is_array($route) || !is_string($route['name'] ?? null) || !is_string($route['path'] ?? null)) {
                     continue;

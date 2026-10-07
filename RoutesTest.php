@@ -450,42 +450,6 @@ final class RoutesTest extends TestCase
             static fn(Routes $r) => $r->get('/a', 'a')->filter(stdClass::class),
             'uses filter "stdClass", which does not implement',
         ];
-        yield 'array handler with one element' => [
-            static fn(Routes $r) => $r->get('/a', [UserController::class]),
-            'Route "/a" handler given as an array must be [class name, container identifier or object, \'method\']',
-        ];
-        yield 'array handler with a non-string method' => [
-            static fn(Routes $r) => $r->get('/a', [UserController::class, 1]),
-            'Route "/a" handler given as an array must be',
-        ];
-        yield 'array handler with string keys' => [
-            static fn(Routes $r) => $r->get('/a', ['class' => UserController::class, 'method' => 'show']),
-            'Route "/a" handler given as an array must be',
-        ];
-        yield 'array handler calling a missing method of a class' => [
-            static fn(Routes $r) => $r->get('/a', [UserController::class, 'missing']),
-            'Route "/a" handler calls ' . UserController::class . '::missing(), which does not exist.',
-        ];
-        yield 'array handler calling a missing method of an instance' => [
-            static fn(Routes $r) => $r->get('/a', [new UserController(), 'missing']),
-            'Route "/a" handler calls ' . UserController::class . '::missing(), which does not exist.',
-        ];
-        yield 'integer handler' => [
-            static fn(Routes $r) => $r->get('/a', 7),
-            'Route "/a" handler cannot be an integer (7)',
-        ];
-        yield 'integer route middleware' => [
-            static fn(Routes $r) => $r->get('/a', 'a')->middleware(['auth', 3]),
-            'Route "/a" middleware cannot be an integer (3)',
-        ];
-        yield 'integer group middleware' => [
-            static fn(Routes $r) => $r->group('/api')->middleware(0),
-            'Group "/api" middleware cannot be an integer (0)',
-        ];
-        yield 'integer root middleware' => [
-            static fn(Routes $r) => $r->middleware(1),
-            'Routes without a prefix middleware cannot be an integer (1)',
-        ];
         yield 'not-found handler set on a group' => [
             static fn(Routes $r) => $r->group('/api')->notFound('x'),
             'Only the root Routes may set the not-found handler, not a nested group.',

@@ -188,12 +188,20 @@ final class HandlerBuilderModesTest extends TestCase
         self::respond($builder, 'GET', '/x');
     }
 
-    #[DataProvider('modes')]
-    public function testAHandlerMayBeAClassAndMethodPair(string $mode): void
+    /**
+     * `Routes` never gives a `[target, 'method']` handler any special treatment: it's kept as plain
+     * data like any other handler, and reaches Relay exactly as declared. This works only because
+     * Relay itself treats a `[$instance, 'method']` array as an ordinary callable — not because this
+     * library resolves or validates the pair in any way. `LazyRoutes` can't do this at all: an
+     * instance can't survive to a later request answered from the cache, and a `[class name, 'method']`
+     * pair isn't callable on its own either (there's no instance to call the method on) — see
+     * {@see testAHandlerTargetIsOnlyResolvedOnceTheRequestReachesIt()} for the lazy equivalent.
+     */
+    public function testAHandlerPairWithAnInstanceWorksThroughMiddlewareWhenDeclaredEagerly(): void
     {
-        $builder = self::declared($mode, static function (Routes|LazyRoutes $r): void {
+        $builder = self::declaredEagerly(static function (Routes $r): void {
             $r->middleware('log');
-            $r->get('/users/{id}', [UserController::class, 'show'])->middleware('auth');
+            $r->get('/users/{id}', [new UserController(), 'show'])->middleware('auth');
         });
 
         $response = self::respond($builder, 'GET', '/users/42');
@@ -203,15 +211,15 @@ final class HandlerBuilderModesTest extends TestCase
         static::assertSame('auth,log', $response->getHeaderLine('X-Trail'));
     }
 
-    #[DataProvider('modes')]
-    public function testAHandlerMethodMustReturnAResponse(string $mode): void
+    /**
+     * Relay's own return-type check, not anything of this library's doing: {@see
+     * \Relay\Runner::handle()} is declared to return a `ResponseInterface`, so a handler returning
+     * anything else is a `TypeError` — just another `Throwable` for the default `ErrorMiddleware` to
+     * turn into a 500.
+     */
+    public function testAHandlerMethodMustReturnAResponse(): void
     {
-        // The default ErrorMiddleware is never replaceable (see Routes::middleware()), so a broken
-        // handler's UnexpectedValueException always ends up caught, same as any other throw.
-        $builder = self::declared($mode, static fn(Routes|LazyRoutes $r) => $r->get('/x', [
-            UserController::class,
-            'broken',
-        ]));
+        $builder = self::declaredEagerly(static fn(Routes $r) => $r->get('/x', [new UserController(), 'broken']));
 
         $response = self::respond($builder, 'GET', '/x');
 
@@ -219,28 +227,16 @@ final class HandlerBuilderModesTest extends TestCase
         static::assertSame('Server error', (string) $response->getBody());
     }
 
-    public function testAHandlerPairMayHoldAnInstanceWhenDeclaredEagerly(): void
-    {
-        $builder = self::declaredEagerly(static fn(Routes $r) => $r->get('/users/{id}', [
-            new UserController(),
-            'show',
-        ]));
-
-        static::assertSame('7', self::respond($builder, 'GET', '/users/7')->getHeaderLine('X-User'));
-    }
-
-    public function testAHandlerPairsTargetIsOnlyResolvedOnceTheRequestReachesIt(): void
+    public function testAHandlerTargetIsOnlyResolvedOnceTheRequestReachesIt(): void
     {
         // The container knows nothing but the middleware and HandlerBuilder's own fallbacks, so
-        // resolving the target would throw.
+        // resolving the handler would throw.
         $psr17 = new Psr17Factory();
         $container = new ArrayContainer([
             'deny' => new StatusMiddleware(401),
             ErrorMiddleware::class => new ErrorMiddleware($psr17, $psr17),
         ]);
-        $table = LazyRoutes::table(
-            static fn(LazyRoutes $r) => $r->get('/x', ['unknown.controller', 'show'])->middleware('deny'),
-        );
+        $table = LazyRoutes::table(static fn(LazyRoutes $r) => $r->get('/x', 'unknown.controller')->middleware('deny'));
         $builder = new HandlerBuilder($container, new Router($table));
 
         static::assertSame(401, self::respond($builder, 'GET', '/x')->getStatusCode());
@@ -380,9 +376,9 @@ final class HandlerBuilderModesTest extends TestCase
             static fn(LazyRoutes $r) => $r->get('/x', new PlainHandler()),
             'Route "/x" handler must be a class name or a container identifier, not ' . PlainHandler::class,
         ];
-        // The pair shape itself is fine — MethodHandler::check() allows an object target — but a
-        // lazily declared route can't keep the instance around until a later request.
-        // @mago-expect analysis:possibly-invalid-argument
+        // LazyRoute's handler is a plain string, full stop — an array is rejected the same as any
+        // other non-string, with no special case for a `[target, 'method']` shape.
+        // @mago-expect analysis:invalid-argument
         yield 'handler pair target' => [
             static fn(LazyRoutes $r) => $r->get('/x', [new PlainHandler(), 'handle']),
             'Route "/x" handler must be a class name or a container identifier, not array',

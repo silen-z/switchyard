@@ -21,6 +21,7 @@ use SilenZ\Segmatch\Tests\Http\Fixtures\PlainHandler;
 use SilenZ\Segmatch\Tests\Http\Fixtures\StatusMiddleware;
 use SilenZ\Segmatch\Tests\Http\Fixtures\TagMiddleware;
 use SilenZ\Segmatch\Tests\Http\Fixtures\UserController;
+use SilenZ\Segmatch\Tests\Http\Fixtures\UserShowHandler;
 
 /**
  * The same small users API, wired up once with {@see Routes} and once with {@see LazyRoutes}, each
@@ -28,10 +29,10 @@ use SilenZ\Segmatch\Tests\Http\Fixtures\UserController;
  * the call sites actually look like.
  *
  * Eager routes may hand over real instances directly, so the container below only has to resolve
- * {@see HandlerBuilder}'s own fallbacks. Lazy routes can't: every middleware, filter and handler
- * target has to be a class name or container identifier instead, so the same container also has to
- * know "log", "auth", {@see UserController} and the pre-configured {@see NumericRouteFilter} — and,
- * since nothing it declares is ever wrapped, there's no registry setup to do for it either:
+ * {@see HandlerBuilder}'s own fallbacks. Lazy routes can't: every middleware, filter and handler has to
+ * be a class name or container identifier instead, so the same container also has to know "log",
+ * "auth", {@see UserShowHandler} and the pre-configured {@see NumericRouteFilter} — and, since nothing
+ * it declares is ever wrapped, there's no registry setup to do for it either:
  * `$router->table()->registry()` is just the empty default every `RouteTable` carries.
  */
 final class HandlerBuilderUsageTest extends TestCase
@@ -94,7 +95,7 @@ final class HandlerBuilderUsageTest extends TestCase
             'log' => new TagMiddleware('log'),
             'auth' => new StatusMiddleware(401),
             PlainHandler::class => new PlainHandler(),
-            UserController::class => new UserController(),
+            UserShowHandler::class => new UserShowHandler(),
             // One filter per configuration, named by its class since there's only one "id" filter here.
             NumericRouteFilter::class => new NumericRouteFilter('id'),
         ]);
@@ -102,7 +103,7 @@ final class HandlerBuilderUsageTest extends TestCase
         $table = LazyRoutes::table(static function (LazyRoutes $routes): void {
             $routes->middleware('log');
             $routes->get('/users', PlainHandler::class);
-            $routes->get('/users/{id}', [UserController::class, 'show'])->filter(NumericRouteFilter::class);
+            $routes->get('/users/{id}', UserShowHandler::class)->filter(NumericRouteFilter::class);
 
             $admin = $routes->group('/admin')->middleware('auth');
             $admin->get('/stats', PlainHandler::class);

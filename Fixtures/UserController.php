@@ -10,7 +10,10 @@ use Psr\Http\Message\ServerRequestInterface;
 use SilenZ\Segmatch\Http\Found;
 
 /**
- * A controller with ordinary methods, for handlers declared as `[UserController::class, 'show']`.
+ * A controller with ordinary methods, for a handler declared as `[$instance, 'method']` — a plain
+ * instance pair, which Relay calls directly as a callable; segmatch has no special handling for it at
+ * all. Only usable with {@see \SilenZ\Segmatch\Http\Routes}: a {@see \SilenZ\Segmatch\Http\LazyRoutes}
+ * handler must be a plain string, so it can't name an instance's method this way.
  */
 final class UserController
 {

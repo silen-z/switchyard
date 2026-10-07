@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace SilenZ\Segmatch\Http;
 
 use SilenZ\Segmatch\Exception\InvalidRouteException;
-use SilenZ\Segmatch\InstanceRegistry;
+use SilenZ\Segmatch\MetadataRegistry;
 use SilenZ\Segmatch\RouteDefinition;
 
 use function array_unique;
 use function array_values;
 use function class_exists;
 use function is_array;
+use function is_int;
 use function is_string;
 use function is_subclass_of;
 use function sprintf;
@@ -54,11 +55,12 @@ final class Route
         private readonly ?array $methods,
         private readonly string $path,
         mixed $handler,
-        private readonly InstanceRegistry $registry,
+        private readonly MetadataRegistry $registry,
     ) {
         $owner = sprintf('Route "%s" handler', $path);
+        self::rejectInt($handler, $owner);
         MethodHandler::check($handler, $owner);
-        $this->handler = $this->registry->wrap($handler, $owner);
+        $this->handler = $handler;
     }
 
     /**
@@ -87,19 +89,20 @@ final class Route
     }
 
     /**
-     * Adds middleware that runs after the middleware of the enclosing groups. A class name or
-     * container identifier is resolved as usual; a real instance or closure is wrapped into the
-     * route's {@see InstanceRegistry} instead, transparently.
+     * Adds middleware that runs after the middleware of the enclosing groups. A class name, container
+     * identifier, real instance or closure are all kept as given — see {@see Routes::$registry}.
      *
      * @param mixed $middleware one middleware, or a list of them
      */
     public function middleware(mixed $middleware): self
     {
         $entries = is_array($middleware) ? array_values($middleware) : [$middleware];
+        $owner = sprintf('Route "%s" middleware', $this->path);
         // Middleware is arbitrary user data, so its entries are mixed by definition.
         // @mago-expect analysis:mixed-assignment
         foreach ($entries as $entry) {
-            $this->middleware[] = $this->registry->wrap($entry, sprintf('Route "%s" middleware', $this->path));
+            self::rejectInt($entry, $owner);
+            $this->middleware[] = $entry;
         }
 
         return $this;
@@ -144,11 +147,9 @@ final class Route
      * Any configuration a filter needs is a constructor argument of its own, e.g.
      * `filter(new FeatureRouteFilter('beta'))`, not a separate parameter here: a filter either takes no
      * configuration, or is built already configured, by the container resolving a class name or
-     * identifier, or by you giving an instance directly. An instance is wrapped into the route's
-     * {@see InstanceRegistry}, a class name or identifier resolved from the container by
-     * {@see HandlerBuilder}, transparently either way. A container identifier per configuration,
-     * e.g. `filter('feature.beta')`, is how routes declared lazily, which can't take instances, vary a
-     * filter per route.
+     * identifier, or by you giving an instance directly — kept as given either way, transparently. A
+     * container identifier per configuration, e.g. `filter('feature.beta')`, is how routes declared
+     * lazily, which can't take instances, vary a filter per route.
      *
      * @param string|RouteFilter $filter a class name implementing {@see RouteFilter}, a container
      *                                    identifier resolving to one, or an instance of one
@@ -168,7 +169,7 @@ final class Route
             ));
         }
 
-        $this->filters[] = $this->registry->wrap($filter, sprintf('Route "%s" filter', $this->path));
+        $this->filters[] = $filter;
 
         return $this;
     }
@@ -187,11 +188,14 @@ final class Route
      *         'filters'    => [FeatureRouteFilter::class], // only when there are any, checked in this order
      *     ]
      *
-     * `handler` and each `middleware`/`filters` entry is a class name, a container identifier, or an
-     * {@see InstanceRegistry} id standing in for a real instance or closure. A route built by
-     * {@see Routes::redirect()} gets `'redirect' => ['location' => ..., 'status' => ...]` instead of
-     * `handler` — plain data, so unlike every other handler it needs no {@see InstanceRegistry} id:
+     * `handler` and each `middleware`/`filters` entry may be a class name, a container identifier, a
+     * real instance or a closure — kept exactly as given. A route built by {@see Routes::redirect()}
+     * gets `'redirect' => ['location' => ..., 'status' => ...]` instead of `handler` — plain data, so
      * {@see HandlerBuilder} builds its {@see RedirectHandler} directly from it, fresh per request.
+     *
+     * This whole array is handed to {@see MetadataRegistry::register()} as one unit — the returned id
+     * is what actually becomes the `RouteDefinition`'s metadata, so it survives a round trip through a
+     * compiled cache file regardless of what the metadata above actually holds.
      *
      * @internal
      *
@@ -246,6 +250,17 @@ final class Route
             $metadata['filters'] = $this->filters;
         }
 
-        return new RouteDefinition($fullPath, $metadata);
+        return new RouteDefinition($fullPath, $this->registry->register($metadata));
+    }
+
+    /**
+     * @throws InvalidRouteException when $value is an integer: never a valid handler, middleware entry
+     *                               or filter of its own, so reserving it catches a plain mistake early
+     */
+    private static function rejectInt(mixed $value, string $owner): void
+    {
+        if (is_int($value)) {
+            throw new InvalidRouteException(sprintf('%s cannot be an integer (%d).', $owner, $value));
+        }
     }
 }

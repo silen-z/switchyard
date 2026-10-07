@@ -6,46 +6,33 @@ namespace SilenZ\Segmatch\Http;
 
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseFactoryInterface;
-use SilenZ\Segmatch\InstanceRegistry;
 use UnexpectedValueException;
 
 use function get_debug_type;
-use function is_int;
 use function is_string;
 use function sprintf;
 
 /**
  * Turns what a route's metadata names — a handler, a middleware entry, a filter — into the real thing:
- * an {@see InstanceRegistry} id into the instance or closure it stands for, a class name or container
- * identifier into what the container resolves it to.
- *
- * `$registry` must be the one the routes were declared with — see {@see HandlerBuilder}.
+ * a class name or container identifier into what the container resolves it to, anything else
+ * (a real instance or closure, already resolved out of a {@see \SilenZ\Segmatch\MetadataRegistry} by
+ * the time it reaches here — see {@see \SilenZ\Segmatch\Matcher}) as itself.
  *
  * @internal
  */
 final readonly class Resolver
 {
     public function __construct(
-        private InstanceRegistry $registry,
         private ContainerInterface $container,
     ) {}
 
     /**
-     * One entry as the real thing to run: an {@see InstanceRegistry} id standing in for an instance or
-     * closure the routes were declared with, a class name or container identifier for the container to
-     * resolve, or anything else as itself.
+     * One entry as the real thing to run: a class name or container identifier for the container to
+     * resolve, or anything else — a real instance or closure — as itself.
      */
     public function entry(mixed $entry): mixed
     {
-        if (is_int($entry)) {
-            return $this->registry->get($entry);
-        }
-
-        if (!is_string($entry)) {
-            return $entry;
-        }
-
-        return $this->container->get($entry);
+        return is_string($entry) ? $this->container->get($entry) : $entry;
     }
 
     /**

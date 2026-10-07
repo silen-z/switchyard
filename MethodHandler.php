@@ -8,7 +8,6 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use SilenZ\Segmatch\Exception\InvalidRouteException;
-use SilenZ\Segmatch\InstanceRegistry;
 use UnexpectedValueException;
 
 use function array_is_list;
@@ -16,7 +15,6 @@ use function class_exists;
 use function count;
 use function get_debug_type;
 use function is_array;
-use function is_int;
 use function is_object;
 use function is_string;
 use function method_exists;
@@ -40,17 +38,13 @@ final readonly class MethodHandler implements RequestHandlerInterface
     ) {}
 
     /**
-     * A route's handler entry as the Relay queue should get it: a `[target, 'method']` pair — given
-     * as is, or as an {@see InstanceRegistry} id standing in for one holding an instance — as a
-     * `MethodHandler`, anything else unchanged for Relay to resolve.
+     * A route's handler entry as the Relay queue should get it: a `[target, 'method']` pair as a
+     * `MethodHandler`, anything else (a class name, container identifier or instance) unchanged for
+     * Relay to resolve.
      */
     public static function wrap(Resolver $resolver, mixed $handler): mixed
     {
-        // An InstanceRegistry id is resolved right away, which is cheap: an array lookup, not the container.
-        // @mago-expect analysis:mixed-assignment
-        $pair = is_int($handler) ? $resolver->entry($handler) : $handler;
-
-        return self::isPair($pair) ? new self($resolver, $pair[0], $pair[1]) : $handler;
+        return self::isPair($handler) ? new self($resolver, $handler[0], $handler[1]) : $handler;
     }
 
     /**

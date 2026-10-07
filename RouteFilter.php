@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace SilenZ\Segmatch\Http;
 
 use Psr\Http\Message\ServerRequestInterface;
-use SilenZ\Segmatch\InstanceRegistry;
 use SilenZ\Segmatch\RouteMatch;
 
 /**
@@ -17,8 +16,9 @@ use SilenZ\Segmatch\RouteMatch;
  * may instead be given a ready instance directly
  * ({@see Route::filter()}), which skips the container and bakes its own configuration into its
  * constructor instead — the only way to vary one filter's behavior per route, since a class name gives
- * the container no way to tell routes apart. Either way the instance is kept in the route's
- * {@see InstanceRegistry}, transparently.
+ * the container no way to tell routes apart. Either way the instance is kept in the route's own
+ * metadata, transparently, as part of what {@see Route::definition()} hands its
+ * {@see \SilenZ\Segmatch\MetadataRegistry} as one unit.
  *
  * Either way, {@see HandlerBuilder} calls {@see accepts()} for every candidate route of a request. A
  * filter that returns false makes the route behave as if it didn't exist, and matching moves on.

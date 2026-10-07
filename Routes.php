@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace SilenZ\Segmatch\Http;
 
 use SilenZ\Segmatch\Exception\InvalidRouteException;
-use SilenZ\Segmatch\InstanceRegistry;
+use SilenZ\Segmatch\MetadataRegistry;
 use SilenZ\Segmatch\RouteDefinition;
 use SilenZ\Segmatch\Router;
 use SilenZ\Segmatch\RouteTable;
@@ -13,6 +13,7 @@ use SilenZ\Segmatch\RouteTable;
 use function array_unique;
 use function array_values;
 use function is_array;
+use function is_int;
 use function preg_match;
 use function sprintf;
 use function str_ends_with;
@@ -34,11 +35,12 @@ use function strtoupper;
  * everything declared on it (including further nested groups).
  *
  * A handler, middleware entry or filter may be a real instance or closure, not just a class name or
- * container identifier: anything that isn't already cacheable plain data is transparently wrapped into
- * this tree's {@see InstanceRegistry} instead, shared by the root and every nested group and carried
- * automatically into {@see table()}'s result. {@see LazyRoutes} declares lazily instead, when even
+ * container identifier, since none of it is ever cached directly: every route's full metadata is
+ * handed to this tree's {@see MetadataRegistry} as one unit, by {@see Route::definition()}, and a
+ * `Router` built from {@see table()} resolves it back through the same registry while matching — see
+ * {@see MetadataRegistry} for why that's safe. {@see LazyRoutes} declares lazily instead, when even
  * declaring on every request costs too much; its handler, middleware and filters may only be a class
- * name or container identifier.
+ * name or container identifier, precisely because it has no registry to fall back on.
  *
  * {@see notFound()} lets whoever declares the routes — not just whoever builds the `HandlerBuilder`
  * — replace its default not-found handler, e.g. a framework exposing this tree to its own users while
@@ -65,7 +67,7 @@ final class Routes
      * @param ?self $root the tree's actual root, `null` if this instance is it — see {@see group()}
      */
     public function __construct(
-        private readonly InstanceRegistry $registry = new InstanceRegistry(),
+        private readonly MetadataRegistry $registry = new MetadataRegistry(),
         private readonly string $prefix = '',
         private readonly ?self $root = null,
     ) {
@@ -113,9 +115,9 @@ final class Routes
      *
      *     $routes->redirect('/old', '/new');
      *
-     * Unlike every other handler, `$location`/`$status` need no {@see InstanceRegistry} id: they're
-     * already plain data, so {@see HandlerBuilder} builds the `RedirectHandler` itself, fresh per
-     * request, straight from the route's own metadata.
+     * Unlike every other handler, `$location`/`$status` are already plain data, so
+     * {@see HandlerBuilder} builds the `RedirectHandler` itself, fresh per request, straight from the
+     * route's own metadata.
      */
     public function redirect(string $path, string $location, int $status = 308): Route
     {
@@ -163,7 +165,7 @@ final class Routes
     /**
      * A group of routes with an optional path prefix, e.g. `$r->group('/admin')->middleware('auth')->get(...)`.
      * May be called more than once with the same prefix; each call adds a separate group, so sibling
-     * groups never share middleware or tags. Shares this tree's {@see InstanceRegistry}.
+     * groups never share middleware or tags. Shares this tree's {@see MetadataRegistry}.
      */
     public function group(string $prefix = ''): self
     {
@@ -175,8 +177,8 @@ final class Routes
 
     /**
      * Adds middleware for every route declared on this scope, including nested groups, after the
-     * middleware of any enclosing group. A class name or container identifier is resolved as usual; a
-     * real instance or closure is wrapped into the tree's {@see InstanceRegistry} instead, transparently.
+     * middleware of any enclosing group. A class name, container identifier, real instance or closure
+     * are all kept as given — see {@see MetadataRegistry}.
      *
      * Declared on a group, this only ever runs for a request a route inside it actually matches — there
      * is no "wrong method" or "no route" response to decorate for a path the group doesn't own. Declared
@@ -199,7 +201,8 @@ final class Routes
         // Middleware is arbitrary user data, so its entries are mixed by definition.
         // @mago-expect analysis:mixed-assignment
         foreach ($entries as $entry) {
-            $this->middleware[] = $this->registry->wrap($entry, $owner);
+            self::rejectInt($entry, $owner);
+            $this->middleware[] = $entry;
         }
 
         return $this;
@@ -218,9 +221,8 @@ final class Routes
 
     /**
      * Replaces {@see HandlerBuilder}'s default {@see NotFoundHandler} for this tree: the answer to a
-     * request no route takes at all (not merely the wrong method). A class name or container
-     * identifier is resolved as usual; a real instance or closure is wrapped into the tree's
-     * {@see InstanceRegistry} instead, transparently.
+     * request no route takes at all (not merely the wrong method). A class name, container identifier,
+     * real instance or closure are all kept as given — see {@see MetadataRegistry}.
      *
      * Only the root may set this — there's one not-found handler for the whole table, never one per
      * group, so calling this anywhere else would silently reconfigure the root instead of scoping to
@@ -234,7 +236,8 @@ final class Routes
             throw new InvalidRouteException('Only the root Routes may set the not-found handler, not a nested group.');
         }
 
-        $this->notFound = $this->registry->wrap($handler, 'The not-found handler');
+        self::rejectInt($handler, 'The not-found handler');
+        $this->notFound = $handler;
 
         return $this;
     }
@@ -245,20 +248,18 @@ final class Routes
      * that changes whenever these declarations would, e.g. an application version or a configuration
      * hash, for the caching described in {@see \SilenZ\Segmatch\Router} to actually take effect.
      *
-     * The table's metadata ({@see RouteTable::metadata()}) is this scope's own middleware and
-     * not-found handler (`middleware`, `notFound`), which {@see definitions()} bakes into no route;
-     * {@see HandlerBuilder::build()} reads it back. {@see registry()} travels with the table too, so a
-     * `Router` built from it is always paired with the same declaration's registry.
+     * The table's own metadata ({@see RouteTable::metadata()}) — this scope's root middleware and
+     * not-found handler — is handed to this tree's {@see MetadataRegistry} as one unit, the same way
+     * {@see Route::definition()} does for each route; {@see HandlerBuilder::build()} reads it back
+     * through {@see Router::metadata()}. {@see registry()} travels with the table too, so a `Router`
+     * built from it is always paired with the same declaration's registry.
      */
     public function table(?string $cacheKey = null): RouteTable
     {
         return new RouteTable(
             $this->definitions(...),
             $cacheKey,
-            fn(): array => [
-                'middleware' => $this->middleware,
-                'notFound' => $this->notFound,
-            ],
+            fn(): int => $this->registry->register(['middleware' => $this->middleware, 'notFound' => $this->notFound]),
             $this->registry,
         );
     }
@@ -288,11 +289,11 @@ final class Routes
     }
 
     /**
-     * This tree's {@see InstanceRegistry}, shared by the root and every nested group — carried
+     * This tree's {@see MetadataRegistry}, shared by the root and every nested group — carried
      * automatically into {@see table()}'s result, so mainly useful directly for inspecting what a
-     * declaration wrapped, e.g. in a test.
+     * declaration handed it, e.g. in a test.
      */
-    public function registry(): InstanceRegistry
+    public function registry(): MetadataRegistry
     {
         return $this->registry;
     }
@@ -342,5 +343,16 @@ final class Routes
     private function root(): self
     {
         return $this->root ?? $this;
+    }
+
+    /**
+     * @throws InvalidRouteException when $value is an integer: never a valid handler, middleware entry
+     *                               or filter of its own, so reserving it catches a plain mistake early
+     */
+    private static function rejectInt(mixed $value, string $owner): void
+    {
+        if (is_int($value)) {
+            throw new InvalidRouteException(sprintf('%s cannot be an integer (%d).', $owner, $value));
+        }
     }
 }

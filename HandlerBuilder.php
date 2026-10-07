@@ -32,9 +32,10 @@ use function substr;
  *
  *     $response = $builder->build($request)->handle($request);
  *
- * A handler, middleware entry or filter declared as a real instance or closure is looked up in
- * `$router->table()->registry()` — {@see \SilenZ\Segmatch\RouteTable} carries it paired with the table
- * it was built from, so there's no separate registry argument here to get out of step with `$router`.
+ * A handler, middleware entry or filter declared as a real instance or closure reaches here already
+ * resolved: {@see \SilenZ\Segmatch\Matcher} resolves it out of the table's own
+ * {@see \SilenZ\Segmatch\MetadataRegistry} (if it has one) before `$router->match()` ever returns, so
+ * this builder's own {@see Resolver} only ever has to deal with class names and container identifiers.
  */
 final class HandlerBuilder
 {
@@ -58,7 +59,7 @@ final class HandlerBuilder
         ContainerInterface $container,
         private readonly Router $router,
     ) {
-        $this->resolver = new Resolver($router->table()->registry(), $container);
+        $this->resolver = new Resolver($container);
     }
 
     /**
@@ -304,10 +305,11 @@ final class HandlerBuilder
 
     /**
      * {@see Routes::notFound()}'s replacement, from {@see Router::metadata()} — see
-     * {@see metadataValue()} — or {@see NotFoundHandler} if it was never called. Not resolved here: a
-     * class name, container identifier or {@see InstanceRegistry} id (an instance was given) is
-     * pushed onto the Relay stack as-is, same as any other entry, for {@see Resolver::entry()} to
-     * resolve when the request actually reaches it.
+     * {@see metadataValue()} — or {@see NotFoundHandler} if it was never called. Already resolved by
+     * {@see \SilenZ\Segmatch\Matcher} if it was given a {@see \SilenZ\Segmatch\MetadataRegistry} to
+     * resolve it from, so this is pushed onto the Relay stack as-is — a class name or container
+     * identifier for {@see Resolver::entry()} to resolve when the request actually reaches it, or
+     * already the real instance.
      */
     private function notFound(): mixed
     {

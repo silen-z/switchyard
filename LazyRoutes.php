@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace SilenZ\Segmatch\Http;
 
 use SilenZ\Segmatch\Exception\InvalidRouteException;
-use SilenZ\Segmatch\InstanceRegistry;
 use SilenZ\Segmatch\RouteDefinition;
 use SilenZ\Segmatch\RouteTable;
 
@@ -35,10 +34,10 @@ use function strtoupper;
  *
  * The price of declaring lazily: every handler, middleware entry and filter must be a class name or
  * container identifier — an instance or closure would only exist on the request that built the cache,
- * so `$define` throws {@see InvalidRouteException} the moment it declares one. In exchange, nothing
- * this tree declares is ever wrapped for later lookup, so there's never anything to resolve out of
- * `$router->table()->registry()` — the empty {@see InstanceRegistry} {@see RouteTable} defaults to is
- * all an all-lazy router ever needs.
+ * so `$define` throws {@see InvalidRouteException} the moment it declares one. In exchange, this
+ * tree's metadata is already fully cache-safe, so a `Router` built from it never needs a
+ * {@see \SilenZ\Segmatch\MetadataRegistry} at all — `table()` doesn't give {@see RouteTable} one,
+ * unlike {@see Routes::table()}.
  *
  * Otherwise this is {@see Routes}, shaped the same way: verb helpers, `group()`, `->middleware()` and
  * `->tag()` accumulate only once the tree is resolved into definitions. {@see notFound()} works the

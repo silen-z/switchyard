@@ -12,7 +12,7 @@ use SilenZ\Switchyard\Attribute\MethodNotAllowed;
  * A condition a route attaches to itself, checked while matching.
  *
  * A route usually references a filter by class name, so it survives the route cache; {@see
- * HandlerBuilder} resolves one instance per filter class from the container, which wires up
+ * Handler} resolves one instance per filter class from the container, which wires up
  * whatever dependencies that class always needs, the same way for every route that uses it. A route
  * may instead be given a ready instance directly
  * ({@see Route::filter()}), which skips the container and bakes its own configuration into its
@@ -21,7 +21,7 @@ use SilenZ\Switchyard\Attribute\MethodNotAllowed;
  * metadata, transparently, as part of what {@see Route::definition()} hands its
  * {@see \SilenZ\Beeline\MetadataRegistry} as one unit.
  *
- * Either way, {@see HandlerBuilder} calls {@see accepts()} for every candidate route of a request. A
+ * Either way, {@see Handler} calls {@see accepts()} for every candidate route of a request. A
  * filter that returns false makes the route behave as if it didn't exist, and matching moves on.
  *
  * Filters decide whether a route applies to the request (host, content type, a feature switch), never

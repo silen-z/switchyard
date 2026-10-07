@@ -14,7 +14,7 @@ use Psr\Http\Message\ResponseInterface;
 use SilenZ\Beeline\Cache\RouteCache;
 use SilenZ\Beeline\Exception\InvalidRouteException;
 use SilenZ\Beeline\Router;
-use SilenZ\Switchyard\HandlerBuilder;
+use SilenZ\Switchyard\Handler;
 use SilenZ\Switchyard\LazyRoutes;
 use SilenZ\Switchyard\Middleware\ErrorMiddleware;
 use SilenZ\Switchyard\Routes;
@@ -37,10 +37,10 @@ use function preg_quote;
  * The same routes declared eagerly with `Routes` and lazily with `LazyRoutes` answer the same, and
  * what sets the two apart: when the declaration runs, and what it may contain.
  */
-final class HandlerBuilderModesTest extends TestCase
+final class HandlerModesTest extends TestCase
 {
     /**
-     * Builds a `HandlerBuilder` from `$define`, declared eagerly on a `Routes` or lazily on a
+     * Builds a `Handler` from `$define`, declared eagerly on a `Routes` or lazily on a
      * `LazyRoutes` depending on `$mode`. Only for a `$define` genuinely polymorphic over both — the
      * parameterized `#[DataProvider('modes')]` tests. A test that only runs in one mode should call
      * {@see declaredEagerly()} or {@see declaredLazily()} directly instead, so its closure can be typed
@@ -53,7 +53,7 @@ final class HandlerBuilderModesTest extends TestCase
         callable $define,
         ?RouteCache $cache = null,
         ?string $cacheKey = null,
-    ): HandlerBuilder {
+    ): Handler {
         if ($mode === 'lazy') {
             return self::declaredLazily($define, $cache, $cacheKey);
         }
@@ -62,7 +62,7 @@ final class HandlerBuilderModesTest extends TestCase
     }
 
     /**
-     * Builds a `HandlerBuilder` from `$define` declared eagerly on a `Routes`, against a container
+     * Builds a `Handler` from `$define` declared eagerly on a `Routes`, against a container
      * that knows the "log", "api" and "auth" middleware and a {@see NumericRouteFilter} for "id" under
      * its class name.
      *
@@ -72,15 +72,15 @@ final class HandlerBuilderModesTest extends TestCase
         callable $define,
         ?RouteCache $cache = null,
         ?string $cacheKey = null,
-    ): HandlerBuilder {
+    ): Handler {
         $routes = new Routes();
         $define($routes);
 
-        return new HandlerBuilder(self::container(), new Router($routes->table($cacheKey), $cache));
+        return new Handler(self::container(), new Router($routes->table($cacheKey), $cache));
     }
 
     /**
-     * Builds a `HandlerBuilder` from `$define` declared lazily on a `LazyRoutes`, against a container
+     * Builds a `Handler` from `$define` declared lazily on a `LazyRoutes`, against a container
      * that also knows "numeric.postId" and "not-a-filter", so lazy routes can name everything, as they
      * must.
      *
@@ -90,8 +90,8 @@ final class HandlerBuilderModesTest extends TestCase
         callable $define,
         ?RouteCache $cache = null,
         ?string $cacheKey = null,
-    ): HandlerBuilder {
-        return new HandlerBuilder(self::container(), new Router(LazyRoutes::table($define, $cacheKey), $cache));
+    ): Handler {
+        return new Handler(self::container(), new Router(LazyRoutes::table($define, $cacheKey), $cache));
     }
 
     private static function container(): EchoContainer
@@ -117,7 +117,7 @@ final class HandlerBuilderModesTest extends TestCase
         $r->get('/ping', 'ping');
     }
 
-    private static function respond(HandlerBuilder $builder, string $method, string $path): ResponseInterface
+    private static function respond(Handler $builder, string $method, string $path): ResponseInterface
     {
         $request = new ServerRequest($method, $path);
 
@@ -229,7 +229,7 @@ final class HandlerBuilderModesTest extends TestCase
 
     public function testAHandlerTargetIsOnlyResolvedOnceTheRequestReachesIt(): void
     {
-        // The container knows nothing but the middleware and HandlerBuilder's own fallbacks, so
+        // The container knows nothing but the middleware and Handler's own fallbacks, so
         // resolving the handler would throw.
         $psr17 = new Psr17Factory();
         $container = new ArrayContainer([
@@ -237,7 +237,7 @@ final class HandlerBuilderModesTest extends TestCase
             ErrorMiddleware::class => new ErrorMiddleware($psr17, $psr17),
         ]);
         $table = LazyRoutes::table(static fn(LazyRoutes $r) => $r->get('/x', 'unknown.controller')->middleware('deny'));
-        $builder = new HandlerBuilder($container, new Router($table));
+        $builder = new Handler($container, new Router($table));
 
         static::assertSame(401, self::respond($builder, 'GET', '/x')->getStatusCode());
     }

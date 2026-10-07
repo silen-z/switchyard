@@ -32,8 +32,8 @@ use function strtoupper;
  *         $routes->group('/api')->middleware('api')->get('/users/{id}', ShowUser::class);
  *     }, 'routes-' . APP_VERSION), cache: new FileCache($dir));
  *
- *     $builder = new HandlerBuilder($container, $router);
- *     $response = $builder->build($request)->handle($request);
+ *     $handler = new Handler($container, $router);
+ *     $response = $handler->handle($request);
  *
  * The price of declaring lazily: every handler, middleware entry and filter must be a class name or
  * container identifier — an instance or closure would only exist on the request that built the cache,
@@ -193,7 +193,7 @@ final class LazyRoutes
      * Adds middleware for every route declared on this scope, including nested groups, after the
      * middleware of any enclosing group.
      *
-     * Declared on the root {@see HandlerBuilder} answers from, it also wraps the not-found and
+     * Declared on the root {@see Handler} answers from, it also wraps the not-found and
      * method-not-allowed/OPTIONS responses, and sits inside the default {@see ErrorMiddleware} if
      * declared first — see {@see Routes::middleware()}.
      *
@@ -223,7 +223,7 @@ final class LazyRoutes
     }
 
     /**
-     * Replaces {@see HandlerBuilder}'s default {@see NotFoundHandler} for this tree: the answer to a
+     * Replaces {@see Handler}'s default {@see NotFoundHandler} for this tree: the answer to a
      * request no route takes at all (not merely the wrong method). A class name or container
      * identifier, same restriction as {@see middleware()}.
      *

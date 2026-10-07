@@ -9,10 +9,10 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Message\StreamFactoryInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-use SilenZ\Switchyard\HandlerBuilder;
+use SilenZ\Switchyard\Handler;
 
 /**
- * The first entry of every stack {@see HandlerBuilder::build()} builds for a HEAD request: runs
+ * The first entry of every stack {@see Handler::build()} builds for a HEAD request: runs
  * the rest as usual, then drops the response body. RFC 9110 forbids a body in a HEAD response but
  * wants the same headers as for GET, so status and headers, including `Content-Length`, are kept.
  * Applies whoever answers: a GET route standing in for HEAD, a HEAD or `any()` route, or the

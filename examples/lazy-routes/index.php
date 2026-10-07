@@ -44,9 +44,9 @@ use RuntimeException;
 use SilenZ\Beeline\Cache\FileCache;
 use SilenZ\Beeline\Router;
 use SilenZ\Switchyard\Attribute\Found;
+use SilenZ\Switchyard\Handler;
 use SilenZ\Switchyard\Handler\AllowedMethodsHandler;
 use SilenZ\Switchyard\Handler\NotFoundHandler;
-use SilenZ\Switchyard\HandlerBuilder;
 use SilenZ\Switchyard\LazyRoutes;
 use SilenZ\Switchyard\Middleware\ErrorMiddleware;
 use SilenZ\Switchyard\Middleware\HeadMiddleware;
@@ -174,7 +174,7 @@ $container = new ArrayContainer([
 ]);
 
 $router = new Router($table, cache: new FileCache(__DIR__ . '/var/cache'));
-$builder = new HandlerBuilder($container, $router);
+$handler = new Handler($container, $router);
 
 // Psr17Factory::createServerRequest() builds no headers at all from $_SERVER — the built-in server
 // also hides Authorization from $_SERVER itself unless getallheaders() is used, so that's where the
@@ -189,10 +189,7 @@ $request = new ServerRequest(
     $_SERVER,
 );
 
-$response = $builder
-    ->build($request)
-    ->handle($request)
-    ->withHeader('X-Routes-Declared', $declared ? 'yes' : 'no');
+$response = $handler->handle($request)->withHeader('X-Routes-Declared', $declared ? 'yes' : 'no');
 
 http_response_code($response->getStatusCode());
 foreach ($response->getHeaders() as $name => $values) {

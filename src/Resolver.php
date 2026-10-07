@@ -60,7 +60,7 @@ final readonly class Resolver
 
     /**
      * The container's {@see ResponseFactoryInterface}, for building a response with nothing already
-     * on hand to base one on, e.g. {@see HandlerBuilder}'s own trailing-slash {@see RedirectHandler}.
+     * on hand to base one on, e.g. {@see Handler}'s own trailing-slash {@see RedirectHandler}.
      *
      * @throws UnexpectedValueException when it resolves to anything else
      */

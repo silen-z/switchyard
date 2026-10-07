@@ -27,7 +27,7 @@ use function str_starts_with;
  *         ->middleware('audit')
  *         ->tag('public');
  *
- * {@see HandlerBuilder} checks the route's own HTTP methods and resolves and runs its filters,
+ * {@see Handler} checks the route's own HTTP methods and resolves and runs its filters,
  * in the order `filter()` added them, while matching.
  */
 final class Route
@@ -62,7 +62,7 @@ final class Route
 
     /**
      * @internal set by {@see Routes::redirect()}, replacing the placeholder handler its constructor
-     *           call needed in the route's own metadata — {@see HandlerBuilder} checks for this first
+     *           call needed in the route's own metadata — {@see Handler} checks for this first
      */
     public function asRedirect(string $location, int $status): self
     {
@@ -170,7 +170,7 @@ final class Route
 
     /**
      * Resolves this route into a core route definition: the full path (this route's own, under the
-     * enclosing groups' prefix) and the metadata {@see HandlerBuilder} reads while matching:
+     * enclosing groups' prefix) and the metadata {@see Handler} reads while matching:
      *
      *     [
      *         'handler'    => ShowUser::class,
@@ -185,7 +185,7 @@ final class Route
      * `handler` and each `middleware`/`filters` entry may be a class name, a container identifier, a
      * real instance or a closure — kept exactly as given. A route built by {@see Routes::redirect()}
      * gets `'redirect' => ['location' => ..., 'status' => ...]` instead of `handler` — plain data, so
-     * {@see HandlerBuilder} builds its {@see RedirectHandler} directly from it, fresh per request.
+     * {@see Handler} builds its {@see RedirectHandler} directly from it, fresh per request.
      *
      * This whole array is handed to {@see MetadataRegistry::register()} as one unit — the returned id
      * is what actually becomes the `RouteDefinition`'s metadata, so it survives a round trip through a

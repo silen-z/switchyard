@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace SilenZ\Switchyard;
 
 use Psr\Container\ContainerInterface;
+use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Relay\Relay;
@@ -30,22 +31,25 @@ use function substr;
 
 /**
  * Answers HTTP requests by matching against an already-built {@see \SilenZ\Beeline\Router} and
- * turning the result into a PSR-15 handler:
+ * running whatever applies — a PSR-15 handler in its own right:
  *
  *     $routes = new Routes();
  *     $routes->get('/', HomeController::class);
  *
  *     $router = new Router($routes->table());
- *     $builder = new HandlerBuilder($container, $router);
+ *     $handler = new Handler($container, $router);
  *
- *     $response = $builder->build($request)->handle($request);
+ *     $response = $handler->handle($request);
+ *
+ * {@see build()} returns the per-request handler {@see handle()} runs, for a caller that wants it
+ * before it runs rather than just its response.
  *
  * A handler, middleware entry or filter declared as a real instance or closure reaches here already
  * resolved: {@see \SilenZ\Beeline\Matcher} resolves it out of the table's own
  * {@see \SilenZ\Beeline\MetadataRegistry} (if it has one) before `$router->match()` ever returns, so
- * this builder's own {@see Resolver} only ever has to deal with class names and container identifiers.
+ * this handler's own {@see Resolver} only ever has to deal with class names and container identifiers.
  */
-final class HandlerBuilder
+final class Handler implements RequestHandlerInterface
 {
     private readonly Resolver $resolver;
 
@@ -53,9 +57,9 @@ final class HandlerBuilder
      * @param ContainerInterface $container resolves everything a stack entry is named as — the
      *                                       route's middleware and handler, its {@see RouteFilter}s,
      *                                       {@see Routes::notFound()} if it replaces the default —
-     *                                       plus this builder's own fallbacks: a PSR-17 response
+     *                                       plus this handler's own fallbacks: a PSR-17 response
      *                                       factory for {@see NotFoundHandler}, {@see
-     *                                       AllowedMethodsHandler} and this builder's own trailing-slash
+     *                                       AllowedMethodsHandler} and this handler's own trailing-slash
      *                                       {@see RedirectHandler}, and a stream factory for {@see
      *                                       HeadMiddleware} and {@see ErrorMiddleware} (which also
      *                                       needs the response factory). A container that autowires
@@ -68,6 +72,14 @@ final class HandlerBuilder
         private readonly Router $router,
     ) {
         $this->resolver = new Resolver($container);
+    }
+
+    /**
+     * The response to one request: whatever {@see build()} returns for it, run.
+     */
+    public function handle(ServerRequestInterface $request): ResponseInterface
+    {
+        return $this->build($request)->handle($request);
     }
 
     /**
@@ -96,9 +108,9 @@ final class HandlerBuilder
      * see there for why that's equivalent, not just a workaround.
      *
      * The not-found replacement is declared on {@see Routes}/{@see LazyRoutes}, not passed here:
-     * whoever declares the routes may not be whoever builds this `HandlerBuilder` (e.g. a framework
+     * whoever declares the routes may not be whoever constructs this `Handler` (e.g. a framework
      * exposing `Routes` to its own users while keeping this call to itself), so there's nothing left
-     * for a caller of `build()` itself to override.
+     * for a caller of `build()` or `handle()` to override.
      */
     public function build(ServerRequestInterface $request): RequestHandlerInterface
     {

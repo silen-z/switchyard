@@ -8,11 +8,11 @@ use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-use SilenZ\Switchyard\HandlerBuilder;
+use SilenZ\Switchyard\Handler;
 
 /**
  * Redirects to `$location`, 308 by default — permanent, preserving the method and body, unlike a 301
- * or 302. {@see HandlerBuilder::build()} uses one for a path whose trailing "/" counterpart answers
+ * or 302. {@see Handler::build()} uses one for a path whose trailing "/" counterpart answers
  * instead; a route may just as well use one directly as its own handler, e.g. for a moved path:
  *
  *     $routes->get('/old', new RedirectHandler($responseFactory, '/new'));

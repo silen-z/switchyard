@@ -41,7 +41,7 @@ $router = new Router(
   $status = 308)` a GET route answering with a `RedirectHandler` — see
   [Handling requests](#handling-requests) for why `$location`/`$status` are the one handler that
   needs no class name, container identifier or real instance at all: they're already plain data, so
-  `HandlerBuilder` builds the `RedirectHandler` itself, fresh per request, straight from the route's
+  `Handler` builds the `RedirectHandler` itself, fresh per request, straight from the route's
   own (fully cacheable) metadata.
 - **The tree carries its own `MetadataRegistry`,** the store that keeps real instances out of the
   route cache (see below) — `new Routes()` creates one for you, shared by the root and every group,
@@ -58,11 +58,11 @@ $router = new Router(
 - **Middleware on the root tree wraps every outcome,** not just its own routes — see
   [Handling requests](#handling-requests). It's baked into no route's metadata; `table()` keeps it as
   the table's own metadata instead (`['middleware' => [...]]`), cached with the routes.
-- **`->notFound()`, called on the root only,** replaces `HandlerBuilder`'s built-in
+- **`->notFound()`, called on the root only,** replaces `Handler`'s built-in
   `NotFoundHandler` (see [Handling requests](#handling-requests)) — declared here rather than
   passed to `build()`, so whoever declares the routes may configure it even when that isn't whoever
-  builds the `HandlerBuilder`, e.g. a framework exposing `Routes` to its own users while keeping
-  `HandlerBuilder` to itself. Unlike `->middleware()`, a later call replaces the earlier one rather
+  builds the `Handler`, e.g. a framework exposing `Routes` to its own users while keeping
+  `Handler` to itself. Unlike `->middleware()`, a later call replaces the earlier one rather
   than accumulating — there's one not-found handler for the whole table, never one per group, so
   calling it on a `group()` throws an `InvalidRouteException` instead of silently reconfiguring the
   root from somewhere that looks scoped:
@@ -131,7 +131,7 @@ There's deliberately no built-in parameter validation such as regex constraints:
 values in the controller. If a route really must be skipped for some values, so that another
 route can take the request, write a filter for it.
 
-`HandlerBuilder` (see [Handling requests](#handling-requests)) is how you match: it checks
+`Handler` (see [Handling requests](#handling-requests)) is how you match: it checks
 the route's methods with `MethodNotAllowed` — generic, container-free — and resolves and runs
 its filters, the only place that knows about the container.
 
@@ -189,7 +189,7 @@ $public = $r->group()->middleware(AuthMiddleware::class);
 $public->get('/login', LoginForm::class)->tag('public');
 $public->get('/account', ShowAccount::class);
 
-// in AuthMiddleware::process(), which HandlerBuilder runs inside each route's stack:
+// in AuthMiddleware::process(), which Handler runs inside each route's stack:
 $found = Found::fromRequest($request);
 if (!in_array('public', $found?->tags ?? [], true) && !$session->isLoggedIn()) {
     return new Response(401);
@@ -198,30 +198,34 @@ if (!in_array('public', $found?->tags ?? [], true) && !$session->isLoggedIn()) {
 
 `Found` is only on the request inside the route's stack (see
 [Handling requests](#handling-requests)), so this works as route or group middleware, not as
-middleware that runs before `HandlerBuilder`.
+middleware that runs before `Handler`.
 
 ### Handling requests
 
-`HandlerBuilder` answers requests from an already-built `Router`. `build()` returns the
+`Handler` answers requests from an already-built `Router`. `build()` returns the
 PSR-15 handler for one request — the matched route's middleware and handler as one stack built with
 [Relay](https://relayphp.com/), or a 404/405/redirect handler — so you don't handle `RouteMatch`,
 `NoMatch`, methods and filters yourself:
 
 ```php
 use SilenZ\Beeline\Router;
-use SilenZ\Switchyard\HandlerBuilder;
+use SilenZ\Switchyard\Handler;
 use SilenZ\Switchyard\Routes;
 
 $routes = new Routes();
 $routes->get('/', HomeController::class);
 $routes->group('/api')->middleware('api')->get('/users/{id}', ShowUser::class);
 
-// $container resolves filters, middleware, handlers and the builder's own fallback handlers
+// $container resolves filters, middleware, handlers and the Handler's own fallback handlers
 $router = new Router($routes->table());
-$builder = new HandlerBuilder($container, $router);
+$handler = new Handler($container, $router);
 
-$response = $builder->build($request)->handle($request);
+$response = $handler->handle($request);
 ```
+
+- **`Handler` is a PSR-15 `RequestHandlerInterface` itself.** `handle()` runs whatever answers the
+  request; `build($request)` returns that per-request handler without running it, for a framework
+  that wants it first — `handle()` is just `build($request)->handle($request)`.
 
 - **`$request` is a PSR-7 `ServerRequestInterface`.** The path comes from
   `$request->getUri()->getPath()`.
@@ -232,14 +236,14 @@ $response = $builder->build($request)->handle($request);
   a stream factory for `Middleware\HeadMiddleware` and `Middleware\ErrorMiddleware` (which needs
   both — always, since there's no way to replace it); a container that autowires constructor
   arguments needs no registration of its own. `Psr\Http\Message\ResponseFactoryInterface` itself must also resolve on its
-  own — `HandlerBuilder` asks for it directly to build its own trailing-slash `RedirectHandler`,
+  own — `Handler` asks for it directly to build its own trailing-slash `RedirectHandler`,
   rather than resolving a handler class by name for it. Each middleware entry must resolve to a
   `Psr\Http\Server\MiddlewareInterface`, and the handler to a `Psr\Http\Server\RequestHandlerInterface`.
 - **`$router` is already built** — bring your own, shared across requests so its compiled routes are
   only loaded from the cache (or compiled) once (see Beeline's [Caching](../beeline/README.md#caching));
-  `HandlerBuilder` doesn't build or memoize one itself. A handler, middleware entry or filter declared
+  `Handler` doesn't build or memoize one itself. A handler, middleware entry or filter declared
   as a real instance or closure already comes back resolved in `$router->match()`'s result —
-  `HandlerBuilder` never touches a `MetadataRegistry` itself, so there's no separate registry argument
+  `Handler` never touches a `MetadataRegistry` itself, so there's no separate registry argument
   here to keep in sync with `$router`; see [HTTP routes](#http-routes).
 - **A handler, middleware entry or filter is never specially resolved by this library beyond what's
   described above** — a class name or container identifier through the container, anything else kept
@@ -313,7 +317,7 @@ $response = $builder->build($request)->handle($request);
   against the OPTIONS request itself.
 - **Request attributes for custom filters:** PSR-7's own `$request->withAttribute($name, $value)`,
   read back by the filter with `$request->getAttribute($name)`.
-- **All middleware is declared on the routes, not on the builder.** Group middleware
+- **All middleware is declared on the routes, not on the `Handler`.** Group middleware
   (`$r->group('/api')->middleware(...)`) only runs for the routes in that group — there's no "wrong
   method" or "no route" response to decorate for a path the group doesn't own. Middleware on the root
   `Routes` (`$routes` above) is different: it also wraps the not-found,
@@ -345,8 +349,8 @@ $response = $builder->build($request)->handle($request);
   }
   ```
 - **Middleware that must run before matching** — anything that changes the request, or sets the
-  attributes filters read — goes in a stack around the builder instead; its last entry is a one-liner,
-  `return $builder->build($request)->handle($request);`. Unlike `$routes->middleware()`, this runs
+  attributes filters read — goes in a stack around the `Handler` instead, which, as a PSR-15
+  handler itself, can be that stack's last entry as-is. Unlike `$routes->middleware()`, this runs
   before the route is even looked up, so it can affect matching itself.
 
 ### URL generation

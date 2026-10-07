@@ -6,13 +6,13 @@ namespace SilenZ\Switchyard\Attribute;
 
 use Psr\Http\Message\ServerRequestInterface;
 use SilenZ\Beeline\RouteMatch;
-use SilenZ\Switchyard\HandlerBuilder;
+use SilenZ\Switchyard\Handler;
 
 use function is_array;
 use function is_string;
 
 /**
- * The route that applies to the request, as {@see HandlerBuilder::build()} hands it to the
+ * The route that applies to the request, as {@see Handler::build()} hands it to the
  * route's own middleware and handler under the `Found::class` request attribute.
  */
 final readonly class Found
@@ -42,7 +42,7 @@ final readonly class Found
     }
 
     /**
-     * The `Found` {@see HandlerBuilder::build()} put on the request, null outside a matched route's
+     * The `Found` {@see Handler::build()} put on the request, null outside a matched route's
      * stack.
      */
     public static function fromRequest(ServerRequestInterface $request): ?Found

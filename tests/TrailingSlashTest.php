@@ -9,12 +9,12 @@ use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use SilenZ\Beeline\Router;
-use SilenZ\Switchyard\HandlerBuilder;
+use SilenZ\Switchyard\Handler;
 use SilenZ\Switchyard\Routes;
 use SilenZ\Switchyard\Tests\Fixtures\EchoContainer;
 
 /**
- * {@see HandlerBuilder::build()}'s redirect for a path with no route of its own but a trailing-slash
+ * {@see Handler::build()}'s redirect for a path with no route of its own but a trailing-slash
  * counterpart that does.
  */
 final class TrailingSlashTest extends TestCase
@@ -27,7 +27,7 @@ final class TrailingSlashTest extends TestCase
         $routes = new Routes();
         $define($routes);
 
-        $builder = new HandlerBuilder(new EchoContainer(), new Router($routes->table()));
+        $builder = new Handler(new EchoContainer(), new Router($routes->table()));
 
         return $builder->build($request)->handle($request);
     }

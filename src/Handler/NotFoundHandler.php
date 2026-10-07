@@ -8,10 +8,10 @@ use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-use SilenZ\Switchyard\HandlerBuilder;
+use SilenZ\Switchyard\Handler;
 
 /**
- * {@see HandlerBuilder}'s default answer when no route applies to the request: an empty 404.
+ * {@see Handler}'s default answer when no route applies to the request: an empty 404.
  */
 final readonly class NotFoundHandler implements RequestHandlerInterface
 {

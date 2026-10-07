@@ -10,7 +10,7 @@ use PHPUnit\Framework\TestCase;
 use SilenZ\Beeline\Cache\RouteCache;
 use SilenZ\Beeline\Router;
 use SilenZ\Switchyard\Exception\UrlGenerationException;
-use SilenZ\Switchyard\HandlerBuilder;
+use SilenZ\Switchyard\Handler;
 use SilenZ\Switchyard\Routes;
 use SilenZ\Switchyard\Tests\Fixtures\ArrayRouteCache;
 use SilenZ\Switchyard\Tests\Fixtures\EchoContainer;
@@ -81,7 +81,7 @@ final class UrlGeneratorTest extends TestCase
 
         $routes = new Routes();
         self::declare($routes);
-        $builder = new HandlerBuilder(new EchoContainer(), new Router($routes->table()));
+        $builder = new Handler(new EchoContainer(), new Router($routes->table()));
 
         foreach ([
             ['users.show', ['id' => 'a/b c?']],

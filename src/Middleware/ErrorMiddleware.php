@@ -10,13 +10,13 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Message\StreamFactoryInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-use SilenZ\Switchyard\HandlerBuilder;
+use SilenZ\Switchyard\Handler;
 use SilenZ\Switchyard\Routes;
 use Throwable;
 
 /**
  * A default answer for whatever the rest of the stack throws: a plain-text 500, swallowing the
- * {@see Throwable} rather than letting it escape {@see HandlerBuilder::build()}'s caller. Only useful
+ * {@see Throwable} rather than letting it escape {@see Handler::build()}'s caller. Only useful
  * placed outermost — e.g. first into {@see Routes::middleware()} on the root — since that's the one
  * spot that wraps every other middleware and handler, matched or not.
  *

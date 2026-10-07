@@ -10,10 +10,10 @@ use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use SilenZ\Switchyard\Attribute\Found;
 use SilenZ\Switchyard\Attribute\MethodNotAllowed;
-use SilenZ\Switchyard\HandlerBuilder;
+use SilenZ\Switchyard\Handler;
 
 /**
- * The first entry of the stacks {@see HandlerBuilder::build()} builds: sets the routing result
+ * The first entry of the stacks {@see Handler::build()} builds: sets the routing result
  * as a request attribute under its own class name, `Found::class` or `MethodNotAllowed::class`, for
  * the middleware and handler that follow.
  */

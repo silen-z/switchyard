@@ -17,18 +17,19 @@ ignore = ["mixed-assignment"]
 integrations = ["phpunit"]
 
 [linter.rules]
-# HandlerBuilder::build() enumerates every distinct outcome one request can have — a matched route,
+# Handler::build() enumerates every distinct outcome one request can have — a matched route,
 # a HEAD request answered by a GET route's handler, a trailing-slash redirect (itself subject to the
 # same HEAD/GET equivalence), method-not-allowed, not-found — each its own real branch of one
 # decision, not entangled unrelated responsibilities. Splitting it further would scatter that one
 # decision across more entry points rather than simplify it.
-cyclomatic-complexity = { threshold = 30, exclude = ["src/HandlerBuilder.php"] }
+cyclomatic-complexity = { threshold = 30, exclude = ["src/Handler.php"] }
 kan-defect = { threshold = 2.5 }
 halstead = { exclude = ["tests/**", "benchmarks/**"] }
 
 # Data-provider heavy test classes and benchmark classes legitimately have many methods, and so do
-# Routes and LazyRoutes, each with one helper per HTTP method.
-too-many-methods = { exclude = ["tests/**", "benchmarks/**", "src/Routes.php", "src/LazyRoutes.php"] }
+# Routes and LazyRoutes, each with one helper per HTTP method, and Handler, whose private helpers
+# each name one step of build() (see the cyclomatic-complexity note above).
+too-many-methods = { exclude = ["tests/**", "benchmarks/**", "src/Routes.php", "src/LazyRoutes.php", "src/Handler.php"] }
 
 # Each example is one self-contained script, runnable as-is with PHP's built-in server, so its
 # handlers and middleware live right next to the routes that use them.

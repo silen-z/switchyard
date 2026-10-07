@@ -9,13 +9,13 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use SilenZ\Switchyard\Attribute\MethodNotAllowed;
-use SilenZ\Switchyard\HandlerBuilder;
+use SilenZ\Switchyard\Handler;
 
 use function implode;
 use function strtoupper;
 
 /**
- * {@see HandlerBuilder}'s answer when routes exist for the path but not for the request's method:
+ * {@see Handler}'s answer when routes exist for the path but not for the request's method:
  * an empty response with the `Allow` header, from the `MethodNotAllowed::class` request attribute.
  * It's a 405, or a 200 for an OPTIONS request, which asks for exactly that list.
  */

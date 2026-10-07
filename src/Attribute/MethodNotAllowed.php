@@ -5,14 +5,14 @@ declare(strict_types=1);
 namespace SilenZ\Switchyard\Attribute;
 
 use Psr\Http\Message\ServerRequestInterface;
-use SilenZ\Switchyard\HandlerBuilder;
+use SilenZ\Switchyard\Handler;
 
 use function in_array;
 use function is_array;
 use function strtoupper;
 
 /**
- * Routes exist for the request's path, but not for its method. {@see HandlerBuilder::build()}
+ * Routes exist for the request's path, but not for its method. {@see Handler::build()}
  * hands this to the method-not-allowed and OPTIONS handlers under the `MethodNotAllowed::class`
  * request attribute.
  */
@@ -26,7 +26,7 @@ final readonly class MethodNotAllowed
     ) {}
 
     /**
-     * The `MethodNotAllowed` {@see HandlerBuilder::build()} put on the request, null unless it's
+     * The `MethodNotAllowed` {@see Handler::build()} put on the request, null unless it's
      * being answered by the method-not-allowed or OPTIONS handler.
      */
     public static function fromRequest(ServerRequestInterface $request): ?MethodNotAllowed

@@ -9,7 +9,7 @@ use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use SilenZ\Beeline\Router;
-use SilenZ\Switchyard\HandlerBuilder;
+use SilenZ\Switchyard\Handler;
 use SilenZ\Switchyard\Middleware\ErrorMiddleware;
 use SilenZ\Switchyard\Routes;
 use SilenZ\Switchyard\Tests\Fixtures\EchoContainer;
@@ -29,7 +29,7 @@ final class ErrorMiddlewareTest extends TestCase
         $routes->get('/boom', ThrowingHandler::class);
         $routes->get('/ok', PlainHandler::class);
 
-        $builder = new HandlerBuilder(new EchoContainer(), new Router($routes->table()));
+        $builder = new Handler(new EchoContainer(), new Router($routes->table()));
 
         return $builder->build($request)->handle($request);
     }

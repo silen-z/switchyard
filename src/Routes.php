@@ -30,7 +30,7 @@ use function strtoupper;
  *     $routes->group('/api')->middleware('api')->get('/users/{id}', ShowUser::class)->name('users.show');
  *
  *     $router = new Router($routes->table('routes-' . APP_VERSION), cache: new FileCache($dir));
- *     $builder = new HandlerBuilder($container, $router);
+ *     $handler = new Handler($container, $router);
  *
  * Declaring runs immediately, like any other PHP code; there is nothing to defer. A `group()` is
  * itself a `Routes`, scoped by an optional path prefix, with its own middleware and tags inherited by
@@ -44,9 +44,9 @@ use function strtoupper;
  * declaring on every request costs too much; its handler, middleware and filters may only be a class
  * name or container identifier, precisely because it has no registry to fall back on.
  *
- * {@see notFound()} lets whoever declares the routes — not just whoever builds the `HandlerBuilder`
+ * {@see notFound()} lets whoever declares the routes — not just whoever builds the `Handler`
  * — replace its default not-found handler, e.g. a framework exposing this tree to its own users while
- * configuring its own `HandlerBuilder` internally. There's no equivalent for the default error
+ * configuring its own `Handler` internally. There's no equivalent for the default error
  * middleware: it's always the outermost entry, so anything declared with {@see middleware()} instead
  * sits further in and catches first — see {@see middleware()}.
  */
@@ -118,7 +118,7 @@ final class Routes
      *     $routes->redirect('/old', '/new');
      *
      * Unlike every other handler, `$location`/`$status` are already plain data, so
-     * {@see HandlerBuilder} builds the `RedirectHandler` itself, fresh per request, straight from the
+     * {@see Handler} builds the `RedirectHandler` itself, fresh per request, straight from the
      * route's own metadata.
      */
     public function redirect(string $path, string $location, int $status = 308): Route
@@ -184,9 +184,9 @@ final class Routes
      *
      * Declared on a group, this only ever runs for a request a route inside it actually matches — there
      * is no "wrong method" or "no route" response to decorate for a path the group doesn't own. Declared
-     * on the root instead — the tree whose {@see table()} built the `Router` a `HandlerBuilder`
+     * on the root instead — the tree whose {@see table()} built the `Router` a `Handler`
      * answers from — it also wraps the not-found and method-not-allowed/OPTIONS responses: the one way
-     * to declare middleware for every outcome, matched or not. {@see HandlerBuilder}'s own default
+     * to declare middleware for every outcome, matched or not. {@see Handler}'s own default
      * {@see ErrorMiddleware} wraps this root middleware too, so a throw from it still becomes a 500
      * rather than reaching `build()`'s caller — there's deliberately no way to replace that default:
      * add your own error-catching middleware here instead, declared first so it still wraps every
@@ -219,7 +219,7 @@ final class Routes
     }
 
     /**
-     * Replaces {@see HandlerBuilder}'s default {@see NotFoundHandler} for this tree: the answer to a
+     * Replaces {@see Handler}'s default {@see NotFoundHandler} for this tree: the answer to a
      * request no route takes at all (not merely the wrong method). A class name, container identifier,
      * real instance or closure are all kept as given — see {@see MetadataRegistry}.
      *
@@ -248,7 +248,7 @@ final class Routes
      *
      * The table's own metadata ({@see RouteTable::metadata()}) — this scope's root middleware and
      * not-found handler — is handed to this tree's {@see MetadataRegistry} as one unit, the same way
-     * {@see Route::definition()} does for each route; {@see HandlerBuilder::build()} reads it back
+     * {@see Route::definition()} does for each route; {@see Handler::build()} reads it back
      * through {@see Router::metadata()}. {@see registry()} travels with the table too, so a `Router`
      * built from it is always paired with the same declaration's registry.
      */

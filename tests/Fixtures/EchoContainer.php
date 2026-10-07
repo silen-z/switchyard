@@ -18,7 +18,7 @@ use function class_exists;
 /**
  * Resolves the given services, then any class by name, and every other identifier — the plain
  * strings tests use as route handlers — to an {@see EchoHandler}. Middleware identifiers must be
- * given as services. `Http\HandlerBuilder`'s own default handlers need a `Psr17Factory`
+ * given as services. `Http\Handler`'s own default handlers need a `Psr17Factory`
  * constructor argument, standing in for a real container's own PSR-17 bindings.
  */
 final class EchoContainer implements ContainerInterface

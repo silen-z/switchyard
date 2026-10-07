@@ -62,7 +62,7 @@ final class LazyRoute
 
     /**
      * @internal set by {@see LazyRoutes::redirect()}, replacing the placeholder handler its
-     *           constructor call needed in the route's own metadata — {@see HandlerBuilder} checks
+     *           constructor call needed in the route's own metadata — {@see Handler} checks
      *           for this first
      */
     public function asRedirect(string $location, int $status): self

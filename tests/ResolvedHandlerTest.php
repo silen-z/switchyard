@@ -15,7 +15,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use SilenZ\Beeline\Router;
 use SilenZ\Switchyard\Attribute\Found;
-use SilenZ\Switchyard\HandlerBuilder;
+use SilenZ\Switchyard\Handler;
 use SilenZ\Switchyard\Middleware\ErrorMiddleware;
 use SilenZ\Switchyard\Routes;
 use SilenZ\Switchyard\Tests\Fixtures\ArrayContainer;
@@ -35,12 +35,12 @@ final class ResolvedHandlerTest extends TestCase
     /**
      * @param callable(Routes): void $define
      */
-    private static function builder(callable $define, ContainerInterface $container): HandlerBuilder
+    private static function builder(callable $define, ContainerInterface $container): Handler
     {
         $routes = new Routes();
         $define($routes);
 
-        return new HandlerBuilder($container, new Router($routes->table()));
+        return new Handler($container, new Router($routes->table()));
     }
 
     private static function apiRoutes(Routes $routes): void
@@ -57,12 +57,12 @@ final class ResolvedHandlerTest extends TestCase
         $routes->map(['OPTIONS'], '/cors', PlainHandler::class);
     }
 
-    private static function apiBuilder(): HandlerBuilder
+    private static function apiBuilder(): Handler
     {
         return self::builder(self::apiRoutes(...), new EchoContainer());
     }
 
-    private static function respond(HandlerBuilder $builder, ServerRequestInterface $request): ResponseInterface
+    private static function respond(Handler $builder, ServerRequestInterface $request): ResponseInterface
     {
         return $builder->build($request)->handle($request);
     }

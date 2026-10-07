@@ -37,7 +37,7 @@ $router = new Router($routes->table());
 $document = new OA\OpenApi(
     openapi: '3.1.0',
     info: new OA\Info(title: 'Example API', version: '1.0.0'),
-    paths: PathsGenerator::generate($router->table()->definitions()),
+    paths: PathsGenerator::generate($router->table()->definitions(), $router->table()->registry()),
 );
 
 if (!$document->validate()) {

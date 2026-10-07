@@ -13,7 +13,6 @@ use SilenZ\Segmatch\RouteTable;
 use function array_unique;
 use function array_values;
 use function is_array;
-use function is_int;
 use function preg_match;
 use function sprintf;
 use function str_ends_with;
@@ -25,7 +24,7 @@ use function strtoupper;
  *
  *     $routes = new Routes();
  *     $routes->get('/', HomeController::class);
- *     $routes->group('/api')->middleware('api')->get('/users/{id}', [UserController::class, 'show'])->name('users.show');
+ *     $routes->group('/api')->middleware('api')->get('/users/{id}', ShowUser::class)->name('users.show');
  *
  *     $router = new Router($routes->table('routes-' . APP_VERSION), cache: new FileCache($dir));
  *     $builder = new HandlerBuilder($container, $router);
@@ -197,11 +196,9 @@ final class Routes
     public function middleware(mixed $middleware): self
     {
         $entries = is_array($middleware) ? array_values($middleware) : [$middleware];
-        $owner = sprintf('%s middleware', $this->owner());
         // Middleware is arbitrary user data, so its entries are mixed by definition.
         // @mago-expect analysis:mixed-assignment
         foreach ($entries as $entry) {
-            self::rejectInt($entry, $owner);
             $this->middleware[] = $entry;
         }
 
@@ -236,7 +233,6 @@ final class Routes
             throw new InvalidRouteException('Only the root Routes may set the not-found handler, not a nested group.');
         }
 
-        self::rejectInt($handler, 'The not-found handler');
         $this->notFound = $handler;
 
         return $this;
@@ -343,16 +339,5 @@ final class Routes
     private function root(): self
     {
         return $this->root ?? $this;
-    }
-
-    /**
-     * @throws InvalidRouteException when $value is an integer: never a valid handler, middleware entry
-     *                               or filter of its own, so reserving it catches a plain mistake early
-     */
-    private static function rejectInt(mixed $value, string $owner): void
-    {
-        if (is_int($value)) {
-            throw new InvalidRouteException(sprintf('%s cannot be an integer (%d).', $owner, $value));
-        }
     }
 }

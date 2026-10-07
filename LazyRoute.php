@@ -22,7 +22,7 @@ use function str_starts_with;
  * same way, but for a tree that's only ever declared when the route cache has no entry. An instance or
  * closure given while declaring would not exist on the requests later answered from that cache, so
  * there is no {@see \SilenZ\Segmatch\MetadataRegistry} here — a handler, middleware entry or filter
- * must already be a class name or container identifier instead, checked immediately by {@see plain()}
+ * must already be a class name or container identifier instead, checked immediately by {@see plainString()}
  * rather than at request time.
  *
  * PHP has no type for "a class name or container identifier", so the parameters below stay `mixed`;
@@ -30,8 +30,7 @@ use function str_starts_with;
  */
 final class LazyRoute
 {
-    /** @var string|array{0: string, 1: string} */
-    private readonly string|array $handler;
+    private readonly string $handler;
 
     /** @var ?array{location: string, status: int} */
     private ?array $redirect = null;
@@ -49,8 +48,7 @@ final class LazyRoute
 
     /**
      * @param ?non-empty-list<string> $methods upper-case HTTP methods, null for any method
-     * @param string|array{0: string, 1: string} $handler a class name or container identifier, or
-     *                                                     `[class name or container identifier, 'method']`
+     * @param string $handler a class name or container identifier
      *
      * @throws InvalidRouteException
      */
@@ -59,9 +57,7 @@ final class LazyRoute
         private readonly string $path,
         mixed $handler,
     ) {
-        $owner = sprintf('Route "%s" handler', $path);
-        MethodHandler::check($handler, $owner);
-        $this->handler = self::plain($handler, $owner);
+        $this->handler = self::plainString($handler, sprintf('Route "%s" handler', $path));
     }
 
     /**
@@ -208,25 +204,6 @@ final class LazyRoute
         }
 
         return new RouteDefinition($fullPath, $metadata);
-    }
-
-    /**
-     * $value as a class name or container identifier, or a `[string, string]` pair — both already
-     * checked for shape by {@see MethodHandler::check()}, so an array here only needs its target
-     * confirmed a string, never an instance.
-     *
-     * @return string|array{0: string, 1: string}
-     *
-     * @throws InvalidRouteException when $value, or an array's target, is an instance
-     */
-    private static function plain(mixed $value, string $owner): string|array
-    {
-        if (is_string($value) || is_array($value) && is_string($value[0])) {
-            /** @var string|array{0: string, 1: string} $value */
-            return $value;
-        }
-
-        throw self::notPlain($owner, $value);
     }
 
     /**

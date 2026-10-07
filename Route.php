@@ -12,7 +12,6 @@ use function array_unique;
 use function array_values;
 use function class_exists;
 use function is_array;
-use function is_int;
 use function is_string;
 use function is_subclass_of;
 use function sprintf;
@@ -22,7 +21,7 @@ use function str_starts_with;
  * One route declaration: HTTP methods, a path relative to the enclosing groups, and a handler.
  * Returned by {@see Routes} so it can be refined fluently:
  *
- *     $r->get('/users/{id}', [UserController::class, 'show'])
+ *     $r->get('/users/{id}', ShowUser::class)
  *         ->name('users.show')
  *         ->middleware('audit')
  *         ->tag('public');
@@ -57,9 +56,6 @@ final class Route
         mixed $handler,
         private readonly MetadataRegistry $registry,
     ) {
-        $owner = sprintf('Route "%s" handler', $path);
-        self::rejectInt($handler, $owner);
-        MethodHandler::check($handler, $owner);
         $this->handler = $handler;
     }
 
@@ -97,11 +93,9 @@ final class Route
     public function middleware(mixed $middleware): self
     {
         $entries = is_array($middleware) ? array_values($middleware) : [$middleware];
-        $owner = sprintf('Route "%s" middleware', $this->path);
         // Middleware is arbitrary user data, so its entries are mixed by definition.
         // @mago-expect analysis:mixed-assignment
         foreach ($entries as $entry) {
-            self::rejectInt($entry, $owner);
             $this->middleware[] = $entry;
         }
 
@@ -179,7 +173,7 @@ final class Route
      * enclosing groups' prefix) and the metadata {@see HandlerBuilder} reads while matching:
      *
      *     [
-     *         'handler'    => [UserController::class, 'show'],
+     *         'handler'    => ShowUser::class,
      *         'middleware' => ['api', 'auth'],      // groups' middleware first, outermost first
      *         'name'       => 'users.show',         // only when named
      *         'path'       => '/api/users/{id}',    // only when named, for URL generation
@@ -251,16 +245,5 @@ final class Route
         }
 
         return new RouteDefinition($fullPath, $this->registry->register($metadata));
-    }
-
-    /**
-     * @throws InvalidRouteException when $value is an integer: never a valid handler, middleware entry
-     *                               or filter of its own, so reserving it catches a plain mistake early
-     */
-    private static function rejectInt(mixed $value, string $owner): void
-    {
-        if (is_int($value)) {
-            throw new InvalidRouteException(sprintf('%s cannot be an integer (%d).', $owner, $value));
-        }
     }
 }

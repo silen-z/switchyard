@@ -26,7 +26,7 @@ use function strtoupper;
  *
  *     $router = new Router(LazyRoutes::table(static function (LazyRoutes $routes): void {
  *         $routes->get('/', HomeController::class);
- *         $routes->group('/api')->middleware('api')->get('/users/{id}', [UserController::class, 'show']);
+ *         $routes->group('/api')->middleware('api')->get('/users/{id}', ShowUser::class);
  *     }, 'routes-' . APP_VERSION), cache: new FileCache($dir));
  *
  *     $builder = new HandlerBuilder($container, $router);
@@ -75,7 +75,7 @@ final class LazyRoutes
     }
 
     /**
-     * @param string|array{0: string, 1: string} $handler
+     * @param string $handler
      */
     public function get(string $path, mixed $handler): LazyRoute
     {
@@ -83,7 +83,7 @@ final class LazyRoutes
     }
 
     /**
-     * @param string|array{0: string, 1: string} $handler
+     * @param string $handler
      */
     public function post(string $path, mixed $handler): LazyRoute
     {
@@ -91,7 +91,7 @@ final class LazyRoutes
     }
 
     /**
-     * @param string|array{0: string, 1: string} $handler
+     * @param string $handler
      */
     public function put(string $path, mixed $handler): LazyRoute
     {
@@ -99,7 +99,7 @@ final class LazyRoutes
     }
 
     /**
-     * @param string|array{0: string, 1: string} $handler
+     * @param string $handler
      */
     public function patch(string $path, mixed $handler): LazyRoute
     {
@@ -107,7 +107,7 @@ final class LazyRoutes
     }
 
     /**
-     * @param string|array{0: string, 1: string} $handler
+     * @param string $handler
      */
     public function delete(string $path, mixed $handler): LazyRoute
     {
@@ -115,7 +115,7 @@ final class LazyRoutes
     }
 
     /**
-     * @param string|array{0: string, 1: string} $handler
+     * @param string $handler
      */
     public function options(string $path, mixed $handler): LazyRoute
     {
@@ -135,7 +135,7 @@ final class LazyRoutes
     /**
      * A route for every HTTP method (it gets no 'methods' metadata, so it's never method-checked).
      *
-     * @param string|array{0: string, 1: string} $handler
+     * @param string $handler
      */
     public function any(string $path, mixed $handler): LazyRoute
     {
@@ -149,7 +149,7 @@ final class LazyRoutes
      * A route for the given HTTP methods (case-insensitive).
      *
      * @param list<string> $methods
-     * @param string|array{0: string, 1: string} $handler
+     * @param string $handler
      */
     public function map(array $methods, string $path, mixed $handler): LazyRoute
     {

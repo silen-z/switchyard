@@ -64,8 +64,8 @@ final class HandlerBuilder
 
     /**
      * The PSR-15 handler for one request. For a matched route, that's its own middleware and handler
-     * as one {@link https://relayphp.com/ Relay} stack — a `[target, 'method']` handler becomes a
-     * {@see MethodHandler} — with the match on the request as `$request->getAttribute(Found::class)`.
+     * as one {@link https://relayphp.com/ Relay} stack — with the match on the request as
+     * `$request->getAttribute(Found::class)`.
      *
      * Otherwise one of four fallbacks, depending on why nothing matched:
      *
@@ -126,10 +126,9 @@ final class HandlerBuilder
 
     /**
      * A matched route's Relay queue: its {@see Found} for {@see RouteContextMiddleware}, then the
-     * route's own middleware (groups' first, outermost first) and handler, both as declared — a
-     * `[target, 'method']` handler as a {@see MethodHandler}, or, for a route built by
-     * {@see Routes::redirect()}, a {@see RedirectHandler} built fresh from its `'redirect'` metadata
-     * instead of resolved from `'handler'` at all.
+     * route's own middleware (groups' first, outermost first) and handler, both exactly as declared —
+     * or, for a route built by {@see Routes::redirect()}, a {@see RedirectHandler} built fresh from its
+     * `'redirect'` metadata instead of resolved from `'handler'` at all.
      *
      * @return non-empty-list<mixed>
      */
@@ -146,7 +145,7 @@ final class HandlerBuilder
         // @mago-expect analysis:mixed-assignment
         $handler = $redirect !== null
             ? new RedirectHandler($this->resolver->responseFactory(), $redirect['location'], $redirect['status'])
-            : MethodHandler::wrap($this->resolver, $route['handler'] ?? null);
+            : $route['handler'] ?? null;
 
         return [
             new RouteContextMiddleware(Found::fromMatch($match)),

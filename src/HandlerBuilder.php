@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace SilenZ\Segmatch\Http;
+namespace SilenZ\Switchyard;
 
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Relay\Relay;
-use SilenZ\Segmatch\RouteMatch;
-use SilenZ\Segmatch\Router;
+use SilenZ\Beeline\RouteMatch;
+use SilenZ\Beeline\Router;
 
 use function array_keys;
 use function array_push;
@@ -21,7 +21,7 @@ use function strtoupper;
 use function substr;
 
 /**
- * Answers HTTP requests by matching against an already-built {@see \SilenZ\Segmatch\Router} and
+ * Answers HTTP requests by matching against an already-built {@see \SilenZ\Beeline\Router} and
  * turning the result into a PSR-15 handler:
  *
  *     $routes = new Routes();
@@ -33,8 +33,8 @@ use function substr;
  *     $response = $builder->build($request)->handle($request);
  *
  * A handler, middleware entry or filter declared as a real instance or closure reaches here already
- * resolved: {@see \SilenZ\Segmatch\Matcher} resolves it out of the table's own
- * {@see \SilenZ\Segmatch\MetadataRegistry} (if it has one) before `$router->match()` ever returns, so
+ * resolved: {@see \SilenZ\Beeline\Matcher} resolves it out of the table's own
+ * {@see \SilenZ\Beeline\MetadataRegistry} (if it has one) before `$router->match()` ever returns, so
  * this builder's own {@see Resolver} only ever has to deal with class names and container identifiers.
  */
 final class HandlerBuilder
@@ -53,7 +53,7 @@ final class HandlerBuilder
      *                                       needs the response factory). A container that autowires
      *                                       constructor arguments needs no registration of its own
      * @param Router $router already built, and ideally shared across requests — see
-     *                       {@see \SilenZ\Segmatch\Router} for how it caches its own compiled routes
+     *                       {@see \SilenZ\Beeline\Router} for how it caches its own compiled routes
      */
     public function __construct(
         ContainerInterface $container,
@@ -164,7 +164,7 @@ final class HandlerBuilder
      * toggle.
      *
      * Only ever reached for a `$path` with no route of its own ({@see build()} only calls this when
-     * {@see \SilenZ\Segmatch\NoMatch::$rejected} came back empty), so an existing route always takes
+     * {@see \SilenZ\Beeline\NoMatch::$rejected} came back empty), so an existing route always takes
      * precedence over redirecting to another one. For `$path` itself being "/", toggling it yields ""
      * — not a path `Router::match()` could ever have a route for, so it, too, naturally falls through
      * to `null` below, with no special case needed for it here.
@@ -305,7 +305,7 @@ final class HandlerBuilder
     /**
      * {@see Routes::notFound()}'s replacement, from {@see Router::metadata()} — see
      * {@see metadataValue()} — or {@see NotFoundHandler} if it was never called. Already resolved by
-     * {@see \SilenZ\Segmatch\Matcher} if it was given a {@see \SilenZ\Segmatch\MetadataRegistry} to
+     * {@see \SilenZ\Beeline\Matcher} if it was given a {@see \SilenZ\Beeline\MetadataRegistry} to
      * resolve it from, so this is pushed onto the Relay stack as-is — a class name or container
      * identifier for {@see Resolver::entry()} to resolve when the request actually reaches it, or
      * already the real instance.

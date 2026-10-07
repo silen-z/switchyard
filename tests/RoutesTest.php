@@ -2,21 +2,21 @@
 
 declare(strict_types=1);
 
-namespace SilenZ\Segmatch\Tests\Http;
+namespace SilenZ\Switchyard\Tests;
 
 use ArrayObject;
 use Closure;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use SilenZ\Segmatch\Exception\InvalidRouteException;
-use SilenZ\Segmatch\Http\MethodNotAllowed;
-use SilenZ\Segmatch\Http\Routes;
-use SilenZ\Segmatch\RouteDefinition;
-use SilenZ\Segmatch\RouteMatch;
-use SilenZ\Segmatch\Router;
-use SilenZ\Segmatch\RouteTable;
-use SilenZ\Segmatch\Tests\Http\Fixtures\FeatureRouteFilter;
-use SilenZ\Segmatch\Tests\Http\Fixtures\UserController;
+use SilenZ\Beeline\Exception\InvalidRouteException;
+use SilenZ\Beeline\RouteDefinition;
+use SilenZ\Beeline\RouteMatch;
+use SilenZ\Beeline\Router;
+use SilenZ\Beeline\RouteTable;
+use SilenZ\Switchyard\MethodNotAllowed;
+use SilenZ\Switchyard\Routes;
+use SilenZ\Switchyard\Tests\Fixtures\FeatureRouteFilter;
+use SilenZ\Switchyard\Tests\Fixtures\UserController;
 use stdClass;
 
 use function preg_quote;
@@ -56,7 +56,7 @@ final class RoutesTest extends TestCase
 
     /**
      * One declared route's resolved metadata: {@see Routes::definitions()} gives the
-     * {@see \SilenZ\Segmatch\MetadataRegistry} id {@see Route::definition()} stored, not the metadata
+     * {@see \SilenZ\Beeline\MetadataRegistry} id {@see Route::definition()} stored, not the metadata
      * itself — resolved back through the same registry here, the way {@see Router::match()} does
      * while matching.
      *
@@ -74,7 +74,7 @@ final class RoutesTest extends TestCase
     /**
      * The table's own resolved metadata: {@see Routes::table()}'s metadata closure registers it on
      * {@see Routes::registry()} the moment it's actually called, returning the id back here, the same
-     * way {@see \SilenZ\Segmatch\Router} reads it while matching.
+     * way {@see \SilenZ\Beeline\Router} reads it while matching.
      *
      * @return array<string, mixed>
      */

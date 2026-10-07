@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace SilenZ\Segmatch\Tests\Http\Fixtures;
+namespace SilenZ\Switchyard\Tests\Fixtures;
 
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseFactoryInterface;
-use SilenZ\Segmatch\Http\AllowedMethodsHandler;
-use SilenZ\Segmatch\Http\ErrorMiddleware;
-use SilenZ\Segmatch\Http\HeadMiddleware;
-use SilenZ\Segmatch\Http\NotFoundHandler;
+use SilenZ\Switchyard\AllowedMethodsHandler;
+use SilenZ\Switchyard\ErrorMiddleware;
+use SilenZ\Switchyard\HeadMiddleware;
+use SilenZ\Switchyard\NotFoundHandler;
 
 use function array_key_exists;
 use function class_exists;

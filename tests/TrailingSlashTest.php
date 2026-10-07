@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace SilenZ\Segmatch\Tests\Http;
+namespace SilenZ\Switchyard\Tests;
 
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
-use SilenZ\Segmatch\Http\HandlerBuilder;
-use SilenZ\Segmatch\Http\Routes;
-use SilenZ\Segmatch\Router;
-use SilenZ\Segmatch\Tests\Http\Fixtures\EchoContainer;
+use SilenZ\Beeline\Router;
+use SilenZ\Switchyard\HandlerBuilder;
+use SilenZ\Switchyard\Routes;
+use SilenZ\Switchyard\Tests\Fixtures\EchoContainer;
 
 /**
  * {@see HandlerBuilder::build()}'s redirect for a path with no route of its own but a trailing-slash

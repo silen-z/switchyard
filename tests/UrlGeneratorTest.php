@@ -2,19 +2,19 @@
 
 declare(strict_types=1);
 
-namespace SilenZ\Segmatch\Tests\Http;
+namespace SilenZ\Switchyard\Tests;
 
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use SilenZ\Segmatch\Cache\RouteCache;
-use SilenZ\Segmatch\Exception\UrlGenerationException;
-use SilenZ\Segmatch\Http\HandlerBuilder;
-use SilenZ\Segmatch\Http\Routes;
-use SilenZ\Segmatch\Http\UrlGenerator;
-use SilenZ\Segmatch\Router;
-use SilenZ\Segmatch\Tests\Http\Fixtures\ArrayRouteCache;
-use SilenZ\Segmatch\Tests\Http\Fixtures\EchoContainer;
+use SilenZ\Beeline\Cache\RouteCache;
+use SilenZ\Beeline\Exception\UrlGenerationException;
+use SilenZ\Beeline\Router;
+use SilenZ\Switchyard\HandlerBuilder;
+use SilenZ\Switchyard\Routes;
+use SilenZ\Switchyard\Tests\Fixtures\ArrayRouteCache;
+use SilenZ\Switchyard\Tests\Fixtures\EchoContainer;
+use SilenZ\Switchyard\UrlGenerator;
 use stdClass;
 
 use function json_decode;

@@ -2,26 +2,26 @@
 
 declare(strict_types=1);
 
-namespace SilenZ\Segmatch\Tests\Http;
+namespace SilenZ\Switchyard\Tests;
 
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
-use SilenZ\Segmatch\Http\AllowedMethodsHandler;
-use SilenZ\Segmatch\Http\ErrorMiddleware;
-use SilenZ\Segmatch\Http\HandlerBuilder;
-use SilenZ\Segmatch\Http\HeadMiddleware;
-use SilenZ\Segmatch\Http\LazyRoutes;
-use SilenZ\Segmatch\Http\NotFoundHandler;
-use SilenZ\Segmatch\Http\Routes;
-use SilenZ\Segmatch\Router;
-use SilenZ\Segmatch\Tests\Http\Fixtures\ArrayContainer;
-use SilenZ\Segmatch\Tests\Http\Fixtures\NumericRouteFilter;
-use SilenZ\Segmatch\Tests\Http\Fixtures\PlainHandler;
-use SilenZ\Segmatch\Tests\Http\Fixtures\StatusMiddleware;
-use SilenZ\Segmatch\Tests\Http\Fixtures\TagMiddleware;
-use SilenZ\Segmatch\Tests\Http\Fixtures\UserController;
-use SilenZ\Segmatch\Tests\Http\Fixtures\UserShowHandler;
+use SilenZ\Beeline\Router;
+use SilenZ\Switchyard\AllowedMethodsHandler;
+use SilenZ\Switchyard\ErrorMiddleware;
+use SilenZ\Switchyard\HandlerBuilder;
+use SilenZ\Switchyard\HeadMiddleware;
+use SilenZ\Switchyard\LazyRoutes;
+use SilenZ\Switchyard\NotFoundHandler;
+use SilenZ\Switchyard\Routes;
+use SilenZ\Switchyard\Tests\Fixtures\ArrayContainer;
+use SilenZ\Switchyard\Tests\Fixtures\NumericRouteFilter;
+use SilenZ\Switchyard\Tests\Fixtures\PlainHandler;
+use SilenZ\Switchyard\Tests\Fixtures\StatusMiddleware;
+use SilenZ\Switchyard\Tests\Fixtures\TagMiddleware;
+use SilenZ\Switchyard\Tests\Fixtures\UserController;
+use SilenZ\Switchyard\Tests\Fixtures\UserShowHandler;
 
 /**
  * The same small users API, wired up once with {@see Routes} and once with {@see LazyRoutes}, each

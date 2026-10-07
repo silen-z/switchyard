@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace SilenZ\Segmatch\Http;
+namespace SilenZ\Switchyard;
 
-use SilenZ\Segmatch\Exception\InvalidRouteException;
-use SilenZ\Segmatch\RouteDefinition;
-use SilenZ\Segmatch\RouteTable;
+use SilenZ\Beeline\Exception\InvalidRouteException;
+use SilenZ\Beeline\RouteDefinition;
+use SilenZ\Beeline\RouteTable;
 
 use function array_unique;
 use function array_values;
@@ -36,7 +36,7 @@ use function strtoupper;
  * container identifier — an instance or closure would only exist on the request that built the cache,
  * so `$define` throws {@see InvalidRouteException} the moment it declares one. In exchange, this
  * tree's metadata is already fully cache-safe, so a `Router` built from it never needs a
- * {@see \SilenZ\Segmatch\MetadataRegistry} at all — `table()` doesn't give {@see RouteTable} one,
+ * {@see \SilenZ\Beeline\MetadataRegistry} at all — `table()` doesn't give {@see RouteTable} one,
  * unlike {@see Routes::table()}.
  *
  * Otherwise this is {@see Routes}, shaped the same way: verb helpers, `group()`, `->middleware()` and

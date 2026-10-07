@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace SilenZ\Segmatch\Tests\Http;
+namespace SilenZ\Switchyard\Tests;
 
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Nyholm\Psr7\Response;
@@ -13,22 +13,22 @@ use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-use SilenZ\Segmatch\Http\ErrorMiddleware;
-use SilenZ\Segmatch\Http\Found;
-use SilenZ\Segmatch\Http\HandlerBuilder;
-use SilenZ\Segmatch\Http\Routes;
-use SilenZ\Segmatch\Router;
-use SilenZ\Segmatch\Tests\Http\Fixtures\ArrayContainer;
-use SilenZ\Segmatch\Tests\Http\Fixtures\CustomErrorMiddleware;
-use SilenZ\Segmatch\Tests\Http\Fixtures\EchoContainer;
-use SilenZ\Segmatch\Tests\Http\Fixtures\FeatureRouteFilter;
-use SilenZ\Segmatch\Tests\Http\Fixtures\NumericRouteFilter;
-use SilenZ\Segmatch\Tests\Http\Fixtures\PlainHandler;
-use SilenZ\Segmatch\Tests\Http\Fixtures\RouteInfoMiddleware;
-use SilenZ\Segmatch\Tests\Http\Fixtures\ShowHandler;
-use SilenZ\Segmatch\Tests\Http\Fixtures\StatusHandler;
-use SilenZ\Segmatch\Tests\Http\Fixtures\TagMiddleware;
-use SilenZ\Segmatch\Tests\Http\Fixtures\ThrowingHandler;
+use SilenZ\Beeline\Router;
+use SilenZ\Switchyard\ErrorMiddleware;
+use SilenZ\Switchyard\Found;
+use SilenZ\Switchyard\HandlerBuilder;
+use SilenZ\Switchyard\Routes;
+use SilenZ\Switchyard\Tests\Fixtures\ArrayContainer;
+use SilenZ\Switchyard\Tests\Fixtures\CustomErrorMiddleware;
+use SilenZ\Switchyard\Tests\Fixtures\EchoContainer;
+use SilenZ\Switchyard\Tests\Fixtures\FeatureRouteFilter;
+use SilenZ\Switchyard\Tests\Fixtures\NumericRouteFilter;
+use SilenZ\Switchyard\Tests\Fixtures\PlainHandler;
+use SilenZ\Switchyard\Tests\Fixtures\RouteInfoMiddleware;
+use SilenZ\Switchyard\Tests\Fixtures\ShowHandler;
+use SilenZ\Switchyard\Tests\Fixtures\StatusHandler;
+use SilenZ\Switchyard\Tests\Fixtures\TagMiddleware;
+use SilenZ\Switchyard\Tests\Fixtures\ThrowingHandler;
 
 final class ResolvedHandlerTest extends TestCase
 {

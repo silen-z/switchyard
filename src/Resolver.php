@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace SilenZ\Segmatch\Http;
+namespace SilenZ\Switchyard;
 
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseFactoryInterface;
@@ -15,8 +15,8 @@ use function sprintf;
 /**
  * Turns what a route's metadata names — a handler, a middleware entry, a filter — into the real thing:
  * a class name or container identifier into what the container resolves it to, anything else
- * (a real instance or closure, already resolved out of a {@see \SilenZ\Segmatch\MetadataRegistry} by
- * the time it reaches here — see {@see \SilenZ\Segmatch\Matcher}) as itself.
+ * (a real instance or closure, already resolved out of a {@see \SilenZ\Beeline\MetadataRegistry} by
+ * the time it reaches here — see {@see \SilenZ\Beeline\Matcher}) as itself.
  *
  * @internal
  */

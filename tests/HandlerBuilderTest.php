@@ -2,26 +2,26 @@
 
 declare(strict_types=1);
 
-namespace SilenZ\Segmatch\Tests\Http;
+namespace SilenZ\Switchyard\Tests;
 
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
-use SilenZ\Segmatch\Http\Found;
-use SilenZ\Segmatch\Http\HandlerBuilder;
-use SilenZ\Segmatch\Http\Routes;
-use SilenZ\Segmatch\Router;
-use SilenZ\Segmatch\Tests\Http\Fixtures\ArrayRouteCache;
-use SilenZ\Segmatch\Tests\Http\Fixtures\ConfigurableRouteFilter;
-use SilenZ\Segmatch\Tests\Http\Fixtures\EchoContainer;
-use SilenZ\Segmatch\Tests\Http\Fixtures\EchoHandler;
-use SilenZ\Segmatch\Tests\Http\Fixtures\FeatureRouteFilter;
-use SilenZ\Segmatch\Tests\Http\Fixtures\NumericRouteFilter;
-use SilenZ\Segmatch\Tests\Http\Fixtures\PlainHandler;
-use SilenZ\Segmatch\Tests\Http\Fixtures\RequestMethodRouteFilter;
-use SilenZ\Segmatch\Tests\Http\Fixtures\TagMiddleware;
+use SilenZ\Beeline\Router;
+use SilenZ\Switchyard\Found;
+use SilenZ\Switchyard\HandlerBuilder;
+use SilenZ\Switchyard\Routes;
+use SilenZ\Switchyard\Tests\Fixtures\ArrayRouteCache;
+use SilenZ\Switchyard\Tests\Fixtures\ConfigurableRouteFilter;
+use SilenZ\Switchyard\Tests\Fixtures\EchoContainer;
+use SilenZ\Switchyard\Tests\Fixtures\EchoHandler;
+use SilenZ\Switchyard\Tests\Fixtures\FeatureRouteFilter;
+use SilenZ\Switchyard\Tests\Fixtures\NumericRouteFilter;
+use SilenZ\Switchyard\Tests\Fixtures\PlainHandler;
+use SilenZ\Switchyard\Tests\Fixtures\RequestMethodRouteFilter;
+use SilenZ\Switchyard\Tests\Fixtures\TagMiddleware;
 
 use function json_decode;
 
@@ -29,7 +29,7 @@ use const JSON_THROW_ON_ERROR;
 
 /**
  * Which route a request reaches. Every route handler is an
- * {@see \SilenZ\Segmatch\Tests\Http\Fixtures\EchoHandler}, which answers with the `Found` it was given.
+ * {@see \SilenZ\Switchyard\Tests\Fixtures\EchoHandler}, which answers with the `Found` it was given.
  */
 final class HandlerBuilderTest extends TestCase
 {

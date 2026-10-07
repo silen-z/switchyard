@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace SilenZ\Segmatch\Tests\Http\Fixtures;
+namespace SilenZ\Switchyard\Tests\Fixtures;
 
-use SilenZ\Segmatch\Cache\RouteCache;
+use SilenZ\Beeline\Cache\RouteCache;
 
 use function array_keys;
 

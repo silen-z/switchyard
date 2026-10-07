@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace SilenZ\Segmatch\Http;
+namespace SilenZ\Switchyard;
 
 use Psr\Http\Message\ServerRequestInterface;
-use SilenZ\Segmatch\RouteMatch;
+use SilenZ\Beeline\RouteMatch;
 
 /**
  * A condition a route attaches to itself, checked while matching.
@@ -18,7 +18,7 @@ use SilenZ\Segmatch\RouteMatch;
  * constructor instead — the only way to vary one filter's behavior per route, since a class name gives
  * the container no way to tell routes apart. Either way the instance is kept in the route's own
  * metadata, transparently, as part of what {@see Route::definition()} hands its
- * {@see \SilenZ\Segmatch\MetadataRegistry} as one unit.
+ * {@see \SilenZ\Beeline\MetadataRegistry} as one unit.
  *
  * Either way, {@see HandlerBuilder} calls {@see accepts()} for every candidate route of a request. A
  * filter that returns false makes the route behave as if it didn't exist, and matching moves on.
@@ -28,8 +28,8 @@ use SilenZ\Segmatch\RouteMatch;
  * separately, not through a filter; see {@see MethodNotAllowed}. Filters may run several times per
  * request, so keep them cheap and free of side effects.
  *
- * `$match` is the candidate being decided, the same {@see \SilenZ\Segmatch\RouteMatch} {@see
- * \SilenZ\Segmatch\Router::match()} itself works with: `$match->route` is the candidate's metadata
+ * `$match` is the candidate being decided, the same {@see \SilenZ\Beeline\RouteMatch} {@see
+ * \SilenZ\Beeline\Router::match()} itself works with: `$match->route` is the candidate's metadata
  * (mixed, as declared), `$match->params` its URL-decoded parameter values. Most filters only need
  * `$request`; `$match` mainly earns its keep when what decides a route exists is baked into the path
  * itself, e.g. a version or tenant segment, rather than general request state.

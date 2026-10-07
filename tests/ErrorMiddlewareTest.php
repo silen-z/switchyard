@@ -2,19 +2,19 @@
 
 declare(strict_types=1);
 
-namespace SilenZ\Segmatch\Tests\Http;
+namespace SilenZ\Switchyard\Tests;
 
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
-use SilenZ\Segmatch\Http\ErrorMiddleware;
-use SilenZ\Segmatch\Http\HandlerBuilder;
-use SilenZ\Segmatch\Http\Routes;
-use SilenZ\Segmatch\Router;
-use SilenZ\Segmatch\Tests\Http\Fixtures\EchoContainer;
-use SilenZ\Segmatch\Tests\Http\Fixtures\PlainHandler;
-use SilenZ\Segmatch\Tests\Http\Fixtures\ThrowingHandler;
+use SilenZ\Beeline\Router;
+use SilenZ\Switchyard\ErrorMiddleware;
+use SilenZ\Switchyard\HandlerBuilder;
+use SilenZ\Switchyard\Routes;
+use SilenZ\Switchyard\Tests\Fixtures\EchoContainer;
+use SilenZ\Switchyard\Tests\Fixtures\PlainHandler;
+use SilenZ\Switchyard\Tests\Fixtures\ThrowingHandler;
 
 /**
  * {@see ErrorMiddleware} declared as middleware on the root `Http\Routes`, so it wraps a route

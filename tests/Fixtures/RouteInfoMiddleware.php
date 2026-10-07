@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace SilenZ\Segmatch\Tests\Http\Fixtures;
+namespace SilenZ\Switchyard\Tests\Fixtures;
 
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-use SilenZ\Segmatch\Http\Found;
-use SilenZ\Segmatch\Http\MethodNotAllowed;
+use SilenZ\Switchyard\Found;
+use SilenZ\Switchyard\MethodNotAllowed;
 
 use function implode;
 

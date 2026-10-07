@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace SilenZ\Segmatch\Tests\Http\Fixtures;
+namespace SilenZ\Switchyard\Tests\Fixtures;
 
 use Nyholm\Psr7\Response;
 use Psr\Http\Message\ResponseInterface;
@@ -13,7 +13,7 @@ use Throwable;
 
 /**
  * An application's own error middleware: answers with a fixed status when the rest of the stack
- * throws, so tests can tell it apart from the default {@see \SilenZ\Segmatch\Http\ErrorMiddleware}.
+ * throws, so tests can tell it apart from the default {@see \SilenZ\Switchyard\ErrorMiddleware}.
  */
 final class CustomErrorMiddleware implements MiddlewareInterface
 {

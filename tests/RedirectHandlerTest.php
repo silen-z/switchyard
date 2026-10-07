@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace SilenZ\Segmatch\Tests\Http;
+namespace SilenZ\Switchyard\Tests;
 
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
-use SilenZ\Segmatch\Http\HandlerBuilder;
-use SilenZ\Segmatch\Http\RedirectHandler;
-use SilenZ\Segmatch\Http\Routes;
-use SilenZ\Segmatch\Router;
-use SilenZ\Segmatch\Tests\Http\Fixtures\EchoContainer;
+use SilenZ\Beeline\Router;
+use SilenZ\Switchyard\HandlerBuilder;
+use SilenZ\Switchyard\RedirectHandler;
+use SilenZ\Switchyard\Routes;
+use SilenZ\Switchyard\Tests\Fixtures\EchoContainer;
 
 /**
  * {@see RedirectHandler} on its own — {@see TrailingSlashTest} covers {@see HandlerBuilder::build()}

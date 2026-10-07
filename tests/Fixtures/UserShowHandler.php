@@ -2,18 +2,18 @@
 
 declare(strict_types=1);
 
-namespace SilenZ\Segmatch\Tests\Http\Fixtures;
+namespace SilenZ\Switchyard\Tests\Fixtures;
 
 use Nyholm\Psr7\Response;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-use SilenZ\Segmatch\Http\Found;
+use SilenZ\Switchyard\Found;
 
 /**
  * An ordinary single-action handler, resolved by class name or container identifier like any other —
- * for a {@see \SilenZ\Segmatch\Http\LazyRoutes} route, which can't name an instance's method the way
- * {@see UserController} does for {@see \SilenZ\Segmatch\Http\Routes}.
+ * for a {@see \SilenZ\Switchyard\LazyRoutes} route, which can't name an instance's method the way
+ * {@see UserController} does for {@see \SilenZ\Switchyard\Routes}.
  */
 final class UserShowHandler implements RequestHandlerInterface
 {

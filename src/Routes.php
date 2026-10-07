@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace SilenZ\Segmatch\Http;
+namespace SilenZ\Switchyard;
 
-use SilenZ\Segmatch\Exception\InvalidRouteException;
-use SilenZ\Segmatch\MetadataRegistry;
-use SilenZ\Segmatch\RouteDefinition;
-use SilenZ\Segmatch\Router;
-use SilenZ\Segmatch\RouteTable;
+use SilenZ\Beeline\Exception\InvalidRouteException;
+use SilenZ\Beeline\MetadataRegistry;
+use SilenZ\Beeline\RouteDefinition;
+use SilenZ\Beeline\Router;
+use SilenZ\Beeline\RouteTable;
 
 use function array_unique;
 use function array_values;
@@ -242,7 +242,7 @@ final class Routes
      * This tree as a {@see RouteTable}, cached under `$cacheKey` — `null` (the default) never caches
      * it, compiling on every request regardless of whether `Router` was given a cache. Pass something
      * that changes whenever these declarations would, e.g. an application version or a configuration
-     * hash, for the caching described in {@see \SilenZ\Segmatch\Router} to actually take effect.
+     * hash, for the caching described in {@see \SilenZ\Beeline\Router} to actually take effect.
      *
      * The table's own metadata ({@see RouteTable::metadata()}) — this scope's root middleware and
      * not-found handler — is handed to this tree's {@see MetadataRegistry} as one unit, the same way

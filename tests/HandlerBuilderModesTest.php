@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace SilenZ\Segmatch\Tests\Http;
+namespace SilenZ\Switchyard\Tests;
 
 use ArrayObject;
 use Closure;
@@ -11,24 +11,24 @@ use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
-use SilenZ\Segmatch\Cache\RouteCache;
-use SilenZ\Segmatch\Exception\InvalidRouteException;
-use SilenZ\Segmatch\Http\ErrorMiddleware;
-use SilenZ\Segmatch\Http\HandlerBuilder;
-use SilenZ\Segmatch\Http\LazyRoutes;
-use SilenZ\Segmatch\Http\Routes;
-use SilenZ\Segmatch\Router;
-use SilenZ\Segmatch\Tests\Http\Fixtures\ArrayContainer;
-use SilenZ\Segmatch\Tests\Http\Fixtures\ArrayRouteCache;
-use SilenZ\Segmatch\Tests\Http\Fixtures\CustomErrorMiddleware;
-use SilenZ\Segmatch\Tests\Http\Fixtures\EchoContainer;
-use SilenZ\Segmatch\Tests\Http\Fixtures\NumericRouteFilter;
-use SilenZ\Segmatch\Tests\Http\Fixtures\PlainHandler;
-use SilenZ\Segmatch\Tests\Http\Fixtures\StatusHandler;
-use SilenZ\Segmatch\Tests\Http\Fixtures\StatusMiddleware;
-use SilenZ\Segmatch\Tests\Http\Fixtures\TagMiddleware;
-use SilenZ\Segmatch\Tests\Http\Fixtures\ThrowingHandler;
-use SilenZ\Segmatch\Tests\Http\Fixtures\UserController;
+use SilenZ\Beeline\Cache\RouteCache;
+use SilenZ\Beeline\Exception\InvalidRouteException;
+use SilenZ\Beeline\Router;
+use SilenZ\Switchyard\ErrorMiddleware;
+use SilenZ\Switchyard\HandlerBuilder;
+use SilenZ\Switchyard\LazyRoutes;
+use SilenZ\Switchyard\Routes;
+use SilenZ\Switchyard\Tests\Fixtures\ArrayContainer;
+use SilenZ\Switchyard\Tests\Fixtures\ArrayRouteCache;
+use SilenZ\Switchyard\Tests\Fixtures\CustomErrorMiddleware;
+use SilenZ\Switchyard\Tests\Fixtures\EchoContainer;
+use SilenZ\Switchyard\Tests\Fixtures\NumericRouteFilter;
+use SilenZ\Switchyard\Tests\Fixtures\PlainHandler;
+use SilenZ\Switchyard\Tests\Fixtures\StatusHandler;
+use SilenZ\Switchyard\Tests\Fixtures\StatusMiddleware;
+use SilenZ\Switchyard\Tests\Fixtures\TagMiddleware;
+use SilenZ\Switchyard\Tests\Fixtures\ThrowingHandler;
+use SilenZ\Switchyard\Tests\Fixtures\UserController;
 use UnexpectedValueException;
 
 use function preg_quote;
@@ -313,7 +313,7 @@ final class HandlerBuilderModesTest extends TestCase
      * one (changing it on a warm request, with the same cache key, is already a cache-key misuse, not
      * something this registry design can paper over). What this actually checks is that a second,
      * independently declared {@see Routes} tree still resolves the right metadata through its own
-     * freshly built {@see \SilenZ\Segmatch\MetadataRegistry} against a route tree compiled earlier.
+     * freshly built {@see \SilenZ\Beeline\MetadataRegistry} against a route tree compiled earlier.
      */
     public function testEagerRootMiddlewareIsReResolvedFromALiveRegistryOnAWarmCache(): void
     {

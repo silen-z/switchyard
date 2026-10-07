@@ -2,19 +2,19 @@
 
 declare(strict_types=1);
 
-namespace SilenZ\Segmatch\Tests\Http;
+namespace SilenZ\Switchyard\Tests;
 
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
-use SilenZ\Segmatch\Http\HandlerBuilder;
-use SilenZ\Segmatch\Http\Routes;
-use SilenZ\Segmatch\Router;
-use SilenZ\Segmatch\Tests\Http\Fixtures\CorsMiddleware;
-use SilenZ\Segmatch\Tests\Http\Fixtures\EchoContainer;
-use SilenZ\Segmatch\Tests\Http\Fixtures\FeatureRouteFilter;
-use SilenZ\Segmatch\Tests\Http\Fixtures\PlainHandler;
+use SilenZ\Beeline\Router;
+use SilenZ\Switchyard\HandlerBuilder;
+use SilenZ\Switchyard\Routes;
+use SilenZ\Switchyard\Tests\Fixtures\CorsMiddleware;
+use SilenZ\Switchyard\Tests\Fixtures\EchoContainer;
+use SilenZ\Switchyard\Tests\Fixtures\FeatureRouteFilter;
+use SilenZ\Switchyard\Tests\Fixtures\PlainHandler;
 
 /**
  * CORS declared as middleware on the root `Http\Routes`, so it wraps every outcome of

@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace SilenZ\Segmatch\Tests\Http\Fixtures;
+namespace SilenZ\Switchyard\Tests\Fixtures;
 
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-use SilenZ\Segmatch\Http\Found;
+use SilenZ\Switchyard\Found;
 
 /**
  * A route handler, resolved via the container like any PSR-15 handler would be. Echoes the "id"

@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace SilenZ\Segmatch\OpenApi;
+namespace SilenZ\Switchyard\OpenApi;
 
 use OpenApi\Attributes as OA;
-use SilenZ\Segmatch\MetadataRegistry;
-use SilenZ\Segmatch\PathParameter;
-use SilenZ\Segmatch\RouteDefinition;
+use SilenZ\Beeline\MetadataRegistry;
+use SilenZ\Beeline\PathParameter;
+use SilenZ\Beeline\RouteDefinition;
 
 use function array_map;
 use function array_values;
@@ -17,7 +17,7 @@ use function strtolower;
 
 /**
  * Builds the `PathItem`s of an OpenAPI document from a router's declared routes
- * ({@see \SilenZ\Segmatch\RouteTable::definitions()}), reading the metadata shape {@see \SilenZ\Segmatch\Http\Route}
+ * ({@see \SilenZ\Beeline\RouteTable::definitions()}), reading the metadata shape {@see \SilenZ\Switchyard\Route}
  * stores: a route's `name` becomes its `operationId`, its `tags` become the operation's tags, and its
  * path parameters come straight from {@see RouteDefinition::$pathTemplate} and
  * {@see RouteDefinition::$parameters}.
@@ -43,9 +43,9 @@ final class PathsGenerator
     /**
      * @param iterable<mixed, RouteDefinition> $definitions
      * @param ?MetadataRegistry $registry {@see Http\Routes}' definitions give a {@see MetadataRegistry}
-     *     id as their metadata, not the metadata itself — pass {@see \SilenZ\Segmatch\RouteTable::registry()}
+     *     id as their metadata, not the metadata itself — pass {@see \SilenZ\Beeline\RouteTable::registry()}
      *     along so it can be resolved back; `null` when the metadata is already the real thing, e.g.
-     *     from {@see \SilenZ\Segmatch\Http\LazyRoutes}.
+     *     from {@see \SilenZ\Switchyard\LazyRoutes}.
      *
      * @return list<OA\PathItem>
      */

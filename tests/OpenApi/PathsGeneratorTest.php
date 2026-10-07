@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace SilenZ\Segmatch\Tests\OpenApi;
+namespace SilenZ\Switchyard\Tests\OpenApi;
 
 use OpenApi\Attributes as OA;
 use PHPUnit\Framework\TestCase;
-use SilenZ\Segmatch\Http\Routes;
-use SilenZ\Segmatch\OpenApi\PathsGenerator;
-use SilenZ\Segmatch\Router;
+use SilenZ\Beeline\Router;
+use SilenZ\Switchyard\OpenApi\PathsGenerator;
+use SilenZ\Switchyard\Routes;
 
 final class PathsGeneratorTest extends TestCase
 {

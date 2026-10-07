@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace SilenZ\Segmatch\Http;
+namespace SilenZ\Switchyard;
 
-use SilenZ\Segmatch\RouteMatch;
+use SilenZ\Beeline\RouteMatch;
 
 use function is_array;
 use function is_string;

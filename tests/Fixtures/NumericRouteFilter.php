@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace SilenZ\Segmatch\Tests\Http\Fixtures;
+namespace SilenZ\Switchyard\Tests\Fixtures;
 
 use Psr\Http\Message\ServerRequestInterface;
-use SilenZ\Segmatch\Http\RouteFilter;
-use SilenZ\Segmatch\RouteMatch;
+use SilenZ\Beeline\RouteMatch;
+use SilenZ\Switchyard\RouteFilter;
 
 use function ctype_digit;
 

@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace SilenZ\Segmatch\Http;
+namespace SilenZ\Switchyard;
 
-use SilenZ\Segmatch\Exception\UrlGenerationException;
-use SilenZ\Segmatch\Internal\Segment;
-use SilenZ\Segmatch\Internal\SegmentType;
-use SilenZ\Segmatch\RouteDefinition;
-use SilenZ\Segmatch\Router;
+use SilenZ\Beeline\Exception\UrlGenerationException;
+use SilenZ\Beeline\Internal\Segment;
+use SilenZ\Beeline\Internal\SegmentType;
+use SilenZ\Beeline\RouteDefinition;
+use SilenZ\Beeline\Router;
 use Stringable;
 
 use function array_key_exists;

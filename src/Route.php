@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace SilenZ\Segmatch\Http;
+namespace SilenZ\Switchyard;
 
-use SilenZ\Segmatch\Exception\InvalidRouteException;
-use SilenZ\Segmatch\MetadataRegistry;
-use SilenZ\Segmatch\RouteDefinition;
+use SilenZ\Beeline\Exception\InvalidRouteException;
+use SilenZ\Beeline\MetadataRegistry;
+use SilenZ\Beeline\RouteDefinition;
 
 use function array_unique;
 use function array_values;

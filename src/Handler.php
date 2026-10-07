@@ -22,7 +22,6 @@ use SilenZ\Switchyard\Middleware\RouteContextMiddleware;
 
 use function array_keys;
 use function array_push;
-use function array_unshift;
 use function is_array;
 use function ltrim;
 use function str_ends_with;
@@ -122,7 +121,13 @@ final class Handler implements RequestHandlerInterface
 
         $match = $this->router->match($path, $filter);
 
-        $stack = [ErrorMiddleware::class, ...$this->globalMiddleware()];
+        $stack = [];
+
+        if (strtoupper($request->getMethod()) === 'HEAD') {
+            array_push($stack, HeadMiddleware::class);
+        }
+
+        array_push($stack, ErrorMiddleware::class, ...$this->globalMiddleware());
 
         if ($match instanceof RouteMatch) {
             array_push($stack, ...$this->matched($match));
@@ -134,11 +139,6 @@ final class Handler implements RequestHandlerInterface
             } else {
                 array_push($stack, ...$this->fallback($match->rejected, $request, $this->notFound()));
             }
-        }
-
-        if (strtoupper($request->getMethod()) === 'HEAD') {
-            // Whoever answers, a HEAD response has no body.
-            array_unshift($stack, HeadMiddleware::class);
         }
 
         return new Relay($stack, $this->resolver->entry(...));

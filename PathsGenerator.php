@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace SilenZ\Segmatch\OpenApi;
 
 use OpenApi\Attributes as OA;
+use SilenZ\Segmatch\MetadataRegistry;
 use SilenZ\Segmatch\PathParameter;
 use SilenZ\Segmatch\RouteDefinition;
 
@@ -21,7 +22,7 @@ use function strtolower;
  * path parameters come straight from {@see RouteDefinition::$pathTemplate} and
  * {@see RouteDefinition::$parameters}.
  *
- *     $paths = PathsGenerator::generate($router->table()->definitions());
+ *     $paths = PathsGenerator::generate($router->table()->definitions(), $router->table()->registry());
  *     $document = new OA\OpenApi(openapi: '3.1.0', info: new OA\Info(...), paths: $paths);
  *
  * This covers only what segmatch itself knows: paths, methods, names, tags and path parameters.
@@ -41,10 +42,14 @@ final class PathsGenerator
 
     /**
      * @param iterable<mixed, RouteDefinition> $definitions
+     * @param ?MetadataRegistry $registry {@see Http\Routes}' definitions give a {@see MetadataRegistry}
+     *     id as their metadata, not the metadata itself — pass {@see \SilenZ\Segmatch\RouteTable::registry()}
+     *     along so it can be resolved back; `null` when the metadata is already the real thing, e.g.
+     *     from {@see \SilenZ\Segmatch\Http\LazyRoutes}.
      *
      * @return list<OA\PathItem>
      */
-    public static function generate(iterable $definitions): array
+    public static function generate(iterable $definitions, ?MetadataRegistry $registry = null): array
     {
         /** @var array<string, OA\PathItem> $pathItems */
         $pathItems = [];
@@ -54,8 +59,19 @@ final class PathsGenerator
             $pathItems[$path] ??= new OA\PathItem(path: $path);
             $pathItem = $pathItems[$path];
 
-            foreach (self::methods($definition->metadata) as $method) {
-                self::assign($pathItem, $method, $definition);
+            // Metadata is arbitrary user data, so it's mixed by definition.
+            // @mago-expect analysis:mixed-assignment
+            if ($registry === null) {
+                $metadata = $definition->metadata;
+            } else {
+                /** @var int $id */
+                $id = $definition->metadata;
+                // @mago-expect analysis:mixed-assignment
+                $metadata = $registry->get($id);
+            }
+
+            foreach (self::methods($metadata) as $method) {
+                self::assign($pathItem, $method, $definition, $metadata);
             }
         }
 
@@ -68,9 +84,13 @@ final class PathsGenerator
      * A method outside the fixed set OpenAPI's `PathItem` can represent (get/put/post/delete/
      * options/head/patch/trace) has no property to hold it and is silently dropped.
      */
-    private static function assign(OA\PathItem $pathItem, string $method, RouteDefinition $definition): void
-    {
-        $metadata = is_array($definition->metadata) ? $definition->metadata : [];
+    private static function assign(
+        OA\PathItem $pathItem,
+        string $method,
+        RouteDefinition $definition,
+        mixed $resolvedMetadata,
+    ): void {
+        $metadata = is_array($resolvedMetadata) ? $resolvedMetadata : [];
 
         $tags = null;
         if (is_array($metadata['tags'] ?? null)) {

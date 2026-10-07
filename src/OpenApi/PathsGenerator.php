@@ -25,16 +25,16 @@ use function strtolower;
  *     $paths = PathsGenerator::generate($router->table()->definitions(), $router->table()->registry());
  *     $document = new OA\OpenApi(openapi: '3.1.0', info: new OA\Info(...), paths: $paths);
  *
- * This covers only what segmatch itself knows: paths, methods, names, tags and path parameters.
- * Request/response bodies, security schemes, `info` and `servers` aren't its business; merge them
- * into the document yourself, e.g. by keying off each operation's `operationId` or route name, using
- * the same {@see OA} types.
+ * This covers only what Beeline and Switchyard themselves know: paths, methods, names, tags and
+ * path parameters. Request/response bodies, security schemes, `info` and `servers` aren't their
+ * business; merge them into the document yourself, e.g. by keying off each operation's
+ * `operationId` or route name, using the same {@see OA} types.
  *
  * - **`any()` routes** have no declared methods, so every method OpenAPI supports is listed.
  * - **Catch-alls** (`{name*}`, `{name+}`) become a single `{name}` path parameter, since OpenAPI has
  *   no native "rest of the path" placeholder; its actual multi-segment behavior isn't represented.
- * - **`responses` is a required field of an OpenAPI operation**, but segmatch has no notion of what
- *   a route responds with. Each operation gets a placeholder `200` response; replace it yourself.
+ * - **`responses` is a required field of an OpenAPI operation**, but Switchyard has no notion of
+ *   what a route responds with. Each operation gets a placeholder `200` response; replace it yourself.
  */
 final class PathsGenerator
 {
@@ -42,10 +42,10 @@ final class PathsGenerator
 
     /**
      * @param iterable<mixed, RouteDefinition> $definitions
-     * @param ?MetadataRegistry $registry {@see Http\Routes}' definitions give a {@see MetadataRegistry}
-     *     id as their metadata, not the metadata itself — pass {@see \SilenZ\Beeline\RouteTable::registry()}
-     *     along so it can be resolved back; `null` when the metadata is already the real thing, e.g.
-     *     from {@see \SilenZ\Switchyard\LazyRoutes}.
+     * @param ?MetadataRegistry $registry {@see \SilenZ\Switchyard\Routes}' definitions give a
+     *     {@see MetadataRegistry} id as their metadata, not the metadata itself — pass
+     *     {@see \SilenZ\Beeline\RouteTable::registry()} along so it can be resolved back; `null` when
+     *     the metadata is already the real thing, e.g. from {@see \SilenZ\Switchyard\LazyRoutes}.
      *
      * @return list<OA\PathItem>
      */

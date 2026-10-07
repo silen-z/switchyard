@@ -13,11 +13,11 @@ use SilenZ\Beeline\Compiler;
 use SilenZ\Switchyard\Routes;
 
 /**
- * Declaring routes through Http\Routes: building the Route/Routes object graph (benchFlat), and that
- * plus turning it into core route definitions and compiling (benchCompiled). Since Http\Routes now
+ * Declaring routes through {@see Routes}: building the Route/Routes object graph (benchFlat), and
+ * that plus turning it into core route definitions and compiling (benchCompiled). Since Routes now
  * declares eagerly, benchFlat is the cost every request pays unconditionally instead of only on a
- * cache miss, like CompileBench's "cold build" still is. Compare the two to see how much of a cold
- * build is declaring versus compiling.
+ * cache miss, like Beeline's own CompileBench "cold build" still is. Compare the two to see how
+ * much of a cold build is declaring versus compiling.
  */
 #[Groups(['declare'])]
 #[ParamProviders('provideFixtures')]

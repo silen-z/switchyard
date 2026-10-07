@@ -17,10 +17,10 @@ use SilenZ\Switchyard\Tests\Fixtures\FeatureRouteFilter;
 use SilenZ\Switchyard\Tests\Fixtures\PlainHandler;
 
 /**
- * CORS declared as middleware on the root `Http\Routes`, so it wraps every outcome of
- * `$builder->handler($request)->handle($request)`, not just matched routes. It reads the allowed
- * methods from the response's `Allow` header instead of the `MethodNotAllowed` request attribute,
- * which only exists inside the resolver's own stack (see `Fixtures\CorsMiddleware`).
+ * CORS declared as middleware on the root `Routes`, so it wraps every outcome of
+ * `Handler::handle()`, not just matched routes. It reads the allowed methods from the response's
+ * `Allow` header instead of the `MethodNotAllowed` request attribute, which only exists inside the
+ * resolver's own stack (see `Fixtures\CorsMiddleware`).
  */
 final class CorsTest extends TestCase
 {

@@ -11,8 +11,8 @@ use SilenZ\Switchyard\Attribute\Found;
 
 /**
  * A controller with ordinary methods, for a handler declared as `[$instance, 'method']` — a plain
- * instance pair, which Relay calls directly as a callable; segmatch has no special handling for it at
- * all. Only usable with {@see \SilenZ\Switchyard\Routes}: a {@see \SilenZ\Switchyard\LazyRoutes}
+ * instance pair, which Relay calls directly as a callable; Switchyard has no special handling for it
+ * at all. Only usable with {@see \SilenZ\Switchyard\Routes}: a {@see \SilenZ\Switchyard\LazyRoutes}
  * handler must be a plain string, so it can't name an instance's method this way.
  */
 final class UserController

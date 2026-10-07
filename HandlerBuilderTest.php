@@ -9,10 +9,8 @@ use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
-use Psr\Http\Server\RequestHandlerInterface;
 use SilenZ\Segmatch\Http\Found;
 use SilenZ\Segmatch\Http\HandlerBuilder;
-use SilenZ\Segmatch\Http\NotFoundHandler;
 use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\Router;
 use SilenZ\Segmatch\Tests\Http\Fixtures\ArrayRouteCache;
@@ -46,12 +44,9 @@ final class HandlerBuilderTest extends TestCase
         return new HandlerBuilder($container ?? new EchoContainer(), new Router($routes->table()));
     }
 
-    private static function respond(
-        HandlerBuilder $builder,
-        ServerRequestInterface $request,
-        RequestHandlerInterface|string $notFoundHandler = NotFoundHandler::class,
-    ): ResponseInterface {
-        return $builder->build($request, $notFoundHandler)->handle($request);
+    private static function respond(HandlerBuilder $builder, ServerRequestInterface $request): ResponseInterface
+    {
+        return $builder->build($request)->handle($request);
     }
 
     /**
@@ -95,22 +90,25 @@ final class HandlerBuilderTest extends TestCase
         static::assertSame($allow, $response->getHeaderLine('Allow'));
     }
 
+    private static function apiRoutes(Routes $r): void
+    {
+        $api = $r->group('/api')->middleware('api')->tag('json');
+        $api->get('/users/{id}', 'show')->name('users.show')->middleware('auth')->tag('public');
+        $api->put('/users/{id}', 'update');
+        $api->get('/beta', 'beta')->filter(new FeatureRouteFilter('beta'));
+
+        $r->get('/ping', 'ping');
+        $r->map(['HEAD'], '/ping', 'ping-head');
+        $r->post('/login', 'login');
+        $r->any('/webhooks/{provider}', 'webhook');
+    }
+
     private static function apiBuilder(): HandlerBuilder
     {
-        return self::builder(
-            static function (Routes $r): void {
-                $api = $r->group('/api')->middleware('api')->tag('json');
-                $api->get('/users/{id}', 'show')->name('users.show')->middleware('auth')->tag('public');
-                $api->put('/users/{id}', 'update');
-                $api->get('/beta', 'beta')->filter(new FeatureRouteFilter('beta'));
-
-                $r->get('/ping', 'ping');
-                $r->map(['HEAD'], '/ping', 'ping-head');
-                $r->post('/login', 'login');
-                $r->any('/webhooks/{provider}', 'webhook');
-            },
-            new EchoContainer(['api' => new TagMiddleware('api'), 'auth' => new TagMiddleware('auth')]),
-        );
+        return self::builder(self::apiRoutes(...), new EchoContainer([
+            'api' => new TagMiddleware('api'),
+            'auth' => new TagMiddleware('auth'),
+        ]));
     }
 
     public function testFoundCarriesTheRoute(): void
@@ -174,24 +172,26 @@ final class HandlerBuilderTest extends TestCase
 
     public function testEveryHeadResponseLosesItsBody(): void
     {
-        $builder = self::apiBuilder();
-        $notFoundHandler = new EchoHandler();
+        $builder = self::builder(
+            static function (Routes $r): void {
+                self::apiRoutes($r);
+                $r->notFoundHandler(new EchoHandler());
+            },
+            new EchoContainer(['api' => new TagMiddleware('api'), 'auth' => new TagMiddleware('auth')]),
+        );
 
         // An any() route, which writes a body whatever the method.
         $any = self::respond($builder, new ServerRequest('HEAD', '/webhooks/github'));
         static::assertSame('webhook', $any->getHeaderLine('X-Handler'));
         static::assertSame('', (string) $any->getBody());
 
-        // An application's own not-found handler, which writes a body too.
-        $notFound = self::respond($builder, new ServerRequest('HEAD', '/nope'), $notFoundHandler);
+        // The configured not-found handler, which writes a body too.
+        $notFound = self::respond($builder, new ServerRequest('HEAD', '/nope'));
         static::assertSame('application/json', $notFound->getHeaderLine('Content-Type'));
         static::assertSame('', (string) $notFound->getBody());
 
         // The same handler still writes its body for other methods.
-        static::assertSame(
-            'null',
-            (string) self::respond($builder, new ServerRequest('GET', '/nope'), $notFoundHandler)->getBody(),
-        );
+        static::assertSame('null', (string) self::respond($builder, new ServerRequest('GET', '/nope'))->getBody());
     }
 
     public function testMethodNotAllowedListsTheAllowedMethods(): void

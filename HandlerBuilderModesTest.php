@@ -11,7 +11,6 @@ use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Server\MiddlewareInterface;
 use SilenZ\Segmatch\Cache\RouteCache;
 use SilenZ\Segmatch\Exception\InvalidRouteException;
 use SilenZ\Segmatch\Http\ErrorMiddleware;
@@ -21,11 +20,14 @@ use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\Router;
 use SilenZ\Segmatch\Tests\Http\Fixtures\ArrayContainer;
 use SilenZ\Segmatch\Tests\Http\Fixtures\ArrayRouteCache;
+use SilenZ\Segmatch\Tests\Http\Fixtures\CustomErrorMiddleware;
 use SilenZ\Segmatch\Tests\Http\Fixtures\EchoContainer;
 use SilenZ\Segmatch\Tests\Http\Fixtures\NumericRouteFilter;
 use SilenZ\Segmatch\Tests\Http\Fixtures\PlainHandler;
+use SilenZ\Segmatch\Tests\Http\Fixtures\StatusHandler;
 use SilenZ\Segmatch\Tests\Http\Fixtures\StatusMiddleware;
 use SilenZ\Segmatch\Tests\Http\Fixtures\TagMiddleware;
+use SilenZ\Segmatch\Tests\Http\Fixtures\ThrowingHandler;
 use SilenZ\Segmatch\Tests\Http\Fixtures\UserController;
 use UnexpectedValueException;
 
@@ -98,6 +100,9 @@ final class HandlerBuilderModesTest extends TestCase
             'log' => new TagMiddleware('log'),
             'api' => new TagMiddleware('api'),
             'auth' => new TagMiddleware('auth'),
+            'unused' => new TagMiddleware('unused'),
+            'status-410' => new StatusHandler(410),
+            'status-599' => new CustomErrorMiddleware(599),
             NumericRouteFilter::class => new NumericRouteFilter('id'),
             'numeric.postId' => new NumericRouteFilter('postId'),
             'not-a-filter' => new TagMiddleware('oops'),
@@ -113,15 +118,11 @@ final class HandlerBuilderModesTest extends TestCase
         $r->get('/ping', 'ping');
     }
 
-    private static function respond(
-        HandlerBuilder $builder,
-        string $method,
-        string $path,
-        MiddlewareInterface|string $errorMiddleware = ErrorMiddleware::class,
-    ): ResponseInterface {
+    private static function respond(HandlerBuilder $builder, string $method, string $path): ResponseInterface
+    {
         $request = new ServerRequest($method, $path);
 
-        return $builder->build($request, errorMiddleware: $errorMiddleware)->handle($request);
+        return $builder->build($request)->handle($request);
     }
 
     /**
@@ -195,17 +196,17 @@ final class HandlerBuilderModesTest extends TestCase
     #[DataProvider('modes')]
     public function testAHandlerMethodMustReturnAResponse(string $mode): void
     {
-        $builder = self::declared($mode, static fn(Routes|LazyRoutes $r) => $r->get('/x', [
-            UserController::class,
-            'broken',
-        ]));
+        $builder = self::declared($mode, static function (Routes|LazyRoutes $r): void {
+            // A middleware that doesn't catch anything lets the underlying exception propagate,
+            // instead of the default ErrorMiddleware turning it into a 500 response.
+            $r->errorMiddleware('unused');
+            $r->get('/x', [UserController::class, 'broken']);
+        });
 
         $this->expectException(UnexpectedValueException::class);
         $this->expectExceptionMessageMatches('/::broken\(\) returned string instead of a /');
 
-        // The default ErrorMiddleware would otherwise turn this into a 500 response; a middleware that
-        // doesn't catch anything lets it propagate, so the underlying exception is still visible here.
-        self::respond($builder, 'GET', '/x', errorMiddleware: new TagMiddleware('unused'));
+        self::respond($builder, 'GET', '/x');
     }
 
     public function testAHandlerPairMayHoldAnInstanceWhenDeclaredEagerly(): void
@@ -253,6 +254,25 @@ final class HandlerBuilderModesTest extends TestCase
             $head->getHeaderLine('X-Trail'),
             (string) $head->getBody(),
         ]);
+    }
+
+    #[DataProvider('modes')]
+    public function testNotFoundHandlerAndErrorMiddlewareMayBeReplaced(string $mode): void
+    {
+        $builder = self::declared($mode, static function (Routes|LazyRoutes $r): void {
+            self::api($r);
+            $r->notFoundHandler('status-410');
+            $r->errorMiddleware('status-599');
+            $r->get('/boom', ThrowingHandler::class);
+        });
+
+        static::assertSame(410, self::respond($builder, 'GET', '/nope')->getStatusCode());
+        static::assertSame(599, self::respond($builder, 'GET', '/boom')->getStatusCode());
+
+        // The 405 and OPTIONS answers, and matched routes, are unaffected.
+        static::assertSame(405, self::respond($builder, 'POST', '/ping')->getStatusCode());
+        static::assertSame(200, self::respond($builder, 'OPTIONS', '/ping')->getStatusCode());
+        static::assertSame('ping', self::respond($builder, 'GET', '/ping')->getHeaderLine('X-Handler'));
     }
 
     #[DataProvider('modes')]
@@ -355,6 +375,20 @@ final class HandlerBuilderModesTest extends TestCase
 
         $this->expectException(InvalidRouteException::class);
         $this->expectExceptionMessageMatches('/^' . preg_quote($message, delimiter: '/') . '/');
+
+        self::respond($builder, 'GET', '/x');
+    }
+
+    public function testLazyRoutesNotFoundHandlerAndErrorMiddlewareMayOnlyBeSetOnTheRoot(): void
+    {
+        $builder = self::declaredLazily(static fn(LazyRoutes $r) => $r->group('/api')->notFoundHandler('x'));
+
+        $this->expectException(InvalidRouteException::class);
+        $this->expectExceptionMessageMatches(
+            '/^'
+            . preg_quote('Only the root Routes may set the not-found handler, not a nested group.', delimiter: '/')
+            . '/',
+        );
 
         self::respond($builder, 'GET', '/x');
     }

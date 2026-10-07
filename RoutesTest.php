@@ -262,7 +262,10 @@ final class RoutesTest extends TestCase
 
         $router = new Router($routes->table());
 
-        static::assertSame(['middleware' => ['log', 'cors']], $router->metadata());
+        static::assertSame(
+            ['middleware' => ['log', 'cors'], 'notFoundHandler' => null, 'errorMiddleware' => null],
+            $router->metadata(),
+        );
         static::assertSame([], self::find($router, 'GET', '/a')['middleware'] ?? null);
         static::assertSame(['api'], self::find($router, 'GET', '/api/b')['middleware'] ?? null);
     }
@@ -278,6 +281,48 @@ final class RoutesTest extends TestCase
 
         static::assertIsInt($metadata['middleware'][0]);
         static::assertSame($middleware, $routes->registry()->get($metadata['middleware'][0]));
+    }
+
+    public function testNotFoundHandlerAndErrorMiddlewareAreTheTableMetadata(): void
+    {
+        $routes = new Routes();
+        $routes->notFoundHandler('my-not-found');
+        $routes->errorMiddleware('my-error-middleware');
+
+        static::assertSame(
+            ['middleware' => [], 'notFoundHandler' => 'my-not-found', 'errorMiddleware' => 'my-error-middleware'],
+            $routes->table()->metadata(),
+        );
+    }
+
+    public function testNotFoundHandlerAndErrorMiddlewareAsInstancesAreRegistryIdsInTheTableMetadata(): void
+    {
+        $routes = new Routes();
+        $notFoundHandler = new stdClass();
+        $errorMiddleware = new stdClass();
+        $routes->notFoundHandler($notFoundHandler);
+        $routes->errorMiddleware($errorMiddleware);
+
+        /** @var array{notFoundHandler: int, errorMiddleware: int} $metadata */
+        $metadata = $routes->table()->metadata();
+
+        static::assertSame($notFoundHandler, $routes->registry()->get($metadata['notFoundHandler']));
+        static::assertSame($errorMiddleware, $routes->registry()->get($metadata['errorMiddleware']));
+    }
+
+    public function testNotFoundHandlerAndErrorMiddlewareDeclaredOnTheRootAreUnaffectedByAGroup(): void
+    {
+        $routes = new Routes();
+        $routes->notFoundHandler('first');
+        $routes->group('/api')->get('/x', 'x');
+        // A later call on the root overwrites, rather than accumulating like middleware() does — only
+        // the root has one not-found handler to begin with.
+        $routes->notFoundHandler('second');
+
+        /** @var array{notFoundHandler: string} $metadata */
+        $metadata = $routes->table()->metadata();
+
+        static::assertSame('second', $metadata['notFoundHandler']);
     }
 
     public function testRoutesKeepDeclarationOrderAcrossGroups(): void
@@ -411,6 +456,18 @@ final class RoutesTest extends TestCase
         yield 'integer root middleware' => [
             static fn(Routes $r) => $r->middleware(1),
             'Routes without a prefix middleware cannot be an integer (1)',
+        ];
+        yield 'not-found handler set on a group' => [
+            static fn(Routes $r) => $r->group('/api')->notFoundHandler('x'),
+            'Only the root Routes may set the not-found handler, not a nested group.',
+        ];
+        yield 'error middleware set on a group' => [
+            static fn(Routes $r) => $r->group('/api')->errorMiddleware('x'),
+            'Only the root Routes may set the error middleware, not a nested group.',
+        ];
+        yield 'not-found handler set on a nested group' => [
+            static fn(Routes $r) => $r->group('/api')->group('/v1')->notFoundHandler('x'),
+            'Only the root Routes may set the not-found handler, not a nested group.',
         ];
     }
 

@@ -16,7 +16,6 @@ use Psr\Http\Server\RequestHandlerInterface;
 use SilenZ\Segmatch\Http\ErrorMiddleware;
 use SilenZ\Segmatch\Http\Found;
 use SilenZ\Segmatch\Http\HandlerBuilder;
-use SilenZ\Segmatch\Http\NotFoundHandler;
 use SilenZ\Segmatch\Http\Routes;
 use SilenZ\Segmatch\Router;
 use SilenZ\Segmatch\Tests\Http\Fixtures\ArrayContainer;
@@ -44,28 +43,28 @@ final class ResolvedHandlerTest extends TestCase
         return new HandlerBuilder($container, new Router($routes->table()));
     }
 
-    private static function apiBuilder(): HandlerBuilder
+    private static function apiRoutes(Routes $routes): void
     {
-        return self::builder(static function (Routes $routes): void {
-            $routes->get('/ping', PlainHandler::class);
-            $routes->get('/users', PlainHandler::class);
-            $routes->post('/users', PlainHandler::class);
-            $routes->get('/users/{id}', PlainHandler::class)->filter(new NumericRouteFilter('id'));
-            $routes->get('/users/{slug}', PlainHandler::class);
-            $routes->map(['PUT', 'PATCH'], '/users/{id}', PlainHandler::class)->filter(new NumericRouteFilter('id'));
-            $routes->get('/beta', PlainHandler::class)->filter(new FeatureRouteFilter('beta'));
-            $routes->any('/webhooks/{provider}', PlainHandler::class);
-            $routes->get('/cors', PlainHandler::class);
-            $routes->map(['OPTIONS'], '/cors', PlainHandler::class);
-        }, new EchoContainer());
+        $routes->get('/ping', PlainHandler::class);
+        $routes->get('/users', PlainHandler::class);
+        $routes->post('/users', PlainHandler::class);
+        $routes->get('/users/{id}', PlainHandler::class)->filter(new NumericRouteFilter('id'));
+        $routes->get('/users/{slug}', PlainHandler::class);
+        $routes->map(['PUT', 'PATCH'], '/users/{id}', PlainHandler::class)->filter(new NumericRouteFilter('id'));
+        $routes->get('/beta', PlainHandler::class)->filter(new FeatureRouteFilter('beta'));
+        $routes->any('/webhooks/{provider}', PlainHandler::class);
+        $routes->get('/cors', PlainHandler::class);
+        $routes->map(['OPTIONS'], '/cors', PlainHandler::class);
     }
 
-    private static function respond(
-        HandlerBuilder $builder,
-        ServerRequestInterface $request,
-        RequestHandlerInterface|string $notFoundHandler = NotFoundHandler::class,
-    ): ResponseInterface {
-        return $builder->build($request, $notFoundHandler)->handle($request);
+    private static function apiBuilder(): HandlerBuilder
+    {
+        return self::builder(self::apiRoutes(...), new EchoContainer());
+    }
+
+    private static function respond(HandlerBuilder $builder, ServerRequestInterface $request): ResponseInterface
+    {
+        return $builder->build($request)->handle($request);
     }
 
     /**
@@ -228,13 +227,12 @@ final class ResolvedHandlerTest extends TestCase
 
     public function testOwnNotFoundHandlerReplacesTheDefault(): void
     {
-        $builder = self::apiBuilder();
-        $notFoundHandler = new StatusHandler(410);
+        $builder = self::builder(static function (Routes $routes): void {
+            self::apiRoutes($routes);
+            $routes->notFoundHandler(new StatusHandler(410));
+        }, new EchoContainer());
 
-        static::assertSame(
-            410,
-            self::respond($builder, new ServerRequest('GET', '/nope'), $notFoundHandler)->getStatusCode(),
-        );
+        static::assertSame(410, self::respond($builder, new ServerRequest('GET', '/nope'))->getStatusCode());
 
         // The 405 and OPTIONS answers stay the defaults, and matched routes are unaffected.
         $methodNotAllowed = self::respond($builder, new ServerRequest('POST', '/ping'));
@@ -260,10 +258,12 @@ final class ResolvedHandlerTest extends TestCase
 
     public function testOwnErrorMiddlewareReplacesTheDefault(): void
     {
-        $builder = self::builder(static fn(Routes $r) => $r->get('/boom', ThrowingHandler::class), new EchoContainer());
-        $request = new ServerRequest('GET', '/boom');
+        $builder = self::builder(static function (Routes $r): void {
+            $r->errorMiddleware(new CustomErrorMiddleware(599));
+            $r->get('/boom', ThrowingHandler::class);
+        }, new EchoContainer());
 
-        $response = $builder->build($request, errorMiddleware: new CustomErrorMiddleware(599))->handle($request);
+        $response = self::respond($builder, new ServerRequest('GET', '/boom'));
 
         static::assertSame(599, $response->getStatusCode());
     }

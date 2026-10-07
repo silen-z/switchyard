@@ -39,9 +39,10 @@ final class HandlerBuilderModesTest extends TestCase
 {
     /**
      * Builds a `HandlerBuilder` from `$define`, declared eagerly on a `Routes` or lazily on a
-     * `LazyRoutes` depending on `$mode`, against a container that knows the "log", "api" and "auth"
-     * middleware, a {@see NumericRouteFilter} for "id" under its class name and one for "postId" under
-     * "numeric.postId", and "not-a-filter", so the routes can name everything, as lazy routes must.
+     * `LazyRoutes` depending on `$mode`. Only for a `$define` genuinely polymorphic over both — the
+     * parameterized `#[DataProvider('modes')]` tests. A test that only runs in one mode should call
+     * {@see declaredEagerly()} or {@see declaredLazily()} directly instead, so its closure can be typed
+     * to the one it actually needs rather than the union this method has to accept.
      *
      * @param callable(Routes|LazyRoutes): mixed $define
      */
@@ -51,7 +52,49 @@ final class HandlerBuilderModesTest extends TestCase
         ?RouteCache $cache = null,
         ?string $cacheKey = null,
     ): HandlerBuilder {
-        $container = new EchoContainer([
+        if ($mode === 'lazy') {
+            return self::declaredLazily($define, $cache, $cacheKey);
+        }
+
+        return self::declaredEagerly($define, $cache, $cacheKey);
+    }
+
+    /**
+     * Builds a `HandlerBuilder` from `$define` declared eagerly on a `Routes`, against a container
+     * that knows the "log", "api" and "auth" middleware and a {@see NumericRouteFilter} for "id" under
+     * its class name.
+     *
+     * @param callable(Routes): mixed $define
+     */
+    private static function declaredEagerly(
+        callable $define,
+        ?RouteCache $cache = null,
+        ?string $cacheKey = null,
+    ): HandlerBuilder {
+        $routes = new Routes();
+        $define($routes);
+
+        return new HandlerBuilder(self::container(), new Router($routes->table($cacheKey), $cache));
+    }
+
+    /**
+     * Builds a `HandlerBuilder` from `$define` declared lazily on a `LazyRoutes`, against a container
+     * that also knows "numeric.postId" and "not-a-filter", so lazy routes can name everything, as they
+     * must.
+     *
+     * @param callable(LazyRoutes): mixed $define
+     */
+    private static function declaredLazily(
+        callable $define,
+        ?RouteCache $cache = null,
+        ?string $cacheKey = null,
+    ): HandlerBuilder {
+        return new HandlerBuilder(self::container(), new Router(LazyRoutes::table($define, $cacheKey), $cache));
+    }
+
+    private static function container(): EchoContainer
+    {
+        return new EchoContainer([
             'log' => new TagMiddleware('log'),
             'api' => new TagMiddleware('api'),
             'auth' => new TagMiddleware('auth'),
@@ -59,17 +102,6 @@ final class HandlerBuilderModesTest extends TestCase
             'numeric.postId' => new NumericRouteFilter('postId'),
             'not-a-filter' => new TagMiddleware('oops'),
         ]);
-
-        if ($mode === 'lazy') {
-            /** @var callable(LazyRoutes): void $define */
-            return new HandlerBuilder($container, new Router(LazyRoutes::table($define, $cacheKey), $cache));
-        }
-
-        $routes = new Routes();
-        /** @var callable(Routes): void $define */
-        $define($routes);
-
-        return new HandlerBuilder($container, new Router($routes->table($cacheKey), $cache));
     }
 
     private static function api(Routes|LazyRoutes $r): void
@@ -178,10 +210,7 @@ final class HandlerBuilderModesTest extends TestCase
 
     public function testAHandlerPairMayHoldAnInstanceWhenDeclaredEagerly(): void
     {
-        // Narrowed to Routes since this closure is only ever used in 'eager' mode, which declared()
-        // can't express statically from a runtime mode string.
-        // @mago-expect analysis:invalid-argument
-        $builder = self::declared('eager', static fn(Routes $r) => $r->get('/users/{id}', [
+        $builder = self::declaredEagerly(static fn(Routes $r) => $r->get('/users/{id}', [
             new UserController(),
             'show',
         ]));
@@ -250,17 +279,13 @@ final class HandlerBuilderModesTest extends TestCase
             self::api($r);
         };
 
-        // Narrowed to LazyRoutes since $define is only ever used in 'lazy' mode here, which declared()
-        // can't express statically from a runtime mode string.
-        // @mago-expect analysis:invalid-argument
-        $cold = self::declared('lazy', $define, $cache, 'routes');
+        $cold = self::declaredLazily($define, $cache, 'routes');
         static::assertCount(0, $calls, 'Declaring waits until the routes are needed.');
 
         static::assertSame('ping', self::respond($cold, 'GET', '/ping')->getHeaderLine('X-Handler'));
         static::assertCount(1, $calls);
 
-        // @mago-expect analysis:invalid-argument
-        $warm = self::declared('lazy', $define, $cache, 'routes');
+        $warm = self::declaredLazily($define, $cache, 'routes');
         static::assertSame('ping', self::respond($warm, 'GET', '/ping')->getHeaderLine('X-Handler'));
         static::assertSame('log', self::respond($warm, 'GET', '/nope')->getHeaderLine('X-Trail'));
         static::assertCount(1, $calls, 'A request answered from the cache declares nothing.');
@@ -274,13 +299,9 @@ final class HandlerBuilderModesTest extends TestCase
             $r->get('/x', new PlainHandler());
         };
 
-        // Narrowed to Routes since $define is only ever used in 'eager' mode here, which declared()
-        // can't express statically from a runtime mode string.
-        // @mago-expect analysis:invalid-argument
-        self::respond(self::declared('eager', $define, $cache, 'routes'), 'GET', '/x');
+        self::respond(self::declaredEagerly($define, $cache, 'routes'), 'GET', '/x');
 
-        // @mago-expect analysis:invalid-argument
-        $warm = self::declared('eager', $define, $cache, 'routes');
+        $warm = self::declaredEagerly($define, $cache, 'routes');
 
         static::assertSame('instance', self::respond($warm, 'GET', '/x')->getHeaderLine('X-Trail'));
         static::assertSame('instance', self::respond($warm, 'GET', '/nope')->getHeaderLine('X-Trail'));
@@ -330,10 +351,7 @@ final class HandlerBuilderModesTest extends TestCase
     #[DataProvider('instancesInLazyRoutes')]
     public function testLazyRoutesRejectInstances(Closure $define, string $message): void
     {
-        // $define is narrowed to LazyRoutes since it's only ever used in 'lazy' mode here, which
-        // declared() can't express statically from a runtime mode string.
-        // @mago-expect analysis:invalid-argument
-        $builder = self::declared('lazy', $define);
+        $builder = self::declaredLazily($define);
 
         $this->expectException(InvalidRouteException::class);
         $this->expectExceptionMessageMatches('/^' . preg_quote($message, delimiter: '/') . '/');

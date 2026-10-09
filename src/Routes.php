@@ -241,10 +241,12 @@ final class Routes
     }
 
     /**
-     * This tree as a {@see RouteTable}, cached under `$cacheKey` — `null` (the default) never caches
-     * it, compiling on every request regardless of whether `Router` was given a cache. Pass something
-     * that changes whenever these declarations would, e.g. an application version or a configuration
-     * hash, for the caching described in {@see \SilenZ\Beeline\Router} to actually take effect.
+     * This tree as a {@see RouteTable}, cached under `$cacheKey` — `null` (the default) still caches
+     * it, under whatever the given {@see \SilenZ\Beeline\Cache\RouteCache} treats as its own default for
+     * a `null` key (only `Router` being given no cache at all compiles on every request instead). Pass
+     * something that changes whenever these declarations would, e.g. an application version or a
+     * configuration hash, so a deploy or a config change doesn't keep serving a stale compiled table —
+     * see {@see \SilenZ\Beeline\Router}.
      *
      * The table's own metadata ({@see RouteTable::metadata()}) — this scope's root middleware and
      * not-found handler — is handed to this tree's {@see MetadataRegistry} as one unit, the same way

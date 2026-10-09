@@ -246,9 +246,11 @@ final class LazyRoutes
 
     /**
      * A {@see RouteTable} for a tree built by `$define`, cached under `$cacheKey` — `null` (the
-     * default) never caches it. `$define` is only called once, and only when the table's definitions
-     * or metadata are actually needed, i.e. on a cache miss, so a request answered from the cache
-     * declares nothing at all.
+     * default) still caches it, under whatever the given {@see \SilenZ\Beeline\Cache\RouteCache} treats
+     * as its own default for a `null` key; only `Router` being given no cache at all compiles on every
+     * request instead. `$define` is only called once, and only when the table's definitions or metadata
+     * are actually needed, i.e. on a cache miss, so a request answered from the cache declares nothing
+     * at all.
      *
      * @param callable(self): void $define
      */

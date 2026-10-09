@@ -17,14 +17,14 @@ final class ArrayRouteCache implements RouteCache
     /** @var array<string, array<array-key, mixed>> */
     private array $entries = [];
 
-    public function get(string $key): ?array
+    public function get(?string $key): ?array
     {
-        return $this->entries[$key] ?? null;
+        return $this->entries[$key ?? ''] ?? null;
     }
 
-    public function set(string $key, array $compiled): void
+    public function set(?string $key, array $compiled): void
     {
-        $this->entries[$key] = $compiled;
+        $this->entries[$key ?? ''] = $compiled;
     }
 
     /**

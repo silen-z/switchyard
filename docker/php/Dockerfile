@@ -1,7 +1,7 @@
 FROM php:8.4-cli
 
 # Keep in sync with the schema version pinned at the top of mago.toml.
-ARG MAGO_VERSION=1.40.2
+ARG MAGO_VERSION=1.54.0
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         unzip \

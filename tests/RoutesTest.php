@@ -384,7 +384,10 @@ final class RoutesTest extends TestCase
         };
 
         static::assertSame('yes', self::find(self::router($definitions), 'GET', '/invokable')['handler'] ?? null);
-        $result = new Router(new RouteTable($raw))->match('/raw');
+        $table = new RouteTable(static function (array &$definitions) use ($raw): void {
+            $definitions = $raw();
+        });
+        $result = new Router($table)->match('/raw');
         static::assertInstanceOf(RouteMatch::class, $result);
         static::assertSame('raw', $result->route);
     }

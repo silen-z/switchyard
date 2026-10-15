@@ -248,29 +248,23 @@ final class LazyRoutes
      * A {@see RouteTable} for a tree built by `$define`, cached under `$cacheKey` — `null` (the
      * default) still caches it, under whatever the given {@see \SilenZ\Beeline\Cache\RouteCache} treats
      * as its own default for a `null` key; only `Router` being given no cache at all compiles on every
-     * request instead. `$define` is only called once, and only when the table's definitions or metadata
-     * are actually needed, i.e. on a cache miss, so a request answered from the cache declares nothing
-     * at all.
+     * request instead. `$define` is only called when the table's definitions or metadata are actually
+     * needed, i.e. on a cache miss, so a request answered from the cache declares nothing at all —
+     * `Router` guarantees that by calling {@see \SilenZ\Beeline\RouteTable::collect()} at most once per
+     * request, so unlike an earlier shape of this method, there's no `$once`-style memoizing to do here
+     * on top of that.
      *
      * @param callable(self): void $define
      */
     public static function table(callable $define, ?string $cacheKey = null): RouteTable
     {
-        /** @var ?self $routes set by $once, through the reference it captures */
-        $routes = null;
-        $once = static function () use ($define, &$routes): self {
-            if ($routes === null) {
-                $routes = new self();
-                $define($routes);
-            }
+        return new RouteTable(static function (array &$definitions, mixed &$metadata) use ($define): void {
+            $routes = new self();
+            $define($routes);
 
-            return $routes;
-        };
-
-        return new RouteTable(static fn(): array => $once()->definitions(), $cacheKey, static fn(): array => [
-            'middleware' => $once()->middleware,
-            'notFound' => $once()->notFound,
-        ]);
+            $routes->collectDefinitions($definitions);
+            $metadata = ['middleware' => $routes->middleware, 'notFound' => $routes->notFound];
+        }, $cacheKey);
     }
 
     /**
@@ -283,6 +277,20 @@ final class LazyRoutes
     public function definitions(): array
     {
         $definitions = [];
+        $this->collectDefinitions($definitions);
+
+        return $definitions;
+    }
+
+    /**
+     * {@see definitions()}, but appending into the caller's own array instead of building and
+     * returning a new one — what {@see table()} collects straight into {@see RouteTable}'s own
+     * `$definitions` out-parameter, with no array in between.
+     *
+     * @param list<RouteDefinition> &$definitions appended to
+     */
+    private function collectDefinitions(array &$definitions): void
+    {
         $names = [];
 
         foreach ($this->items as $item) {
@@ -293,8 +301,6 @@ final class LazyRoutes
 
             $definitions[] = $item->definition($this->prefix, [], $this->tags, $names);
         }
-
-        return $definitions;
     }
 
     /**

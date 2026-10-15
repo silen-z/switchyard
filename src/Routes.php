@@ -257,9 +257,11 @@ final class Routes
     public function table(?string $cacheKey = null): RouteTable
     {
         return new RouteTable(
-            $this->definitions(...),
+            function (array &$definitions, mixed &$metadata): void {
+                $this->collectDefinitions($definitions);
+                $metadata = $this->registry->register(['middleware' => $this->middleware, 'notFound' => $this->notFound]);
+            },
             $cacheKey,
-            fn(): int => $this->registry->register(['middleware' => $this->middleware, 'notFound' => $this->notFound]),
             $this->registry,
         );
     }
@@ -274,6 +276,20 @@ final class Routes
     public function definitions(): array
     {
         $definitions = [];
+        $this->collectDefinitions($definitions);
+
+        return $definitions;
+    }
+
+    /**
+     * {@see definitions()}, but appending into the caller's own array instead of building and
+     * returning a new one — what {@see table()} collects straight into {@see RouteTable}'s own
+     * `$definitions` out-parameter, with no array in between.
+     *
+     * @param list<RouteDefinition> &$definitions appended to
+     */
+    private function collectDefinitions(array &$definitions): void
+    {
         $names = [];
 
         foreach ($this->items as $item) {
@@ -284,8 +300,6 @@ final class Routes
 
             $definitions[] = $item->definition($this->prefix, [], $this->tags, $names);
         }
-
-        return $definitions;
     }
 
     /**

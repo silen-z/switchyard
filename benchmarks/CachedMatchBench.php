@@ -19,8 +19,6 @@ use SilenZ\Switchyard\LazyRoutes;
 use SilenZ\Switchyard\Routes;
 use Symfony\Component\Routing\Exception\ResourceNotFoundException;
 use Symfony\Component\Routing\Loader\ClosureLoader;
-use Symfony\Component\Routing\Matcher\CompiledUrlMatcher;
-use Symfony\Component\Routing\Matcher\Dumper\CompiledUrlMatcherDumper;
 use Symfony\Component\Routing\RequestContext;
 use Symfony\Component\Routing\Route as SymfonyRoute;
 use Symfony\Component\Routing\RouteCollection;
@@ -29,7 +27,6 @@ use Symfony\Component\Routing\Router as SymfonyRouter;
 use function array_keys;
 use function count;
 use function FastRoute\cachedDispatcher;
-use function file_put_contents;
 use function glob;
 use function is_dir;
 use function mkdir;
@@ -45,12 +42,12 @@ use function usort;
  * declares on every request (its registry can't be cached); `LazyRoutes` and the third-party
  * routers only load their cache.
  *
- * Two Symfony subjects, for two different fairness questions: `benchSymfony` is bare
- * `CompiledUrlMatcher` construction, comparable to Beeline's own bare `Matcher` construction;
- * `benchSymfonyRouter` goes through Symfony's actual `Router` — `ConfigCache`, a `ClosureLoader`
- * that's never invoked on a cache hit — the equivalent orchestration layer to `Routes`/`LazyRoutes`'
- * own `Beeline\Router`, since that's what a real Symfony application actually uses, not a hand-built
- * `CompiledUrlMatcher`.
+ * `benchSymfonyRouter` goes through Symfony's actual `Router` — a `ConfigCache` freshness check, a
+ * `ClosureLoader` that's never invoked on a cache hit — the equivalent orchestration layer to
+ * `Routes`/`LazyRoutes`' own `Beeline\Router`, since that's what a real Symfony application actually
+ * uses, not a hand-built `CompiledUrlMatcher`. That bare-matcher comparison (`CompiledUrlMatcher`
+ * against Beeline's own bare `Matcher`) lives in beeline's own benchmarks instead, alongside the
+ * classes it's fair to compare against.
  */
 #[Groups(['cached'])]
 #[BeforeMethods('setUp')]
@@ -96,10 +93,6 @@ final class CachedMatchBench
             }
         }, 'lazy-' . $this->fixture), new FileCache(self::DIR))->match('/');
 
-        file_put_contents(self::symfonyFile($this->fixture), new CompiledUrlMatcherDumper(
-            self::symfonyCollection($this->routes),
-        )->dump());
-
         $routes = $this->routes;
         try {
             // "/" itself is never one of the fixture's own routes, and Symfony special-cases
@@ -140,21 +133,12 @@ final class CachedMatchBench
         )->match($this->next());
     }
 
-    public function benchSymfony(): void
-    {
-        $matcher = new CompiledUrlMatcher(require self::symfonyFile($this->fixture), new RequestContext());
-        try {
-            $matcher->match($this->next());
-        } catch (ResourceNotFoundException) {
-        }
-    }
-
     /**
      * Through Symfony's own `Router`, not a hand-built `CompiledUrlMatcher`: a `ConfigCache` check
      * (an `is_file()`-equivalent freshness check, since `debug: false` skips everything past that)
      * plus a `ClosureLoader` that declares on a cache miss only — the same shape of orchestration
      * {@see Router} (Beeline's) wraps `Routes`/`LazyRoutes` in, so this is the fair comparison point
-     * for them, not {@see benchSymfony()}'s bare matcher.
+     * for them, not a hand-built `CompiledUrlMatcher` (see beeline's own benchmarks for that).
      */
     public function benchSymfonyRouter(): void
     {
@@ -199,11 +183,6 @@ final class CachedMatchBench
         }
 
         return $routes;
-    }
-
-    private static function symfonyFile(string $fixture): string
-    {
-        return self::DIR . '/' . $fixture . '.symfony.php';
     }
 
     /**

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace SilenZ\Switchyard\Benchmarks;
 
-use FastRoute\Dispatcher;
 use FastRoute\RouteCollector as FastRouteCollector;
 use LogicException;
 use PhpBench\Attributes\BeforeMethods;
@@ -82,7 +81,8 @@ final class CachedMatchBench
         if (!is_dir(self::DIR)) {
             mkdir(self::DIR, recursive: true);
         }
-        foreach (glob(self::DIR . '/*') ?: [] as $file) {
+        $cachedFiles = glob(self::DIR . '/*');
+        foreach ($cachedFiles !== false ? $cachedFiles : [] as $file) {
             unlink($file);
         }
 
@@ -105,15 +105,18 @@ final class CachedMatchBench
                 ['cache_dir' => self::DIR, 'debug' => false],
                 new RequestContext(),
             )->match('/');
+
+            // @mago-expect lint:no-empty-catch-clause - a no-match is the expected "404" outcome for
+            // this warm-up request, not an error worth logging
         } catch (ResourceNotFoundException) {
         }
         cachedDispatcher(static function (FastRouteCollector $c) use ($routes): void {
             foreach (self::ordered($routes) as $index => $route) {
-                $c->addRoute('GET', (string) preg_replace(
-                    ['#/\{(\w+)\*\}$#', '#\{(\w+)\+\}$#'],
-                    ['[/{$1:.*}]', '{$1:.+}'],
-                    $route,
-                ), $index);
+                $c->addRoute(
+                    'GET',
+                    (string) preg_replace(['#/\{(\w+)\*\}$#', '#\{(\w+)\+\}$#'], ['[/{$1:.*}]', '{$1:.+}'], $route),
+                    $index,
+                );
             }
         }, ['cacheFile' => self::fastRouteFile($this->fixture)]);
     }
@@ -151,6 +154,9 @@ final class CachedMatchBench
 
         try {
             $router->match($this->next());
+
+            // @mago-expect lint:no-empty-catch-clause - a no-match is the expected "404" outcome for
+            // a benchmarked request, not an error worth logging
         } catch (ResourceNotFoundException) {
         }
     }
@@ -192,7 +198,11 @@ final class CachedMatchBench
     {
         $collection = new RouteCollection();
         foreach (self::ordered($routes) as $index => $route) {
-            $symfony = new SymfonyRoute((string) preg_replace('#\{(\w+)[*+]\}$#', '{$1}', $route), methods: ['GET']);
+            $symfony = new SymfonyRoute(
+                (string) preg_replace('#\{(\w+)[*+]\}$#', replacement: '{$1}', subject: $route),
+                methods: ['GET'],
+            );
+            $m = [];
             if (preg_match('#\{(\w+)([*+])\}$#', $route, $m) === 1) {
                 $symfony->setRequirement($m[1], $m[2] === '+' ? '.+' : '.*');
             }

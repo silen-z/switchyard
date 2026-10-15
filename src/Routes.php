@@ -259,7 +259,10 @@ final class Routes
         return new RouteTable(
             function (array &$definitions, mixed &$metadata): void {
                 $this->collectDefinitions($definitions);
-                $metadata = $this->registry->register(['middleware' => $this->middleware, 'notFound' => $this->notFound]);
+                $metadata = $this->registry->register([
+                    'middleware' => $this->middleware,
+                    'notFound' => $this->notFound,
+                ]);
             },
             $cacheKey,
             $this->registry,
@@ -278,6 +281,14 @@ final class Routes
         $definitions = [];
         $this->collectDefinitions($definitions);
 
+        /**
+         * @var list<RouteDefinition> $definitions guaranteed here even though
+         *     {@see collectDefinitions()} only accepts the wider `array<int, RouteDefinition>` (to
+         *     match what {@see table()} hands it from {@see \SilenZ\Beeline\RouteTable::collect()}):
+         *     starting from the empty list above, {@see collectDefinitions()} and the `register()` it
+         *     recurses into only ever append with `[]=`, never touch existing keys, so the result
+         *     stays list-shaped.
+         */
         return $definitions;
     }
 
@@ -286,7 +297,10 @@ final class Routes
      * returning a new one — what {@see table()} collects straight into {@see RouteTable}'s own
      * `$definitions` out-parameter, with no array in between.
      *
-     * @param list<RouteDefinition> &$definitions appended to
+     * @param array<int, RouteDefinition> &$definitions appended to — not typed as a `list` since
+     *     {@see table()} hands this straight through from {@see \SilenZ\Beeline\RouteTable::collect()}'s
+     *     own `$definitions` out-parameter, which is only ever documented there as
+     *     `array<int, RouteDefinition>`, not guaranteed to be list-shaped
      */
     private function collectDefinitions(array &$definitions): void
     {
@@ -317,7 +331,7 @@ final class Routes
      *
      * @internal
      *
-     * @param list<RouteDefinition> $routes the resolved routes, appended to
+     * @param array<int, RouteDefinition> $routes the resolved routes, appended to
      * @param string $prefix the enclosing groups' prefix
      * @param list<mixed> $middleware the enclosing groups' middleware
      * @param list<string> $tags the enclosing groups' tags

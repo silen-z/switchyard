@@ -18,11 +18,13 @@ use SilenZ\Beeline\Router;
 use SilenZ\Switchyard\LazyRoutes;
 use SilenZ\Switchyard\Routes;
 use Symfony\Component\Routing\Exception\ResourceNotFoundException;
+use Symfony\Component\Routing\Loader\ClosureLoader;
 use Symfony\Component\Routing\Matcher\CompiledUrlMatcher;
 use Symfony\Component\Routing\Matcher\Dumper\CompiledUrlMatcherDumper;
 use Symfony\Component\Routing\RequestContext;
 use Symfony\Component\Routing\Route as SymfonyRoute;
 use Symfony\Component\Routing\RouteCollection;
+use Symfony\Component\Routing\Router as SymfonyRouter;
 
 use function array_keys;
 use function count;
@@ -42,6 +44,13 @@ use function usort;
  * written cache, then match one path, rotating through {@see Fixtures::paths()}. `Routes` still
  * declares on every request (its registry can't be cached); `LazyRoutes` and the third-party
  * routers only load their cache.
+ *
+ * Two Symfony subjects, for two different fairness questions: `benchSymfony` is bare
+ * `CompiledUrlMatcher` construction, comparable to Beeline's own bare `Matcher` construction;
+ * `benchSymfonyRouter` goes through Symfony's actual `Router` — `ConfigCache`, a `ClosureLoader`
+ * that's never invoked on a cache hit — the equivalent orchestration layer to `Routes`/`LazyRoutes`'
+ * own `Beeline\Router`, since that's what a real Symfony application actually uses, not a hand-built
+ * `CompiledUrlMatcher`.
  */
 #[Groups(['cached'])]
 #[BeforeMethods('setUp')]
@@ -87,17 +96,24 @@ final class CachedMatchBench
             }
         }, 'lazy-' . $this->fixture), new FileCache(self::DIR))->match('/');
 
-        $collection = new RouteCollection();
-        foreach (self::ordered($this->routes) as $index => $route) {
-            $symfony = new SymfonyRoute((string) preg_replace('#\{(\w+)[*+]\}$#', '{$1}', $route), methods: ['GET']);
-            if (preg_match('#\{(\w+)([*+])\}$#', $route, $m) === 1) {
-                $symfony->setRequirement($m[1], $m[2] === '+' ? '.+' : '.*');
-            }
-            $collection->add('r' . $index, $symfony);
-        }
-        file_put_contents(self::symfonyFile($this->fixture), new CompiledUrlMatcherDumper($collection)->dump());
+        file_put_contents(self::symfonyFile($this->fixture), new CompiledUrlMatcherDumper(
+            self::symfonyCollection($this->routes),
+        )->dump());
 
         $routes = $this->routes;
+        try {
+            // "/" itself is never one of the fixture's own routes, and Symfony special-cases
+            // matching "/" against a table with nothing else declared as "you forgot to configure
+            // routes" (NoConfigurationException, a ResourceNotFoundException) rather than a plain
+            // miss — caught the same way the real benchSymfonyRouter() subject already has to.
+            new SymfonyRouter(
+                new ClosureLoader(),
+                static fn(): RouteCollection => self::symfonyCollection($routes),
+                ['cache_dir' => self::DIR, 'debug' => false],
+                new RequestContext(),
+            )->match('/');
+        } catch (ResourceNotFoundException) {
+        }
         cachedDispatcher(static function (FastRouteCollector $c) use ($routes): void {
             foreach (self::ordered($routes) as $index => $route) {
                 $c->addRoute('GET', (string) preg_replace(
@@ -129,6 +145,28 @@ final class CachedMatchBench
         $matcher = new CompiledUrlMatcher(require self::symfonyFile($this->fixture), new RequestContext());
         try {
             $matcher->match($this->next());
+        } catch (ResourceNotFoundException) {
+        }
+    }
+
+    /**
+     * Through Symfony's own `Router`, not a hand-built `CompiledUrlMatcher`: a `ConfigCache` check
+     * (an `is_file()`-equivalent freshness check, since `debug: false` skips everything past that)
+     * plus a `ClosureLoader` that declares on a cache miss only — the same shape of orchestration
+     * {@see Router} (Beeline's) wraps `Routes`/`LazyRoutes` in, so this is the fair comparison point
+     * for them, not {@see benchSymfony()}'s bare matcher.
+     */
+    public function benchSymfonyRouter(): void
+    {
+        $router = new SymfonyRouter(
+            new ClosureLoader(),
+            static fn(): RouteCollection => throw new LogicException('Cache miss.'),
+            ['cache_dir' => self::DIR, 'debug' => false],
+            new RequestContext(),
+        );
+
+        try {
+            $router->match($this->next());
         } catch (ResourceNotFoundException) {
         }
     }
@@ -166,6 +204,23 @@ final class CachedMatchBench
     private static function symfonyFile(string $fixture): string
     {
         return self::DIR . '/' . $fixture . '.symfony.php';
+    }
+
+    /**
+     * @param list<string> $routes
+     */
+    private static function symfonyCollection(array $routes): RouteCollection
+    {
+        $collection = new RouteCollection();
+        foreach (self::ordered($routes) as $index => $route) {
+            $symfony = new SymfonyRoute((string) preg_replace('#\{(\w+)[*+]\}$#', '{$1}', $route), methods: ['GET']);
+            if (preg_match('#\{(\w+)([*+])\}$#', $route, $m) === 1) {
+                $symfony->setRequirement($m[1], $m[2] === '+' ? '.+' : '.*');
+            }
+            $collection->add('r' . $index, $symfony);
+        }
+
+        return $collection;
     }
 
     private static function fastRouteFile(string $fixture): string

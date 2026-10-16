@@ -50,7 +50,7 @@ use function strtoupper;
  * middleware: it's always the outermost entry, so anything declared with {@see middleware()} instead
  * sits further in and catches first — see {@see middleware()}.
  */
-final class Routes
+final class Routes extends RouteTable
 {
     /** @var list<Route|self> */
     private array $items = [];
@@ -131,7 +131,7 @@ final class Routes
      */
     public function any(string $path, mixed $handler): Route
     {
-        $route = new Route(null, $path, $handler, $this->registry);
+        $route = new Route(null, $path, $handler, $this->registry());
         $this->items[] = $route;
 
         return $route;
@@ -158,7 +158,7 @@ final class Routes
             throw new InvalidRouteException(sprintf('Route "%s" needs at least one HTTP method.', $path));
         }
 
-        $route = new Route(array_values(array_unique($normalized)), $path, $handler, $this->registry);
+        $route = new Route(array_values(array_unique($normalized)), $path, $handler, $this->registry());
         $this->items[] = $route;
 
         return $route;
@@ -171,7 +171,7 @@ final class Routes
      */
     public function group(string $prefix = ''): self
     {
-        $group = new self($this->registry, $prefix, $this->root());
+        $group = new self($this->registry(), $prefix, $this->root());
         $this->items[] = $group;
 
         return $group;
@@ -256,51 +256,35 @@ final class Routes
      */
     public function table(?string $cacheKey = null): RouteTable
     {
-        return new RouteTable(
-            function (array &$definitions, mixed &$metadata): void {
-                $this->collectDefinitions($definitions);
-                $metadata = $this->registry->register([
-                    'middleware' => $this->middleware,
-                    'notFound' => $this->notFound,
-                ]);
-            },
-            $cacheKey,
-            $this->registry,
-        );
+        $this->cacheKey = $cacheKey;
+
+        return $this;
     }
 
     /**
-     * The routes as declared: full paths and metadata, for tooling that needs the declarations
-     * themselves, e.g. an index of routes by name, or generating documentation, not for matching
-     * requests.
-     *
-     * @return list<RouteDefinition>
+     * @param array<array-key, mixed> &$definitions always empty — see {@see RouteTable::collect()}
+     * @param-out array<int, RouteDefinition> $definitions
      */
-    public function definitions(): array
+    protected function collect(array &$definitions): mixed
     {
-        $definitions = [];
-        $this->collectDefinitions($definitions);
+        /** @var array<int, RouteDefinition> $typed always empty going in, so this is just a type assertion */
+        $typed = $definitions;
+        $this->collectDefinitions($typed);
+        $definitions = $typed;
 
-        /**
-         * @var list<RouteDefinition> $definitions guaranteed here even though
-         *     {@see collectDefinitions()} only accepts the wider `array<int, RouteDefinition>` (to
-         *     match what {@see table()} hands it from {@see \SilenZ\Beeline\RouteTable::collect()}):
-         *     starting from the empty list above, {@see collectDefinitions()} and the `register()` it
-         *     recurses into only ever append with `[]=`, never touch existing keys, so the result
-         *     stays list-shaped.
-         */
-        return $definitions;
+        return $this->registry()->register([
+            'middleware' => $this->middleware,
+            'notFound' => $this->notFound,
+        ]);
     }
 
     /**
-     * {@see definitions()}, but appending into the caller's own array instead of building and
-     * returning a new one — what {@see table()} collects straight into {@see RouteTable}'s own
-     * `$definitions` out-parameter, with no array in between.
+     * What {@see collect()} collects into, kept here since it reaches into this tree's private state
+     * and recurses into nested groups — {@see definitions()} (inherited from {@see RouteTable}, not
+     * overridden here) is what a caller actually calls to read these, memoized together with the
+     * table's own metadata, exactly like {@see Router} itself does.
      *
-     * @param array<int, RouteDefinition> &$definitions appended to — not typed as a `list` since
-     *     {@see table()} hands this straight through from {@see \SilenZ\Beeline\RouteTable::collect()}'s
-     *     own `$definitions` out-parameter, which is only ever documented there as
-     *     `array<int, RouteDefinition>`, not guaranteed to be list-shaped
+     * @param array<int, RouteDefinition> &$definitions appended to
      */
     private function collectDefinitions(array &$definitions): void
     {

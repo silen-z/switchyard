@@ -12,9 +12,9 @@ use SilenZ\Beeline\Exception\InvalidRouteException;
 use SilenZ\Beeline\RouteDefinition;
 use SilenZ\Beeline\RouteMatch;
 use SilenZ\Beeline\Router;
-use SilenZ\Beeline\RouteTable;
 use SilenZ\Switchyard\Attribute\MethodNotAllowed;
 use SilenZ\Switchyard\Routes;
+use SilenZ\Switchyard\Tests\Fixtures\CallableRouteTable;
 use SilenZ\Switchyard\Tests\Fixtures\FeatureRouteFilter;
 use SilenZ\Switchyard\Tests\Fixtures\UserController;
 use stdClass;
@@ -384,7 +384,7 @@ final class RoutesTest extends TestCase
         };
 
         static::assertSame('yes', self::find(self::router($definitions), 'GET', '/invokable')['handler'] ?? null);
-        $table = new RouteTable(static function (array &$definitions) use ($raw): void {
+        $table = new CallableRouteTable(static function (array &$definitions) use ($raw): void {
             $definitions = $raw();
         });
         $result = new Router($table)->match('/raw');

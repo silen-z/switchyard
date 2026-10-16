@@ -47,7 +47,7 @@ use function strtoupper;
  * same way it does there too — see {@see Routes} for why it exists, and why there's no equivalent
  * for the default error middleware.
  */
-final class LazyRoutes
+final class LazyRoutes extends RouteTable
 {
     /** @var list<LazyRoute|self> */
     private array $items = [];
@@ -59,6 +59,14 @@ final class LazyRoutes
     private array $tags = [];
 
     private ?string $notFound = null;
+
+    /**
+     * Only set on the table-shell instance {@see table()} itself returns, never on the tree `$define`
+     * declares into — see {@see table()}/{@see collect()}.
+     *
+     * @var ?callable(self): void
+     */
+    private mixed $define = null;
 
     /**
      * @param string $prefix "" for no prefix (the root has none), otherwise starting with "/" and not
@@ -250,50 +258,54 @@ final class LazyRoutes
      * as its own default for a `null` key; only `Router` being given no cache at all compiles on every
      * request instead. `$define` is only called when the table's definitions or metadata are actually
      * needed, i.e. on a cache miss, so a request answered from the cache declares nothing at all —
-     * `Router` guarantees that by calling {@see \SilenZ\Beeline\RouteTable::collect()} at most once per
-     * request, so unlike an earlier shape of this method, there's no `$once`-style memoizing to do here
+     * {@see \SilenZ\Beeline\RouteTable} itself guarantees `$define` runs at most once per table-shell
+     * instance, so unlike an earlier shape of this method, there's no `$once`-style memoizing to do here
      * on top of that.
      *
      * @param callable(self): void $define
      */
     public static function table(callable $define, ?string $cacheKey = null): RouteTable
     {
-        return new RouteTable(static function (array &$definitions, mixed &$metadata) use ($define): void {
-            $routes = new self();
-            $define($routes);
+        $table = new self();
+        $table->define = $define;
+        $table->cacheKey = $cacheKey;
 
-            $routes->collectDefinitions($definitions);
-            $metadata = ['middleware' => $routes->middleware, 'notFound' => $routes->notFound];
-        }, $cacheKey);
+        return $table;
     }
 
     /**
-     * The routes as declared: full paths and metadata, for tooling that needs the declarations
-     * themselves, e.g. an index of routes by name, or generating documentation, not for matching
-     * requests.
+     * Builds the actual tree by calling the `$define` given to {@see table()} on a fresh instance, and
+     * collects that tree's definitions and metadata — never this instance's own, which {@see table()}
+     * leaves empty on purpose; see {@see $define}.
      *
-     * @return list<RouteDefinition>
+     * @param array<array-key, mixed> &$definitions always empty — see {@see RouteTable::collect()}
+     * @param-out array<int, RouteDefinition> $definitions
      */
-    public function definitions(): array
+    protected function collect(array &$definitions): mixed
     {
-        $definitions = [];
-        $this->collectDefinitions($definitions);
+        $define = $this->define;
+        if ($define === null) {
+            throw new InvalidRouteException(
+                'collect() was called on a LazyRoutes instance table() never set $define on — only the '
+                . 'table-shell instance table() itself returns is ever meant to be collected.',
+            );
+        }
 
-        /**
-         * @var list<RouteDefinition> $definitions guaranteed here even though
-         *     {@see collectDefinitions()} only accepts the wider `array<int, RouteDefinition>` (to
-         *     match what {@see table()} hands it from {@see \SilenZ\Beeline\RouteTable::collect()}):
-         *     starting from the empty list above, {@see collectDefinitions()} and the `register()` it
-         *     recurses into only ever append with `[]=`, never touch existing keys, so the result
-         *     stays list-shaped.
-         */
-        return $definitions;
+        $routes = new self();
+        $define($routes);
+
+        /** @var array<int, RouteDefinition> $typed always empty going in, so this is just a type assertion */
+        $typed = $definitions;
+        $routes->collectDefinitions($typed);
+        $definitions = $typed;
+
+        return ['middleware' => $routes->middleware, 'notFound' => $routes->notFound];
     }
 
     /**
-     * {@see definitions()}, but appending into the caller's own array instead of building and
-     * returning a new one — what {@see table()} collects straight into {@see RouteTable}'s own
-     * `$definitions` out-parameter, with no array in between.
+     * What {@see collect()} collects into, kept here since it reaches into this tree's private state
+     * and recurses into nested groups — {@see definitions()} (inherited from {@see RouteTable}, not
+     * overridden here) is what a caller actually calls to read these.
      *
      * @param array<int, RouteDefinition> &$definitions appended to — not typed as a `list` since
      *     {@see table()} hands this straight through from {@see \SilenZ\Beeline\RouteTable::collect()}'s

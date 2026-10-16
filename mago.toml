@@ -5,7 +5,7 @@ php-version = "8.4"
 [source]
 paths = ["src", "tests", "benchmarks", "examples"]
 includes = ["vendor"]
-excludes = ["var/**", "*/var/**"]
+excludes = ["var/**", "*/var/**", "vendor/**/.claude/**"]
 
 [analyzer]
 # Assigning a mixed value is harmless on its own: any later use that needs a real type is still
